@@ -1,4 +1,5 @@
 import { useCanvasStore } from '../../stores/canvasStore'
+import { useChatStore } from '../../stores/chatStore'
 
 export function NodeEditor() {
     const selectedNode = useCanvasStore(
@@ -9,6 +10,17 @@ export function NodeEditor() {
         (state) => state.updateNode,
     )
 
+    const activeContextNodeId = useChatStore(
+        (state) => state.activeContextNodeId,
+    )
+
+    const setActiveContextNodeId = useChatStore(
+        (state) => state.setActiveContextNodeId,
+    )
+
+    const isActiveContext =
+        activeContextNodeId === selectedNode?.id
+
     if (!selectedNode) {
         return null
     }
@@ -17,9 +29,14 @@ export function NodeEditor() {
         <aside className="absolute right-4 top-4 z-10 w-80 max-w-[calc(100vw-2rem)] rounded-xl bg-background p-4 shadow-sm">
             <button
                 type="button"
-                className="w-full mb-6 rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:border-primary/30 transition cursor-pointer"
+                onClick={() =>
+                    setActiveContextNodeId(selectedNode.id)
+                }
+                className="mb-6 w-full rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:border-primary/30 transition cursor-pointer"
             >
-                前往對話
+                {isActiveContext
+                    ? '已設為對話上下文'
+                    : '前往對話'}
             </button>
 
             <label className="block">
