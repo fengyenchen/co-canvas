@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 
 export function ChatPanel() {
   const [draft, setDraft] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const activeContextNodeId = useChatStore(
     (state) => state.activeContextNodeId,
@@ -20,6 +21,14 @@ export function ChatPanel() {
     (state) => state.messages,
   )
 
+  const isGenerating = useChatStore(
+    (state) => state.isGenerating,
+  )
+
+  const setIsGenerating = useChatStore(
+    (state) => state.setIsGenerating,
+  )
+
   const contextNode = useCanvasStore(
     (state) =>
       state.nodes.find(
@@ -32,10 +41,17 @@ export function ChatPanel() {
       message.contextNodeId === activeContextNodeId,
   )
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end',
+    })
+  }, [activeContextNodeId, isGenerating, visibleMessages.length])
+
   function handleSend() {
     const content = draft.trim()
 
-    if (!content || !activeContextNodeId) {
+    if (!content || !activeContextNodeId || isGenerating) {
       return
     }
 
@@ -46,6 +62,20 @@ export function ChatPanel() {
     })
 
     setDraft('')
+
+    const contextNodeId = activeContextNodeId
+
+    setIsGenerating(true)
+
+    window.setTimeout(() => {
+      addMessage({
+        role: 'ai',
+        content: `我收到你的指令：「${content}」`,
+        contextNodeId,
+      })
+
+      setIsGenerating(false)
+    }, 800)
   }
 
   if (!contextNode) {
@@ -53,10 +83,13 @@ export function ChatPanel() {
   }
 
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col border-r border-border bg-background">
-      <header className="flex items-center justify-between border-b border-border p-4">
+    <aside className="flex h-[55%] w-full max-w-full shrink-0 flex-col overflow-hidden border-b border-border bg-background lg:h-full lg:w-100 lg:border-b-0 lg:border-r">
+      <header className="flex shrink-0 items-center justify-between border-b border-border p-4">
         <h2 className="font-semibold text-foreground">
           對話
+          <span className="ml-1 text-xs text-foreground/60 lg:hidden">
+            ({contextNode.data.title})
+          </span>
         </h2>
 
         <button
@@ -69,7 +102,7 @@ export function ChatPanel() {
         </button>
       </header>
 
-      <div className="border-b border-border p-4">
+      <div className="hidden shrink-0 border-b border-border p-4 lg:block">
         <div className="text-xs text-foreground/60">
           正在延伸
         </div>
@@ -79,7 +112,7 @@ export function ChatPanel() {
         </div>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {visibleMessages.length === 0 ? (
           <div className="py-8 text-center text-sm text-foreground/50">
             輸入指令來延伸這個節點
@@ -96,7 +129,7 @@ export function ChatPanel() {
             >
               <div
                 className={[
-                  'max-w-[85%] whitespace-pre-wrap word-break rounded-xl px-3 py-2 text-sm',
+                  'max-w-[85%] whitespace-pre-wrap wrap-break-word rounded-xl px-3 py-2 text-sm',
                   message.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'border border-border bg-background text-foreground',
@@ -107,12 +140,22 @@ export function ChatPanel() {
             </div>
           ))
         )}
+
+        {isGenerating && (
+          <div className="flex justify-start">
+            <div className="rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground/60">
+              <span className="block animate-pulse">...</span>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-border p-4">
+      <div className="shrink-0 border-t border-border p-4">
         <label
           htmlFor="chat-message"
-          className="mb-2 block text-sm text-foreground/70"
+          className="mb-2 hidden text-sm text-foreground/70 lg:block"
         >
           輸入訊息
         </label>
@@ -133,7 +176,7 @@ export function ChatPanel() {
               handleSend()
             }
           }}
-          rows={3}
+          rows={2}
           placeholder="想問什麼…"
           className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
         />
@@ -141,7 +184,7 @@ export function ChatPanel() {
         <button
           type="button"
           onClick={handleSend}
-          disabled={!draft.trim()}
+          disabled={!draft.trim()  || isGenerating}
           className="mt-2 w-full cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           送出

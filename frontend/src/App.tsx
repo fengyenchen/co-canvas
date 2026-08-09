@@ -4,7 +4,7 @@ import './index.css'
 
 function App() {
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background lg:flex-row">
       <ChatPanel />
       <Canvas />
     </div>
