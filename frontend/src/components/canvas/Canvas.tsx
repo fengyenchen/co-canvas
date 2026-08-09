@@ -17,7 +17,7 @@ export function Canvas() {
     const onConnect = useCanvasStore((state) => state.onConnect)
 
     return (
-        <main className="relative h-screen w-screen bg-canvas">
+        <section className="relative h-full min-w-0 flex-1 bg-canvas">
             <button
                 type="button"
                 onClick={addNode}
@@ -41,6 +41,6 @@ export function Canvas() {
                 <Background />
                 <Controls />
             </ReactFlow>
-        </main>
+        </section>
     )
 }
