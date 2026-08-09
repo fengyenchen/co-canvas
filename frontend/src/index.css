@@ -4,56 +4,25 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-subtle-foreground: var(--subtle-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
   --color-border: var(--border);
-  --color-border-subtle: var(--border-subtle);
-  --color-border-strong: var(--border-strong);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
   --color-canvas: var(--canvas);
-  --color-canvas-workspace: var(--canvas-workspace);
 }
 
 :root {
   --background: #f5f5f7;
   --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
   --primary: #52525b;
   --primary-hover: #3f3f46;
   --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #3f3f46;
-  --muted: #e2e8f0;
-  --muted-foreground: #64748b;
-  --subtle-foreground: #94a3b8;
-  --accent: #f1f5f9;
-  --accent-foreground: #1e293b;
   --border: #e2e8f0;
-  --border-subtle: #f1f5f9;
-  --border-strong: #cbd5e1;
-  --input: #e2e8f0;
-  --ring: #64748b;
-  --canvas: #ffffff;
-  --canvas-workspace: #eeeeF1;
-  --canvas-pattern: #e4e4e8;
-  --canvas-grid: rgba(100, 116, 139, 0.14);
+  --canvas: #eeeef1;
+
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--foreground);
   background: var(--background);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
