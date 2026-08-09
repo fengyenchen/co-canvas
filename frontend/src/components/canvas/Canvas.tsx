@@ -2,6 +2,7 @@ import { Background, Controls, ReactFlow } from '@xyflow/react'
 import type { NodeTypes } from '@xyflow/react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { ConceptNode } from './ConceptNode'
+import { NodeEditor } from './NodeEditor'
 
 const nodeTypes: NodeTypes = {
     concept: ConceptNode,
@@ -24,6 +25,8 @@ export function Canvas() {
             >
                 新增節點
             </button>
+
+            <NodeEditor />
 
             <ReactFlow
                 nodes={nodes}

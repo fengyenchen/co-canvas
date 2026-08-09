@@ -1,16 +1,16 @@
 import type { Edge, Node } from '@xyflow/react'
 
-export type NodeSource = 'user' | 'ai'
+export type ContentOrigin = 'user' | 'ai'
 
 export type CanvasNodeData = {
     title: string
     content: string
-    source: NodeSource
+    origin: ContentOrigin
 }
 
 export type CanvasEdgeData = {
     label?: string
-    source: NodeSource
+    origin: ContentOrigin
 }
 
 export type CanvasNode = Node<CanvasNodeData>

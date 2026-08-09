@@ -8,13 +8,19 @@ import {
 } from '@xyflow/react'
 import { create } from 'zustand'
 
-import type { CanvasEdge, CanvasNode } from '../types/canvas'
+import type { CanvasEdge, CanvasNode, CanvasNodeData } from '../types/canvas'
 
 type CanvasState = {
     nodes: CanvasNode[]
     edges: CanvasEdge[]
 
     addNode: () => void
+    updateNode: (
+        nodeId: string,
+        updates: Partial<
+            Pick<CanvasNodeData, 'title' | 'content'>
+        >,
+    ) => void
     onNodesChange: (changes: NodeChange<CanvasNode>[]) => void
     onEdgesChange: (changes: EdgeChange<CanvasEdge>[]) => void
     onConnect: (connection: Connection) => void
@@ -36,7 +42,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
                 data: {
                     title: `新節點 ${state.nodes.length + 1}`,
                     content: '',
-                    source: 'user',
+                    origin: 'user',
                 },
             }
 
@@ -44,6 +50,21 @@ export const useCanvasStore = create<CanvasState>((set) => ({
                 nodes: [...state.nodes, newNode],
             }
         }),
+
+    updateNode: (nodeId, updates) =>
+        set((state) => ({
+            nodes: state.nodes.map((node) =>
+                node.id === nodeId ?
+                    {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            ...updates,
+                        },
+                    }
+                    : node,
+            ),
+        })),
 
     onNodesChange: (changes) =>
         set((state) => ({
@@ -62,7 +83,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
                     ...connection,
                     id: crypto.randomUUID(),
                     data: {
-                        source: 'user',
+                        origin: 'user',
                     },
                 },
                 state.edges,
