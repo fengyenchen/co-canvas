@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import type { ChatMessage, NewChatMessage } from '../types/chat'
+import type { SuggestionPreview } from '../types/suggestion'
 
 type ChatState = {
   activeContextNodeId: string | null
   messages: ChatMessage[]
   isGenerating: boolean
+  pendingSuggestion: SuggestionPreview | null
 
   setActiveContextNodeId: (
     nodeId: string | null,
@@ -13,12 +15,19 @@ type ChatState = {
   addMessage: (message: NewChatMessage) => void
 
   setIsGenerating: (isGenerating: boolean) => void
+
+  setPendingSuggestion: (
+    preview: SuggestionPreview,
+  ) => void
+
+  clearPendingSuggestion: () => void
 }
 
 export const useChatStore = create<ChatState>((set) => ({
   activeContextNodeId: null,
   messages: [],
   isGenerating: false,
+  pendingSuggestion: null,
 
   setActiveContextNodeId: (nodeId) =>
     set({
@@ -40,5 +49,15 @@ export const useChatStore = create<ChatState>((set) => ({
   setIsGenerating: (isGenerating) =>
     set({
       isGenerating,
+    }),
+
+  setPendingSuggestion: (preview) =>
+    set({
+      pendingSuggestion: preview,
+    }),
+
+  clearPendingSuggestion: () =>
+    set({
+      pendingSuggestion: null,
     }),
 }))
