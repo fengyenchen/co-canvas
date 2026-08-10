@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { ChatMessage, NewChatMessage } from '../types/chat'
 import type { SuggestionPreview } from '../types/suggestion'
 
@@ -23,41 +24,49 @@ type ChatState = {
   clearPendingSuggestion: () => void
 }
 
-export const useChatStore = create<ChatState>((set) => ({
-  activeContextNodeId: null,
-  messages: [],
-  isGenerating: false,
-  pendingSuggestion: null,
+export const useChatStore = create<ChatState>()(
+  persist((set) => ({
+    activeContextNodeId: null,
+    messages: [],
+    isGenerating: false,
+    pendingSuggestion: null,
 
-  setActiveContextNodeId: (nodeId) =>
-    set({
-      activeContextNodeId: nodeId,
+    setActiveContextNodeId: (nodeId) =>
+      set({
+        activeContextNodeId: nodeId,
+      }),
+
+    addMessage: (message) =>
+      set((state) => ({
+        messages: [
+          ...state.messages,
+          {
+            ...message,
+            id: crypto.randomUUID(),
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      })),
+
+    setIsGenerating: (isGenerating) =>
+      set({
+        isGenerating,
+      }),
+
+    setPendingSuggestion: (preview) =>
+      set({
+        pendingSuggestion: preview,
+      }),
+
+    clearPendingSuggestion: () =>
+      set({
+        pendingSuggestion: null,
+      }),
+  }), {
+    name: 'co-canvas-chat',
+    version: 1,
+    partialize: (state) => ({
+      messages: state.messages,
     }),
-
-  addMessage: (message) =>
-    set((state) => ({
-      messages: [
-        ...state.messages,
-        {
-          ...message,
-          id: crypto.randomUUID(),
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    })),
-
-  setIsGenerating: (isGenerating) =>
-    set({
-      isGenerating,
-    }),
-
-  setPendingSuggestion: (preview) =>
-    set({
-      pendingSuggestion: preview,
-    }),
-
-  clearPendingSuggestion: () =>
-    set({
-      pendingSuggestion: null,
-    }),
-}))
+  }),
+)
