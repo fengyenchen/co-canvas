@@ -6,9 +6,10 @@ export type ChatMessage = {
   content: string
   contextNodeId: string | null
   createdAt: string
+  canGenerateNodes?: boolean
 }
 
 export type NewChatMessage = Pick<
   ChatMessage,
-  'role' | 'content' | 'contextNodeId'
+  'role' | 'content' | 'contextNodeId' | 'canGenerateNodes'
 >

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { sendChatMessage } from '../../api/chat'
+import { generateSuggestion } from '../../api/generateSuggestion'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
+import { SuggestionPreview } from './SuggestionPreview'
 
 export function ChatPanel() {
   const [draft, setDraft] = useState('')
@@ -28,6 +30,10 @@ export function ChatPanel() {
 
   const setIsGenerating = useChatStore(
     (state) => state.setIsGenerating,
+  )
+
+  const setPendingSuggestion = useChatStore(
+    (state) => state.setPendingSuggestion,
   )
 
   const clearPendingSuggestion = useChatStore(
@@ -109,11 +115,69 @@ export function ChatPanel() {
         role: 'ai',
         content: message,
         contextNodeId,
+        canGenerateNodes: true,
       })
     } catch {
       addMessage({
         role: 'ai',
         content: '產生建議失敗，請確認後端已啟動後再試一次。',
+        contextNodeId,
+      })
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  async function requestSuggestion(sourceContent: string) {
+    if (!activeContextNodeId || !contextNode || isGenerating) {
+      return
+    }
+
+    const contextNodeId = activeContextNodeId
+
+    clearPendingSuggestion()
+    setIsGenerating(true)
+
+    try {
+      const neighborNodeIds = new Set(
+        edges.flatMap((edge) => {
+          if (edge.source === contextNodeId) {
+            return [edge.target]
+          }
+
+          if (edge.target === contextNodeId) {
+            return [edge.source]
+          }
+
+          return []
+        }),
+      )
+
+      const suggestion = await generateSuggestion({
+        prompt: `請將以下內容整理成適合畫布的節點：\n\n${sourceContent}`,
+        selectedNode: {
+          id: contextNode.id,
+          title: contextNode.data.title,
+          content: contextNode.data.content,
+        },
+        neighborNodes: nodes
+          .filter((node) => neighborNodeIds.has(node.id))
+          .map((node) => ({
+            id: node.id,
+            title: node.data.title,
+            content: node.data.content,
+          })),
+      })
+
+      setPendingSuggestion({
+        contextNodeId,
+        prompt: sourceContent,
+        suggestion,
+      })
+    } catch {
+      addMessage({
+        role: 'ai',
+        content: '產生節點失敗，請稍後再試一次。',
         contextNodeId,
       })
     } finally {
@@ -192,15 +256,30 @@ export function ChatPanel() {
                   : 'flex justify-start'
               }
             >
-              <div
-                className={[
-                  'max-w-[85%] whitespace-pre-wrap wrap-break-word rounded-xl px-3 py-2 text-sm',
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'border border-border bg-background text-foreground',
-                ].join(' ')}
-              >
-                {message.content}
+              <div className="max-w-[85%]">
+                <div
+                  className={[
+                    'whitespace-pre-wrap wrap-break-word rounded-xl px-3 py-2 text-sm',
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border border-border bg-background text-foreground',
+                  ].join(' ')}
+                >
+                  {message.content}
+                </div>
+
+                {message.role === 'ai' && message.canGenerateNodes && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void requestSuggestion(message.content)
+                    }}
+                    disabled={isGenerating}
+                    className="mt-1 cursor-pointer rounded-md px-2 py-1 text-xs text-foreground/60 transition hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    產生節點
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -213,6 +292,12 @@ export function ChatPanel() {
             </div>
           </div>
         )}
+
+        <SuggestionPreview
+          onRegenerate={(prompt) => {
+            void requestSuggestion(prompt)
+          }}
+        />
 
         <div ref={messagesEndRef} />
       </div>
