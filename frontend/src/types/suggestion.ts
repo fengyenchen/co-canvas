@@ -17,5 +17,6 @@ export type AiSuggestion = {
 
 export type SuggestionPreview = {
   contextNodeId: string | null
+  prompt: string
   suggestion: AiSuggestion
 }

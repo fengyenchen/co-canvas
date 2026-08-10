@@ -1,7 +1,13 @@
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 
-export function SuggestionPreview() {
+type SuggestionPreviewProps = {
+  onRegenerate: (prompt: string) => void
+}
+
+export function SuggestionPreview({
+  onRegenerate,
+}: SuggestionPreviewProps) {
   const activeContextNodeId = useChatStore(
     (state) => state.activeContextNodeId,
   )
@@ -57,6 +63,14 @@ export function SuggestionPreview() {
           className="flex-1 cursor-pointer rounded-lg border border-border px-3 py-2 text-sm text-foreground transition hover:border-primary/40"
         >
           取消
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onRegenerate(pendingSuggestion.prompt)}
+          className="flex-1 cursor-pointer rounded-lg border border-primary/30 px-3 py-2 text-sm text-primary transition hover:bg-primary/10"
+        >
+          重新生成
         </button>
 
         <button

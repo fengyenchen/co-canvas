@@ -58,9 +58,7 @@ export function ChatPanel() {
     })
   }, [activeContextNodeId, isGenerating, visibleMessages.length])
 
-  async function handleSend() {
-    const content = draft.trim()
-
+  async function requestSuggestion(content: string) {
     if (
       !content ||
       !activeContextNodeId ||
@@ -69,14 +67,6 @@ export function ChatPanel() {
     ) {
       return
     }
-
-    addMessage({
-      role: 'user',
-      content,
-      contextNodeId: activeContextNodeId,
-    })
-
-    setDraft('')
 
     const contextNodeId = activeContextNodeId
 
@@ -116,6 +106,7 @@ export function ChatPanel() {
 
       setPendingSuggestion({
         contextNodeId,
+        prompt: content,
         suggestion,
       })
 
@@ -133,6 +124,28 @@ export function ChatPanel() {
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  function handleSend() {
+    const content = draft.trim()
+
+    if (
+      !content ||
+      !activeContextNodeId ||
+      !contextNode ||
+      isGenerating
+    ) {
+      return
+    }
+
+    addMessage({
+      role: 'user',
+      content,
+      contextNodeId: activeContextNodeId,
+    })
+
+    setDraft('')
+    void requestSuggestion(content)
   }
 
   if (!contextNode) {
@@ -206,7 +219,11 @@ export function ChatPanel() {
           </div>
         )}
 
-        <SuggestionPreview />
+        <SuggestionPreview
+          onRegenerate={(prompt) => {
+            void requestSuggestion(prompt)
+          }}
+        />
 
         <div ref={messagesEndRef} />
       </div>
