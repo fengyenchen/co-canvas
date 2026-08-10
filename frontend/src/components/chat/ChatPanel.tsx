@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { createMockSuggestion } from '../../mocks/createMockSuggestion'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
+import { SuggestionPreview } from './SuggestionPreview'
 
 export function ChatPanel() {
   const [draft, setDraft] = useState('')
@@ -27,6 +29,14 @@ export function ChatPanel() {
 
   const setIsGenerating = useChatStore(
     (state) => state.setIsGenerating,
+  )
+
+  const setPendingSuggestion = useChatStore(
+    (state) => state.setPendingSuggestion,
+  )
+
+  const clearPendingSuggestion = useChatStore(
+    (state) => state.clearPendingSuggestion,
   )
 
   const contextNode = useCanvasStore(
@@ -65,12 +75,20 @@ export function ChatPanel() {
 
     const contextNodeId = activeContextNodeId
 
+    clearPendingSuggestion()
     setIsGenerating(true)
 
     window.setTimeout(() => {
+      const suggestion = createMockSuggestion(content)
+
+      setPendingSuggestion({
+        contextNodeId,
+        suggestion,
+      })
+
       addMessage({
         role: 'ai',
-        content: `我收到你的指令：「${content}」`,
+        content: `我整理了 ${suggestion.nodes.length} 個節點建議，請先預覽。`,
         contextNodeId,
       })
 
@@ -148,6 +166,8 @@ export function ChatPanel() {
             </div>
           </div>
         )}
+
+        <SuggestionPreview />
 
         <div ref={messagesEndRef} />
       </div>
