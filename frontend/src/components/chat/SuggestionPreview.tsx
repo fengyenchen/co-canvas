@@ -1,3 +1,4 @@
+import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 
 export function SuggestionPreview() {
@@ -11,6 +12,10 @@ export function SuggestionPreview() {
 
   const clearPendingSuggestion = useChatStore(
     (state) => state.clearPendingSuggestion,
+  )
+
+  const applySuggestion = useCanvasStore(
+    (state) => state.applySuggestion,
   )
 
   if (
@@ -45,13 +50,26 @@ export function SuggestionPreview() {
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={clearPendingSuggestion}
-        className="mt-3 w-full cursor-pointer rounded-lg border border-border px-3 py-2 text-sm text-foreground transition hover:border-primary/40"
-      >
-        取消
-      </button>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={clearPendingSuggestion}
+          className="flex-1 cursor-pointer rounded-lg border border-border px-3 py-2 text-sm text-foreground transition hover:border-primary/40"
+        >
+          取消
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            applySuggestion(pendingSuggestion)
+            clearPendingSuggestion()
+          }}
+          className="flex-1 cursor-pointer rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover"
+        >
+          加入畫布
+        </button>
+      </div>
     </section>
   )
 }

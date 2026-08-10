@@ -9,6 +9,7 @@ import {
 import { create } from 'zustand'
 
 import type { CanvasEdge, CanvasNode, CanvasNodeData } from '../types/canvas'
+import type { SuggestionPreview } from '../types/suggestion'
 
 type CanvasState = {
     nodes: CanvasNode[]
@@ -21,6 +22,7 @@ type CanvasState = {
             Pick<CanvasNodeData, 'title' | 'content'>
         >,
     ) => void
+    applySuggestion: (preview: SuggestionPreview) => void
     onNodesChange: (changes: NodeChange<CanvasNode>[]) => void
     onEdgesChange: (changes: EdgeChange<CanvasEdge>[]) => void
     onConnect: (connection: Connection) => void
@@ -65,6 +67,123 @@ export const useCanvasStore = create<CanvasState>((set) => ({
                     : node,
             ),
         })),
+
+    applySuggestion: (preview) =>
+        set((state) => {
+            const { contextNodeId, suggestion } = preview
+
+            const contextNode = contextNodeId
+                ? state.nodes.find((node) => node.id === contextNodeId)
+                : null
+
+            if (contextNodeId && !contextNode) {
+                return state
+            }
+
+            const nodeEntries = suggestion.nodes.map(
+                (suggestedNode) => ({
+                    suggestedNode,
+                    id: crypto.randomUUID(),
+                }),
+            )
+
+            const idByTempId = new Map(
+                nodeEntries.map(({ suggestedNode, id }) => [
+                    suggestedNode.tempId,
+                    id,
+                ]),
+            )
+
+            const startX = contextNode?.position.x ?? 100
+            const startY = contextNode
+                ? contextNode.position.y + 180
+                : 100
+
+            const newNodes: CanvasNode[] = nodeEntries.map(
+                ({ suggestedNode, id }, index) => ({
+                    id,
+                    type: 'concept',
+                    position: {
+                        x: startX,
+                        y: startY + index * 180,
+                    },
+                    data: {
+                        title: suggestedNode.title,
+                        content: suggestedNode.content,
+                        origin: 'ai',
+                    },
+                }),
+            )
+
+            const relationEdges: CanvasEdge[] =
+                suggestion.relations.flatMap((relation) => {
+                    const source = idByTempId.get(
+                        relation.sourceTempId,
+                    )
+                    const target = idByTempId.get(
+                        relation.targetTempId,
+                    )
+
+                    if (!source || !target) {
+                        return []
+                    }
+
+                    return [
+                        {
+                            id: crypto.randomUUID(),
+                            source,
+                            target,
+                            label: relation.label,
+                            data: {
+                                origin: 'ai',
+                                label: relation.label,
+                            },
+                        },
+                    ]
+                })
+
+            const relationTargets = new Set(
+                suggestion.relations.map(
+                    (relation) => relation.targetTempId,
+                ),
+            )
+
+            const rootSuggestedNodes = suggestion.nodes.filter(
+                (node) => !relationTargets.has(node.tempId),
+            )
+
+            const contextEdges: CanvasEdge[] = contextNode
+                ? rootSuggestedNodes.flatMap((node) => {
+                    const target = idByTempId.get(node.tempId)
+
+                    if (!target) {
+                        return []
+                    }
+
+                    return [
+                        {
+                            id: crypto.randomUUID(),
+                            source: contextNode.id,
+                            target,
+                            label: '延伸',
+                            data: {
+                                origin: 'ai',
+                                label: '延伸',
+                            },
+                        },
+                    ]
+                })
+                : []
+
+            return {
+                nodes: [...state.nodes, ...newNodes],
+                edges: [
+                    ...state.edges,
+                    ...contextEdges,
+                    ...relationEdges,
+                ],
+            }
+        }),
 
     onNodesChange: (changes) =>
         set((state) => ({
