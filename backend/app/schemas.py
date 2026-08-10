@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -23,6 +25,22 @@ class GenerateSuggestionRequest(ApiModel):
     prompt: str = Field(min_length=1, max_length=2000)
     selected_node: ContextNode | None = None
     neighbor_nodes: list[ContextNode] = Field(default_factory=list, max_length=20)
+
+
+class ChatHistoryMessage(ApiModel):
+    role: Literal["user", "ai"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class ChatRequest(ApiModel):
+    prompt: str = Field(min_length=1, max_length=4000)
+    selected_node: ContextNode | None = None
+    neighbor_nodes: list[ContextNode] = Field(default_factory=list, max_length=20)
+    history: list[ChatHistoryMessage] = Field(default_factory=list, max_length=30)
+
+
+class ChatResponse(ApiModel):
+    message: str = Field(min_length=1)
 
 
 class SuggestedNode(ApiModel):
