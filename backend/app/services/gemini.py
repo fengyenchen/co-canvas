@@ -1,5 +1,6 @@
 from google import genai
 from google.genai import types
+from pydantic import ValidationError
 
 from app.schemas import GenerateSuggestionRequest, GenerateSuggestionResponse
 from app.settings import get_settings
@@ -20,10 +21,19 @@ SYSTEM_INSTRUCTION = """
 """.strip()
 
 
+class GeminiConfigurationError(RuntimeError):
+    pass
+
+
 async def generate_with_gemini(
     request: GenerateSuggestionRequest,
 ) -> GenerateSuggestionResponse:
-    settings = get_settings()
+    try:
+        settings = get_settings()
+    except ValidationError as error:
+        raise GeminiConfigurationError(
+            "GEMINI_API_KEY is not configured"
+        ) from error
 
     async with genai.Client(
         api_key=settings.gemini_api_key.get_secret_value(),
@@ -38,7 +48,6 @@ async def generate_with_gemini(
                 system_instruction=SYSTEM_INSTRUCTION,
                 response_mime_type="application/json",
                 response_schema=GenerateSuggestionResponse,
-                temperature=0.3,
             ),
         )
 

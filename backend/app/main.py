@@ -1,7 +1,16 @@
+import asyncio
+import logging
+
 from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from google.genai.errors import APIError
 
 from app.schemas import GenerateSuggestionRequest, GenerateSuggestionResponse
+from app.services.gemini import GeminiConfigurationError, generate_with_gemini
+
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Co-Canvas API",
@@ -33,36 +42,28 @@ async def health():
 async def generate_suggestion(
     request: GenerateSuggestionRequest,
 ) -> GenerateSuggestionResponse:
-    return GenerateSuggestionResponse.model_validate(
-        {
-            "nodes": [
-                {
-                    "tempId": "suggestion-1",
-                    "title": "釐清目標",
-                    "content": f"確認「{request.prompt}」希望達成的具體結果。",
-                },
-                {
-                    "tempId": "suggestion-2",
-                    "title": "拆解執行步驟",
-                    "content": "將目標拆成可以逐步完成的行動。",
-                },
-                {
-                    "tempId": "suggestion-3",
-                    "title": "檢查風險",
-                    "content": "找出可能遇到的問題與替代方案。",
-                },
-            ],
-            "relations": [
-                {
-                    "sourceTempId": "suggestion-1",
-                    "targetTempId": "suggestion-2",
-                    "label": "接著",
-                },
-                {
-                    "sourceTempId": "suggestion-2",
-                    "targetTempId": "suggestion-3",
-                    "label": "最後",
-                },
-            ],
-        }
-    )
+    try:
+        async with asyncio.timeout(30):
+            return await generate_with_gemini(request)
+    except GeminiConfigurationError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini API Key 尚未設定",
+        ) from error
+    except TimeoutError as error:
+        raise HTTPException(
+            status_code=504,
+            detail="Gemini 回應逾時",
+        ) from error
+    except APIError as error:
+        logger.warning("Gemini API error: %s", error.code)
+        raise HTTPException(
+            status_code=502,
+            detail="Gemini 服務暫時無法使用",
+        ) from error
+    except (RuntimeError, ValueError) as error:
+        logger.exception("Invalid Gemini response")
+        raise HTTPException(
+            status_code=502,
+            detail="Gemini 回傳格式無效",
+        ) from error

@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     gemini_api_key: SecretStr
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.6-flash"
 
 
 @lru_cache
