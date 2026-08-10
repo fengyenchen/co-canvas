@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { generateSuggestion } from '../../api/generateSuggestion'
+import { sendChatMessage } from '../../api/chat'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
-import { SuggestionPreview } from './SuggestionPreview'
 
 export function ChatPanel() {
   const [draft, setDraft] = useState('')
@@ -31,10 +30,6 @@ export function ChatPanel() {
     (state) => state.setIsGenerating,
   )
 
-  const setPendingSuggestion = useChatStore(
-    (state) => state.setPendingSuggestion,
-  )
-
   const clearPendingSuggestion = useChatStore(
     (state) => state.clearPendingSuggestion,
   )
@@ -58,7 +53,7 @@ export function ChatPanel() {
     })
   }, [activeContextNodeId, isGenerating, visibleMessages.length])
 
-  async function requestSuggestion(content: string) {
+  async function requestChatResponse(content: string) {
     if (
       !content ||
       !activeContextNodeId ||
@@ -88,7 +83,7 @@ export function ChatPanel() {
         }),
       )
 
-      const suggestion = await generateSuggestion({
+      const message = await sendChatMessage({
         prompt: content,
         selectedNode: {
           id: contextNode.id,
@@ -102,17 +97,17 @@ export function ChatPanel() {
             title: node.data.title,
             content: node.data.content,
           })),
-      })
-
-      setPendingSuggestion({
-        contextNodeId,
-        prompt: content,
-        suggestion,
+        history: visibleMessages
+          .slice(-30)
+          .map(({ role, content: messageContent }) => ({
+            role,
+            content: messageContent,
+          })),
       })
 
       addMessage({
         role: 'ai',
-        content: `我整理了 ${suggestion.nodes.length} 個節點建議，請先預覽。`,
+        content: message,
         contextNodeId,
       })
     } catch {
@@ -145,7 +140,7 @@ export function ChatPanel() {
     })
 
     setDraft('')
-    void requestSuggestion(content)
+    void requestChatResponse(content)
   }
 
   if (!contextNode) {
@@ -218,12 +213,6 @@ export function ChatPanel() {
             </div>
           </div>
         )}
-
-        <SuggestionPreview
-          onRegenerate={(prompt) => {
-            void requestSuggestion(prompt)
-          }}
-        />
 
         <div ref={messagesEndRef} />
       </div>
