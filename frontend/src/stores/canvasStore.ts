@@ -7,6 +7,7 @@ import {
     type NodeChange,
 } from '@xyflow/react'
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 import type { CanvasEdge, CanvasNode, CanvasNodeData } from '../types/canvas'
 import type { SuggestionPreview } from '../types/suggestion'
@@ -102,7 +103,8 @@ type CanvasState = {
     onConnect: (connection: Connection) => void
 }
 
-export const useCanvasStore = create<CanvasState>((set) => ({
+export const useCanvasStore = create<CanvasState>()(
+    persist((set) => ({
     nodes: [],
     edges: [],
 
@@ -288,4 +290,22 @@ export const useCanvasStore = create<CanvasState>((set) => ({
                 state.edges,
             ),
         })),
-}))
+    }), {
+        name: 'co-canvas-canvas',
+        version: 1,
+        partialize: (state) => ({
+            nodes: state.nodes.map((node) => ({
+                ...node,
+                selected: false,
+                dragging: false,
+                measured: undefined,
+                width: undefined,
+                height: undefined,
+            })),
+            edges: state.edges.map((edge) => ({
+                ...edge,
+                selected: false,
+            })),
+        }),
+    }),
+)
