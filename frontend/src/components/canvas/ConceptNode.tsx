@@ -11,7 +11,7 @@ export function ConceptNode({
 }: NodeProps<CanvasNode>) {
     return (
         <div
-            className={`min-w-40 rounded-xl border bg-background px-4 py-3 shadow-sm
+            className={`w-64 rounded-xl border bg-background px-4 py-3 shadow-sm
             ${selected ? 'border-primary ring-2 ring-primary/15' : 'border-border'}`}
         >
             <Handle
@@ -21,12 +21,12 @@ export function ConceptNode({
                 className={handleClassName}
             />
 
-            <div className="font-semibold text-foreground">
+            <div className="wrap-break-word font-semibold text-foreground">
                 {data.title}
             </div>
 
             {data.content && (
-                <div className="mt-1 text-sm text-foreground/65">
+                <div className="mt-1 wrap-break-word text-sm text-foreground/65">
                     {data.content}
                 </div>
             )}

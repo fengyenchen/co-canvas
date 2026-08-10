@@ -11,6 +11,80 @@ import { create } from 'zustand'
 import type { CanvasEdge, CanvasNode, CanvasNodeData } from '../types/canvas'
 import type { SuggestionPreview } from '../types/suggestion'
 
+const SUGGESTED_NODE_WIDTH = 256
+const SUGGESTED_NODE_HEIGHT = 120
+const VERTICAL_STEP = 180
+const CONTEXT_GAP = 80
+const COLUMN_STEP = 336
+const COLLISION_PADDING = 40
+
+type NodeRect = {
+    left: number
+    top: number
+    right: number
+    bottom: number
+}
+
+function getNodeRect(node: CanvasNode): NodeRect {
+    const width =
+        node.measured?.width ?? node.width ?? SUGGESTED_NODE_WIDTH
+    const height =
+        node.measured?.height ?? node.height ?? SUGGESTED_NODE_HEIGHT
+
+    return {
+        left: node.position.x,
+        top: node.position.y,
+        right: node.position.x + width,
+        bottom: node.position.y + height,
+    }
+}
+
+function rectsOverlap(a: NodeRect, b: NodeRect): boolean {
+    return (
+        a.left < b.right + COLLISION_PADDING &&
+        a.right > b.left - COLLISION_PADDING &&
+        a.top < b.bottom + COLLISION_PADDING &&
+        a.bottom > b.top - COLLISION_PADDING
+    )
+}
+
+function findAvailableStartX(
+    nodes: CanvasNode[],
+    baseX: number,
+    startY: number,
+    suggestedNodeCount: number,
+): number {
+    if (suggestedNodeCount === 0) {
+        return baseX
+    }
+
+    const groupHeight =
+        (suggestedNodeCount - 1) * VERTICAL_STEP +
+        SUGGESTED_NODE_HEIGHT
+    const occupiedRects = nodes.map(getNodeRect)
+    const maxAttempts = nodes.length + 10
+
+    for (let attempt = 0; attempt <= maxAttempts; attempt += 1) {
+        const candidateX = baseX + attempt * COLUMN_STEP
+        const candidateRect: NodeRect = {
+            left: candidateX,
+            top: startY,
+            right: candidateX + SUGGESTED_NODE_WIDTH,
+            bottom: startY + groupHeight,
+        }
+
+        const hasCollision = occupiedRects.some((occupiedRect) =>
+            rectsOverlap(candidateRect, occupiedRect),
+        )
+
+        if (!hasCollision) {
+            return candidateX
+        }
+    }
+
+    return baseX + (maxAttempts + 1) * COLUMN_STEP
+}
+
 type CanvasState = {
     nodes: CanvasNode[]
     edges: CanvasEdge[]
@@ -94,10 +168,16 @@ export const useCanvasStore = create<CanvasState>((set) => ({
                 ]),
             )
 
-            const startX = contextNode?.position.x ?? 100
+            const baseX = contextNode?.position.x ?? 100
             const startY = contextNode
-                ? contextNode.position.y + 180
+                ? getNodeRect(contextNode).bottom + CONTEXT_GAP
                 : 100
+            const startX = findAvailableStartX(
+                state.nodes,
+                baseX,
+                startY,
+                nodeEntries.length,
+            )
 
             const newNodes: CanvasNode[] = nodeEntries.map(
                 ({ suggestedNode, id }, index) => ({
@@ -105,7 +185,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
                     type: 'concept',
                     position: {
                         x: startX,
-                        y: startY + index * 180,
+                        y: startY + index * VERTICAL_STEP,
                     },
                     data: {
                         title: suggestedNode.title,

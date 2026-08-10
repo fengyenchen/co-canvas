@@ -1,4 +1,12 @@
-import { Background, Controls, ReactFlow } from '@xyflow/react'
+import { useEffect, useRef } from 'react'
+import {
+    Background,
+    Controls,
+    ReactFlow,
+    ReactFlowProvider,
+    useNodesInitialized,
+    useReactFlow,
+} from '@xyflow/react'
 import type { NodeTypes } from '@xyflow/react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { ConceptNode } from './ConceptNode'
@@ -8,13 +16,36 @@ const nodeTypes: NodeTypes = {
     concept: ConceptNode,
 }
 
-export function Canvas() {
+function CanvasContent() {
     const nodes = useCanvasStore((state) => state.nodes)
+    const nodesInitialized = useNodesInitialized()
+    const { fitView } = useReactFlow()
+    const previousNodeCount = useRef(nodes.length)
+
     const edges = useCanvasStore((state) => state.edges)
     const addNode = useCanvasStore((state) => state.addNode)
     const onNodesChange = useCanvasStore((state) => state.onNodesChange)
     const onEdgesChange = useCanvasStore((state) => state.onEdgesChange)
     const onConnect = useCanvasStore((state) => state.onConnect)
+
+    useEffect(() => {
+        if (!nodesInitialized) {
+            return
+        }
+
+        const previousCount = previousNodeCount.current
+        previousNodeCount.current = nodes.length
+
+        if (nodes.length <= previousCount) {
+            return
+        }
+
+        void fitView({
+            padding: 0.2,
+            duration: 300,
+            maxZoom: 1.2,
+        })
+    }, [fitView, nodes.length, nodesInitialized])
 
     return (
         <section className="relative h-full min-w-0 flex-1 bg-canvas">
@@ -42,5 +73,13 @@ export function Canvas() {
                 <Controls />
             </ReactFlow>
         </section>
+    )
+}
+
+export function Canvas() {
+    return (
+        <ReactFlowProvider>
+            <CanvasContent />
+        </ReactFlowProvider>
     )
 }
