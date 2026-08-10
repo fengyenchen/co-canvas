@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createMockSuggestion } from '../../mocks/createMockSuggestion'
+import { generateSuggestion } from '../../api/generateSuggestion'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import { SuggestionPreview } from './SuggestionPreview'
@@ -39,12 +39,12 @@ export function ChatPanel() {
     (state) => state.clearPendingSuggestion,
   )
 
-  const contextNode = useCanvasStore(
-    (state) =>
-      state.nodes.find(
-        (node) => node.id === activeContextNodeId,
-      ) ?? null,
-  )
+  const nodes = useCanvasStore((state) => state.nodes)
+  const edges = useCanvasStore((state) => state.edges)
+
+  const contextNode = nodes.find(
+    (node) => node.id === activeContextNodeId,
+  ) ?? null
 
   const visibleMessages = messages.filter(
     (message) =>
@@ -58,10 +58,15 @@ export function ChatPanel() {
     })
   }, [activeContextNodeId, isGenerating, visibleMessages.length])
 
-  function handleSend() {
+  async function handleSend() {
     const content = draft.trim()
 
-    if (!content || !activeContextNodeId || isGenerating) {
+    if (
+      !content ||
+      !activeContextNodeId ||
+      !contextNode ||
+      isGenerating
+    ) {
       return
     }
 
@@ -78,8 +83,36 @@ export function ChatPanel() {
     clearPendingSuggestion()
     setIsGenerating(true)
 
-    window.setTimeout(() => {
-      const suggestion = createMockSuggestion(content)
+    try {
+      const neighborNodeIds = new Set(
+        edges.flatMap((edge) => {
+          if (edge.source === contextNodeId) {
+            return [edge.target]
+          }
+
+          if (edge.target === contextNodeId) {
+            return [edge.source]
+          }
+
+          return []
+        }),
+      )
+
+      const suggestion = await generateSuggestion({
+        prompt: content,
+        selectedNode: {
+          id: contextNode.id,
+          title: contextNode.data.title,
+          content: contextNode.data.content,
+        },
+        neighborNodes: nodes
+          .filter((node) => neighborNodeIds.has(node.id))
+          .map((node) => ({
+            id: node.id,
+            title: node.data.title,
+            content: node.data.content,
+          })),
+      })
 
       setPendingSuggestion({
         contextNodeId,
@@ -91,9 +124,15 @@ export function ChatPanel() {
         content: `我整理了 ${suggestion.nodes.length} 個節點建議，請先預覽。`,
         contextNodeId,
       })
-
+    } catch {
+      addMessage({
+        role: 'ai',
+        content: '產生建議失敗，請確認後端已啟動後再試一次。',
+        contextNodeId,
+      })
+    } finally {
       setIsGenerating(false)
-    }, 800)
+    }
   }
 
   if (!contextNode) {

@@ -28,6 +28,7 @@ async def health():
 @app.post(
     "/api/suggestions/generate",
     response_model=GenerateSuggestionResponse,
+    response_model_exclude_none=True,
 )
 async def generate_suggestion(
     request: GenerateSuggestionRequest,
