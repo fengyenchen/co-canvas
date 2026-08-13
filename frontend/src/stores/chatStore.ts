@@ -70,6 +70,7 @@ export const useChatStore = create<ChatState>()(
     name: 'co-canvas-chat',
     version: 1,
     partialize: (state) => ({
+      activeContextNodeId: state.activeContextNodeId,
       messages: state.messages,
     }),
   }),
