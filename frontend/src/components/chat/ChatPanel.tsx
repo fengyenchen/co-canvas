@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { sendChatMessage } from '../../api/chat'
 import { generateSuggestion } from '../../api/generateSuggestion'
+import { getHealth } from '../../api/health'
+import type { AiMode } from '../../api/health'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import { formatLatency } from '../../utils/formatLatency'
@@ -16,6 +18,7 @@ export function ChatPanel({
   mobileHeightPercent,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('')
+  const [aiMode, setAiMode] = useState<AiMode | 'offline'>('offline')
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [neighborSelection, setNeighborSelection] = useState<{
@@ -113,6 +116,26 @@ export function ChatPanel({
   const selectedContextNeighborNodes = contextNeighborNodes.filter(
     (node) => !excludedNeighborNodeIds.has(node.id),
   )
+
+  useEffect(() => {
+    let isCurrent = true
+
+    void getHealth()
+      .then((health) => {
+        if (isCurrent) {
+          setAiMode(health.aiMode)
+        }
+      })
+      .catch(() => {
+        if (isCurrent) {
+          setAiMode('offline')
+        }
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
 
   function toggleNeighborNode(nodeId: string) {
     setNeighborSelection((selection) => {
@@ -367,14 +390,52 @@ export function ChatPanel({
       className="flex h-[var(--mobile-chat-height)] w-full max-w-full shrink-0 flex-col overflow-hidden border-b border-border bg-background lg:h-full lg:w-100 lg:border-b-0 lg:border-r"
     >
       <header className="flex shrink-0 items-center justify-between border-b border-border p-4">
-        <h2 className="font-semibold text-foreground">
-          對話
-          <span className="ml-1 text-xs text-foreground/60 lg:hidden">
-            ({contextNode.data.title})
-          </span>
-        </h2>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <h2
+            title={contextNode.data.title}
+            className="min-w-0 truncate font-semibold text-foreground"
+          >
+            {contextNode.data.title}
+          </h2>
 
-        <div className="flex items-center gap-1">
+          <details className="group relative shrink-0">
+            <summary
+              className={[
+                'flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                aiMode === 'gemini'
+                  ? 'border-primary/20 bg-primary/5 text-primary'
+                  : aiMode === 'mock'
+                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-red-200 bg-red-50 text-red-600',
+              ].join(' ')}
+            >
+              <span
+                aria-hidden="true"
+                className={[
+                  'size-2 rounded-full',
+                  aiMode === 'gemini'
+                    ? 'bg-primary'
+                    : aiMode === 'mock'
+                      ? 'bg-amber-500'
+                      : 'bg-red-500',
+                ].join(' ')}
+              />
+              {aiMode === 'gemini'
+                ? 'Gemini'
+                : aiMode === 'mock'
+                  ? 'Mock'
+                  : '離線'}
+            </summary>
+
+            <div className="absolute left-0 top-full z-40 mt-2 w-56 rounded-lg border border-border bg-background p-3 text-xs leading-relaxed text-foreground/70 shadow-md">
+              {aiMode === 'gemini' && '目前使用 Gemini 產生回覆與節點。'}
+              {aiMode === 'mock' && '目前使用固定測試資料，不會呼叫 Gemini。'}
+              {aiMode === 'offline' && '無法連線後端，請確認服務是否已啟動。'}
+            </div>
+          </details>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
           {visibleMessages.length > 0 && (
             <button
               type="button"

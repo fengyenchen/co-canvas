@@ -17,7 +17,6 @@ def chat_with_mock(request: ChatRequest) -> ChatResponse:
 
     return ChatResponse(
         message=(
-            "【Mock 模式】這是測試用回覆，未呼叫 Gemini。\n\n"
             f"你正在延伸「{context_title}」，問題是：「{request.prompt}」。"
             "可以先整理目標、下一步與可能風險，再選擇需要轉成節點的內容。"
         )
