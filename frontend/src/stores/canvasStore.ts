@@ -18,6 +18,26 @@ const VERTICAL_STEP = 180
 const CONTEXT_GAP = 80
 const COLUMN_STEP = 336
 const COLLISION_PADDING = 40
+const HISTORY_LIMIT = 50
+
+type CanvasSnapshot = {
+    nodes: CanvasNode[]
+    edges: CanvasEdge[]
+}
+
+function createSnapshot(state: CanvasSnapshot): CanvasSnapshot {
+    return {
+        nodes: state.nodes,
+        edges: state.edges,
+    }
+}
+
+function addToHistory(
+    past: CanvasSnapshot[],
+    snapshot: CanvasSnapshot,
+): CanvasSnapshot[] {
+    return [...past, snapshot].slice(-HISTORY_LIMIT)
+}
 
 type NodeRect = {
     left: number
@@ -89,6 +109,11 @@ function findAvailableStartX(
 type CanvasState = {
     nodes: CanvasNode[]
     edges: CanvasEdge[]
+    past: CanvasSnapshot[]
+    future: CanvasSnapshot[]
+    isNodeDragging: boolean
+    canUndo: boolean
+    canRedo: boolean
 
     addNode: () => void
     updateNode: (
@@ -101,12 +126,19 @@ type CanvasState = {
     onNodesChange: (changes: NodeChange<CanvasNode>[]) => void
     onEdgesChange: (changes: EdgeChange<CanvasEdge>[]) => void
     onConnect: (connection: Connection) => void
+    undo: () => void
+    redo: () => void
 }
 
 export const useCanvasStore = create<CanvasState>()(
     persist((set) => ({
     nodes: [],
     edges: [],
+    past: [],
+    future: [],
+    isNodeDragging: false,
+    canUndo: false,
+    canRedo: false,
 
     addNode: () =>
         set((state) => {
@@ -126,6 +158,13 @@ export const useCanvasStore = create<CanvasState>()(
 
             return {
                 nodes: [...state.nodes, newNode],
+                past: addToHistory(
+                    state.past,
+                    createSnapshot(state),
+                ),
+                future: [],
+                canUndo: true,
+                canRedo: false,
             }
         }),
 
@@ -142,6 +181,13 @@ export const useCanvasStore = create<CanvasState>()(
                     }
                     : node,
             ),
+            past: addToHistory(
+                state.past,
+                createSnapshot(state),
+            ),
+            future: [],
+            canUndo: true,
+            canRedo: false,
         })),
 
     applySuggestion: (preview) =>
@@ -264,18 +310,73 @@ export const useCanvasStore = create<CanvasState>()(
                     ...contextEdges,
                     ...relationEdges,
                 ],
+                past: addToHistory(
+                    state.past,
+                    createSnapshot(state),
+                ),
+                future: [],
+                canUndo: true,
+                canRedo: false,
             }
         }),
 
     onNodesChange: (changes) =>
-        set((state) => ({
-            nodes: applyNodeChanges(changes, state.nodes),
-        })),
+        set((state) => {
+            const startsDragging = changes.some(
+                (change) =>
+                    change.type === 'position' &&
+                    change.dragging === true,
+            ) && !state.isNodeDragging
+            const stopsDragging = changes.some(
+                (change) =>
+                    change.type === 'position' &&
+                    change.dragging === false,
+            )
+            const removesNode = changes.some(
+                (change) => change.type === 'remove',
+            )
+            const shouldSaveHistory = startsDragging || removesNode
+
+            return {
+                nodes: applyNodeChanges(changes, state.nodes),
+                isNodeDragging: stopsDragging
+                    ? false
+                    : state.isNodeDragging || startsDragging,
+                ...(shouldSaveHistory
+                    ? {
+                        past: addToHistory(
+                            state.past,
+                            createSnapshot(state),
+                        ),
+                        future: [],
+                        canUndo: true,
+                        canRedo: false,
+                    }
+                    : {}),
+            }
+        }),
 
     onEdgesChange: (changes) =>
-        set((state) => ({
-            edges: applyEdgeChanges(changes, state.edges),
-        })),
+        set((state) => {
+            const removesEdge = changes.some(
+                (change) => change.type === 'remove',
+            )
+
+            return {
+                edges: applyEdgeChanges(changes, state.edges),
+                ...(removesEdge
+                    ? {
+                        past: addToHistory(
+                            state.past,
+                            createSnapshot(state),
+                        ),
+                        future: [],
+                        canUndo: true,
+                        canRedo: false,
+                    }
+                    : {}),
+            }
+        }),
 
     onConnect: (connection) =>
         set((state) => ({
@@ -289,7 +390,60 @@ export const useCanvasStore = create<CanvasState>()(
                 },
                 state.edges,
             ),
+            past: addToHistory(
+                state.past,
+                createSnapshot(state),
+            ),
+            future: [],
+            canUndo: true,
+            canRedo: false,
         })),
+
+    undo: () =>
+        set((state) => {
+            const previous = state.past.at(-1)
+
+            if (!previous) {
+                return state
+            }
+
+            const past = state.past.slice(0, -1)
+
+            return {
+                ...previous,
+                past,
+                future: [
+                    createSnapshot(state),
+                    ...state.future,
+                ],
+                isNodeDragging: false,
+                canUndo: past.length > 0,
+                canRedo: true,
+            }
+        }),
+
+    redo: () =>
+        set((state) => {
+            const [next, ...future] = state.future
+
+            if (!next) {
+                return state
+            }
+
+            const past = addToHistory(
+                state.past,
+                createSnapshot(state),
+            )
+
+            return {
+                ...next,
+                past,
+                future,
+                isNodeDragging: false,
+                canUndo: true,
+                canRedo: future.length > 0,
+            }
+        }),
     }), {
         name: 'co-canvas-canvas',
         version: 1,
