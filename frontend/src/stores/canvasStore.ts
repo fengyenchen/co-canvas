@@ -216,6 +216,7 @@ type CanvasState = {
     autoLayout: () => void
     undo: () => void
     redo: () => void
+    replaceProject: (nodes: CanvasNode[], edges: CanvasEdge[]) => void
 }
 
 export const useCanvasStore = create<CanvasState>()(
@@ -687,6 +688,17 @@ export const useCanvasStore = create<CanvasState>()(
                 canUndo: true,
                 canRedo: future.length > 0,
             }
+        }),
+
+    replaceProject: (nodes, edges) =>
+        set({
+            nodes,
+            edges,
+            past: [],
+            future: [],
+            isNodeDragging: false,
+            canUndo: false,
+            canRedo: false,
         }),
     }), {
         name: 'co-canvas-canvas',

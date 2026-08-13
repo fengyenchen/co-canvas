@@ -34,6 +34,8 @@ type ChatState = {
   ) => void
 
   clearPendingSuggestion: () => void
+
+  replaceProjectMessages: (messages: ChatMessage[]) => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -126,6 +128,14 @@ export const useChatStore = create<ChatState>()(
 
     clearPendingSuggestion: () =>
       set({
+        pendingSuggestion: null,
+      }),
+
+    replaceProjectMessages: (messages) =>
+      set({
+        messages,
+        activeContextNodeId: null,
+        generationMode: null,
         pendingSuggestion: null,
       }),
   }), {
