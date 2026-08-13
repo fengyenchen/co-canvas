@@ -1,5 +1,6 @@
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
+import { formatLatency } from '../../utils/formatLatency'
 
 type SuggestionPreviewProps = {
   onRegenerate: (prompt: string) => void
@@ -33,8 +34,14 @@ export function SuggestionPreview({
 
   return (
     <section className="rounded-xl border border-primary/20 bg-primary/5 p-3">
-      <div className="mb-3 text-sm font-medium text-foreground">
-        建議節點
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="text-sm font-medium text-foreground">
+          建議節點
+        </div>
+
+        <div className="text-xs text-foreground/45">
+          生成 {formatLatency(pendingSuggestion.latencyMs)}
+        </div>
       </div>
 
       <div className="space-y-2">

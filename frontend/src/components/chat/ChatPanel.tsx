@@ -3,6 +3,8 @@ import { sendChatMessage } from '../../api/chat'
 import { generateSuggestion } from '../../api/generateSuggestion'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
+import { formatLatency } from '../../utils/formatLatency'
+import { measureRequest } from '../../utils/measureRequest'
 import { SuggestionPreview } from './SuggestionPreview'
 
 export function ChatPanel() {
@@ -76,22 +78,22 @@ export function ChatPanel() {
     clearPendingSuggestion()
     setGenerationMode('chat')
 
-    try {
-      const neighborNodeIds = new Set(
-        edges.flatMap((edge) => {
-          if (edge.source === contextNodeId) {
-            return [edge.target]
-          }
+    const neighborNodeIds = new Set(
+      edges.flatMap((edge) => {
+        if (edge.source === contextNodeId) {
+          return [edge.target]
+        }
 
-          if (edge.target === contextNodeId) {
-            return [edge.source]
-          }
+        if (edge.target === contextNodeId) {
+          return [edge.source]
+        }
 
-          return []
-        }),
-      )
+        return []
+      }),
+    )
 
-      const message = await sendChatMessage({
+    const result = await measureRequest(() =>
+      sendChatMessage({
         prompt: content,
         selectedNode: {
           id: contextNode.id,
@@ -111,23 +113,27 @@ export function ChatPanel() {
             role,
             content: messageContent,
           })),
-      })
+      }),
+    )
 
+    if (result.ok) {
       addMessage({
         role: 'ai',
-        content: message,
+        content: result.data,
         contextNodeId,
         canGenerateNodes: true,
+        latencyMs: result.latencyMs,
       })
-    } catch {
+    } else {
       addMessage({
         role: 'ai',
         content: 'AI 回覆失敗，請確認後端已啟動後再試一次。',
         contextNodeId,
+        latencyMs: result.latencyMs,
       })
-    } finally {
-      setGenerationMode(null)
     }
+
+    setGenerationMode(null)
   }
 
   async function requestSuggestion(sourceContent: string) {
@@ -140,22 +146,22 @@ export function ChatPanel() {
     clearPendingSuggestion()
     setGenerationMode('suggestion')
 
-    try {
-      const neighborNodeIds = new Set(
-        edges.flatMap((edge) => {
-          if (edge.source === contextNodeId) {
-            return [edge.target]
-          }
+    const neighborNodeIds = new Set(
+      edges.flatMap((edge) => {
+        if (edge.source === contextNodeId) {
+          return [edge.target]
+        }
 
-          if (edge.target === contextNodeId) {
-            return [edge.source]
-          }
+        if (edge.target === contextNodeId) {
+          return [edge.source]
+        }
 
-          return []
-        }),
-      )
+        return []
+      }),
+    )
 
-      const suggestion = await generateSuggestion({
+    const result = await measureRequest(() =>
+      generateSuggestion({
         prompt: `請將以下內容整理成適合畫布的節點：\n\n${sourceContent}`,
         selectedNode: {
           id: contextNode.id,
@@ -169,22 +175,26 @@ export function ChatPanel() {
             title: node.data.title,
             content: node.data.content,
           })),
-      })
+      }),
+    )
 
+    if (result.ok) {
       setPendingSuggestion({
         contextNodeId,
         prompt: sourceContent,
-        suggestion,
+        suggestion: result.data,
+        latencyMs: result.latencyMs,
       })
-    } catch {
+    } else {
       addMessage({
         role: 'ai',
         content: '產生節點失敗，請稍後再試一次。',
         contextNodeId,
+        latencyMs: result.latencyMs,
       })
-    } finally {
-      setGenerationMode(null)
     }
+
+    setGenerationMode(null)
   }
 
   function handleSend() {
@@ -270,17 +280,27 @@ export function ChatPanel() {
                   {message.content}
                 </div>
 
-                {message.role === 'ai' && message.canGenerateNodes && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void requestSuggestion(message.content)
-                    }}
-                    disabled={isGenerating}
-                    className="mt-1 cursor-pointer rounded-md px-2 py-1 text-xs text-foreground/60 transition hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    產生節點
-                  </button>
+                {message.role === 'ai' && (
+                  <div className="mt-1 flex min-h-7 items-center gap-1">
+                    {message.latencyMs !== undefined && (
+                      <span className="px-2 text-xs text-foreground/45">
+                        回應 {formatLatency(message.latencyMs)}
+                      </span>
+                    )}
+
+                    {message.canGenerateNodes && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void requestSuggestion(message.content)
+                        }}
+                        disabled={isGenerating}
+                        className="cursor-pointer rounded-md px-2 py-1 text-xs text-foreground/60 transition hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        產生節點
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

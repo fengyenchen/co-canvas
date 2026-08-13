@@ -19,4 +19,5 @@ export type SuggestionPreview = {
   contextNodeId: string | null
   prompt: string
   suggestion: AiSuggestion
+  latencyMs: number
 }
