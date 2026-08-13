@@ -234,6 +234,15 @@ export function ChatPanel({
       }),
     )
 
+    const contextStillExists = useCanvasStore
+      .getState()
+      .nodes.some((node) => node.id === contextNodeId)
+
+    if (!contextStillExists) {
+      setGenerationMode(null)
+      return
+    }
+
     if (result.ok) {
       addMessage({
         role: 'ai',
@@ -280,6 +289,15 @@ export function ChatPanel({
           })),
       }),
     )
+
+    const contextStillExists = useCanvasStore
+      .getState()
+      .nodes.some((node) => node.id === contextNodeId)
+
+    if (!contextStillExists) {
+      setGenerationMode(null)
+      return
+    }
 
     if (result.ok) {
       setPendingSuggestion({

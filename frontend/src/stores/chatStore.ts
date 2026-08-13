@@ -19,6 +19,8 @@ type ChatState = {
 
   clearMessagesByContext: (contextNodeId: string) => void
 
+  removeContexts: (contextNodeIds: string[]) => void
+
   deleteMessage: (messageId: string) => void
 
   updateMessage: (messageId: string, content: string) => void
@@ -68,6 +70,33 @@ export const useChatStore = create<ChatState>()(
             ? null
             : state.pendingSuggestion,
       })),
+
+    removeContexts: (contextNodeIds) =>
+      set((state) => {
+        const removedIds = new Set(contextNodeIds)
+        const removesActiveContext =
+          state.activeContextNodeId !== null &&
+          removedIds.has(state.activeContextNodeId)
+
+        return {
+          messages: state.messages.filter(
+            (message) =>
+              message.contextNodeId === null ||
+              !removedIds.has(message.contextNodeId),
+          ),
+          activeContextNodeId: removesActiveContext
+            ? null
+            : state.activeContextNodeId,
+          pendingSuggestion:
+            state.pendingSuggestion?.contextNodeId &&
+            removedIds.has(state.pendingSuggestion.contextNodeId)
+              ? null
+              : state.pendingSuggestion,
+          generationMode: removesActiveContext
+            ? null
+            : state.generationMode,
+        }
+      }),
 
     deleteMessage: (messageId) =>
       set((state) => ({

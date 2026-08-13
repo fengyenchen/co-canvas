@@ -12,6 +12,7 @@ import { persist } from 'zustand/middleware'
 
 import type { CanvasEdge, CanvasNode, CanvasNodeData } from '../types/canvas'
 import type { SuggestionPreview } from '../types/suggestion'
+import { useChatStore } from './chatStore'
 
 const SUGGESTED_NODE_WIDTH = 256
 const SUGGESTED_NODE_HEIGHT = 120
@@ -287,6 +288,8 @@ export const useCanvasStore = create<CanvasState>()(
                 return state
             }
 
+            useChatStore.getState().removeContexts([nodeId])
+
             return {
                 nodes: state.nodes.filter(
                     (node) => node.id !== nodeId,
@@ -320,6 +323,10 @@ export const useCanvasStore = create<CanvasState>()(
                 nodeId,
                 state.edges,
             )
+
+            useChatStore
+                .getState()
+                .removeContexts([...branchNodeIds])
 
             return {
                 nodes: state.nodes.filter(
@@ -531,6 +538,16 @@ export const useCanvasStore = create<CanvasState>()(
 
     onNodesChange: (changes) =>
         set((state) => {
+            const removedNodeIds = changes.flatMap((change) =>
+                change.type === 'remove' ? [change.id] : [],
+            )
+
+            if (removedNodeIds.length > 0) {
+                useChatStore
+                    .getState()
+                    .removeContexts(removedNodeIds)
+            }
+
             const startsDragging = changes.some(
                 (change) =>
                     change.type === 'position' &&
