@@ -206,6 +206,8 @@ type CanvasState = {
     ) => void
     deleteNode: (nodeId: string) => void
     deleteBranch: (nodeId: string) => void
+    updateEdgeLabel: (edgeId: string, label: string) => void
+    deleteEdge: (edgeId: string) => void
     applySuggestion: (preview: SuggestionPreview) => void
     onNodesChange: (changes: NodeChange<CanvasNode>[]) => void
     onEdgesChange: (changes: EdgeChange<CanvasEdge>[]) => void
@@ -327,6 +329,65 @@ export const useCanvasStore = create<CanvasState>()(
                     (edge) =>
                         !branchNodeIds.has(edge.source) &&
                         !branchNodeIds.has(edge.target),
+                ),
+                past: addToHistory(
+                    state.past,
+                    createSnapshot(state),
+                ),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
+    updateEdgeLabel: (edgeId, label) =>
+        set((state) => {
+            const edge = state.edges.find(
+                (candidate) => candidate.id === edgeId,
+            )
+
+            if (!edge || edge.label === label) {
+                return state
+            }
+
+            return {
+                edges: state.edges.map((candidate) =>
+                    candidate.id === edgeId
+                        ? {
+                            ...candidate,
+                            label,
+                            data: {
+                                ...candidate.data,
+                                origin:
+                                    candidate.data?.origin ?? 'user',
+                                label,
+                            },
+                        }
+                        : candidate,
+                ),
+                past: addToHistory(
+                    state.past,
+                    createSnapshot(state),
+                ),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
+    deleteEdge: (edgeId) =>
+        set((state) => {
+            const hasEdge = state.edges.some(
+                (edge) => edge.id === edgeId,
+            )
+
+            if (!hasEdge) {
+                return state
+            }
+
+            return {
+                edges: state.edges.filter(
+                    (edge) => edge.id !== edgeId,
                 ),
                 past: addToHistory(
                     state.past,

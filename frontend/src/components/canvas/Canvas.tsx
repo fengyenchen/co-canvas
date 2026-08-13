@@ -10,6 +10,7 @@ import {
 import type { NodeTypes } from '@xyflow/react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { ConceptNode } from './ConceptNode'
+import { EdgeEditor } from './EdgeEditor'
 import { NodeEditor } from './NodeEditor'
 
 const nodeTypes: NodeTypes = {
@@ -159,6 +160,7 @@ function CanvasContent() {
             </div>
 
             <NodeEditor />
+            <EdgeEditor />
 
             <ReactFlow
                 nodes={nodes}
