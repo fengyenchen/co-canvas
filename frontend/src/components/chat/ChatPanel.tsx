@@ -80,6 +80,24 @@ export function ChatPanel({
       message.contextNodeId === activeContextNodeId,
   )
 
+  const neighborNodeIds = new Set(
+    edges.flatMap((edge) => {
+      if (edge.source === activeContextNodeId) {
+        return [edge.target]
+      }
+
+      if (edge.target === activeContextNodeId) {
+        return [edge.source]
+      }
+
+      return []
+    }),
+  )
+
+  const contextNeighborNodes = nodes.filter((node) =>
+    neighborNodeIds.has(node.id),
+  )
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: 'smooth',
@@ -156,20 +174,6 @@ export function ChatPanel({
     clearPendingSuggestion()
     setGenerationMode('chat')
 
-    const neighborNodeIds = new Set(
-      edges.flatMap((edge) => {
-        if (edge.source === contextNodeId) {
-          return [edge.target]
-        }
-
-        if (edge.target === contextNodeId) {
-          return [edge.source]
-        }
-
-        return []
-      }),
-    )
-
     const result = await measureRequest(() =>
       sendChatMessage({
         prompt: content,
@@ -178,8 +182,7 @@ export function ChatPanel({
           title: contextNode.data.title,
           content: contextNode.data.content,
         },
-        neighborNodes: nodes
-          .filter((node) => neighborNodeIds.has(node.id))
+        neighborNodes: contextNeighborNodes
           .map((node) => ({
             id: node.id,
             title: node.data.title,
@@ -225,20 +228,6 @@ export function ChatPanel({
     clearPendingSuggestion()
     setGenerationMode('suggestion')
 
-    const neighborNodeIds = new Set(
-      edges.flatMap((edge) => {
-        if (edge.source === contextNodeId) {
-          return [edge.target]
-        }
-
-        if (edge.target === contextNodeId) {
-          return [edge.source]
-        }
-
-        return []
-      }),
-    )
-
     const result = await measureRequest(() =>
       generateSuggestion({
         prompt: `請將以下內容整理成適合畫布的節點：\n\n${sourceContent}`,
@@ -247,8 +236,7 @@ export function ChatPanel({
           title: contextNode.data.title,
           content: contextNode.data.content,
         },
-        neighborNodes: nodes
-          .filter((node) => neighborNodeIds.has(node.id))
+        neighborNodes: contextNeighborNodes
           .map((node) => ({
             id: node.id,
             title: node.data.title,
@@ -362,15 +350,44 @@ export function ChatPanel({
         </div>
       </header>
 
-      <div className="hidden shrink-0 border-b border-border p-4 lg:block">
-        <div className="text-xs text-foreground/60">
-          正在延伸
-        </div>
+      <details className="group shrink-0 border-b border-border bg-primary/3">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 text-sm text-foreground/70 transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30">
+          <span>
+            AI 上下文：目前節點
+            {contextNeighborNodes.length > 0
+              ? `＋${contextNeighborNodes.length} 個相鄰節點`
+              : '（無相鄰節點）'}
+          </span>
+          <span
+            aria-hidden="true"
+            className="text-xs transition-transform group-open:rotate-180"
+          >
+            ▾
+          </span>
+        </summary>
 
-        <div className="mt-1 font-medium text-foreground">
-          {contextNode.data.title}
+        <div className="space-y-2 px-4 pb-3 text-sm">
+          <div>
+            <div className="text-xs text-foreground/50">目前節點</div>
+            <div className="mt-0.5 font-medium text-foreground">
+              {contextNode.data.title}
+            </div>
+          </div>
+
+          {contextNeighborNodes.length > 0 && (
+            <div>
+              <div className="text-xs text-foreground/50">
+                一層相鄰節點
+              </div>
+              <ul className="mt-1 space-y-1 text-foreground/70">
+                {contextNeighborNodes.map((node) => (
+                  <li key={node.id}>• {node.data.title}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-      </div>
+      </details>
 
       <div
         ref={messagesContainerRef}
