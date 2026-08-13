@@ -39,6 +39,30 @@ function addToHistory(
     return [...past, snapshot].slice(-HISTORY_LIMIT)
 }
 
+function getBranchNodeIds(
+    rootNodeId: string,
+    edges: CanvasEdge[],
+): Set<string> {
+    const nodeIds = new Set([rootNodeId])
+    const pendingNodeIds = [rootNodeId]
+
+    while (pendingNodeIds.length > 0) {
+        const sourceNodeId = pendingNodeIds.pop()
+
+        for (const edge of edges) {
+            if (
+                edge.source === sourceNodeId &&
+                !nodeIds.has(edge.target)
+            ) {
+                nodeIds.add(edge.target)
+                pendingNodeIds.push(edge.target)
+            }
+        }
+    }
+
+    return nodeIds
+}
+
 type NodeRect = {
     left: number
     top: number
@@ -122,6 +146,8 @@ type CanvasState = {
             Pick<CanvasNodeData, 'title' | 'content'>
         >,
     ) => void
+    deleteNode: (nodeId: string) => void
+    deleteBranch: (nodeId: string) => void
     applySuggestion: (preview: SuggestionPreview) => void
     onNodesChange: (changes: NodeChange<CanvasNode>[]) => void
     onEdgesChange: (changes: EdgeChange<CanvasEdge>[]) => void
@@ -189,6 +215,69 @@ export const useCanvasStore = create<CanvasState>()(
             canUndo: true,
             canRedo: false,
         })),
+
+    deleteNode: (nodeId) =>
+        set((state) => {
+            const hasNode = state.nodes.some(
+                (node) => node.id === nodeId,
+            )
+
+            if (!hasNode) {
+                return state
+            }
+
+            return {
+                nodes: state.nodes.filter(
+                    (node) => node.id !== nodeId,
+                ),
+                edges: state.edges.filter(
+                    (edge) =>
+                        edge.source !== nodeId &&
+                        edge.target !== nodeId,
+                ),
+                past: addToHistory(
+                    state.past,
+                    createSnapshot(state),
+                ),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
+    deleteBranch: (nodeId) =>
+        set((state) => {
+            const hasNode = state.nodes.some(
+                (node) => node.id === nodeId,
+            )
+
+            if (!hasNode) {
+                return state
+            }
+
+            const branchNodeIds = getBranchNodeIds(
+                nodeId,
+                state.edges,
+            )
+
+            return {
+                nodes: state.nodes.filter(
+                    (node) => !branchNodeIds.has(node.id),
+                ),
+                edges: state.edges.filter(
+                    (edge) =>
+                        !branchNodeIds.has(edge.source) &&
+                        !branchNodeIds.has(edge.target),
+                ),
+                past: addToHistory(
+                    state.past,
+                    createSnapshot(state),
+                ),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
 
     applySuggestion: (preview) =>
         set((state) => {

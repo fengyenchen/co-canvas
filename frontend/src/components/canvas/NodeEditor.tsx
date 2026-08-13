@@ -9,6 +9,12 @@ export function NodeEditor() {
     const updateNode = useCanvasStore(
         (state) => state.updateNode,
     )
+    const deleteNode = useCanvasStore(
+        (state) => state.deleteNode,
+    )
+    const deleteBranch = useCanvasStore(
+        (state) => state.deleteBranch,
+    )
 
     const activeContextNodeId = useChatStore(
         (state) => state.activeContextNodeId,
@@ -72,6 +78,46 @@ export function NodeEditor() {
                     className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                 />
             </label>
+
+            <div className="mt-6 space-y-2 border-t border-border pt-4">
+                <button
+                    type="button"
+                    onClick={() => {
+                        deleteNode(selectedNode.id)
+
+                        if (
+                            activeContextNodeId &&
+                            !useCanvasStore.getState().nodes.some(
+                                (node) => node.id === activeContextNodeId,
+                            )
+                        ) {
+                            setActiveContextNodeId(null)
+                        }
+                    }}
+                    className="w-full cursor-pointer rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-red-200 hover:text-red-600"
+                >
+                    只刪除此節點
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => {
+                        deleteBranch(selectedNode.id)
+
+                        if (
+                            activeContextNodeId &&
+                            !useCanvasStore.getState().nodes.some(
+                                (node) => node.id === activeContextNodeId,
+                            )
+                        ) {
+                            setActiveContextNodeId(null)
+                        }
+                    }}
+                    className="w-full cursor-pointer rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition hover:bg-red-50"
+                >
+                    刪除此分支
+                </button>
+            </div>
         </aside>
     )
 }
