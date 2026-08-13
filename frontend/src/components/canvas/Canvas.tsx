@@ -9,6 +9,7 @@ import {
 } from '@xyflow/react'
 import type { NodeTypes } from '@xyflow/react'
 import { useCanvasStore } from '../../stores/canvasStore'
+import { useChatStore } from '../../stores/chatStore'
 import { ConceptNode } from './ConceptNode'
 import { EdgeEditor } from './EdgeEditor'
 import { NodeEditor } from './NodeEditor'
@@ -33,6 +34,9 @@ function CanvasContent() {
     const autoLayout = useCanvasStore((state) => state.autoLayout)
     const canUndo = useCanvasStore((state) => state.canUndo)
     const canRedo = useCanvasStore((state) => state.canRedo)
+    const setActiveContextNodeId = useChatStore(
+        (state) => state.setActiveContextNodeId,
+    )
 
     function handleAutoLayout() {
         autoLayout()
@@ -157,6 +161,8 @@ function CanvasContent() {
                 <span>Shift + 拖曳：框選</span>
                 <span aria-hidden="true">·</span>
                 <span>Space + 拖曳：移動畫布</span>
+                <span aria-hidden="true">·</span>
+                <span>雙擊節點：進入對話</span>
             </div>
 
             <NodeEditor />
@@ -169,6 +175,9 @@ function CanvasContent() {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
+                onNodeDoubleClick={(_, node) =>
+                    setActiveContextNodeId(node.id)
+                }
                 className="bg-canvas"
                 fitView
             >
