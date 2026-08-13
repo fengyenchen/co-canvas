@@ -6,6 +6,7 @@ import {
     type EdgeChange,
     type NodeChange,
 } from '@xyflow/react'
+import dagre from '@dagrejs/dagre'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -19,6 +20,8 @@ const CONTEXT_GAP = 80
 const COLUMN_STEP = 336
 const COLLISION_PADDING = 40
 const HISTORY_LIMIT = 50
+const LAYOUT_NODE_GAP = 64
+const LAYOUT_RANK_GAP = 96
 
 type CanvasSnapshot = {
     nodes: CanvasNode[]
@@ -61,6 +64,61 @@ function getBranchNodeIds(
     }
 
     return nodeIds
+}
+
+function layoutNodes(
+    nodes: CanvasNode[],
+    edges: CanvasEdge[],
+): CanvasNode[] {
+    const graph = new dagre.graphlib.Graph()
+
+    graph.setDefaultEdgeLabel(() => ({}))
+    graph.setGraph({
+        rankdir: 'TB',
+        nodesep: LAYOUT_NODE_GAP,
+        ranksep: LAYOUT_RANK_GAP,
+        marginx: 40,
+        marginy: 40,
+    })
+
+    for (const node of nodes) {
+        const width =
+            node.measured?.width ??
+            node.width ??
+            SUGGESTED_NODE_WIDTH
+        const height =
+            node.measured?.height ??
+            node.height ??
+            SUGGESTED_NODE_HEIGHT
+
+        graph.setNode(node.id, { width, height })
+    }
+
+    for (const edge of edges) {
+        graph.setEdge(edge.source, edge.target)
+    }
+
+    dagre.layout(graph)
+
+    return nodes.map((node) => {
+        const layout = graph.node(node.id)
+        const width =
+            node.measured?.width ??
+            node.width ??
+            SUGGESTED_NODE_WIDTH
+        const height =
+            node.measured?.height ??
+            node.height ??
+            SUGGESTED_NODE_HEIGHT
+
+        return {
+            ...node,
+            position: {
+                x: layout.x - width / 2,
+                y: layout.y - height / 2,
+            },
+        }
+    })
 }
 
 type NodeRect = {
@@ -152,6 +210,7 @@ type CanvasState = {
     onNodesChange: (changes: NodeChange<CanvasNode>[]) => void
     onEdgesChange: (changes: EdgeChange<CanvasEdge>[]) => void
     onConnect: (connection: Connection) => void
+    autoLayout: () => void
     undo: () => void
     redo: () => void
 }
@@ -487,6 +546,24 @@ export const useCanvasStore = create<CanvasState>()(
             canUndo: true,
             canRedo: false,
         })),
+
+    autoLayout: () =>
+        set((state) => {
+            if (state.nodes.length < 2) {
+                return state
+            }
+
+            return {
+                nodes: layoutNodes(state.nodes, state.edges),
+                past: addToHistory(
+                    state.past,
+                    createSnapshot(state),
+                ),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
 
     undo: () =>
         set((state) => {
