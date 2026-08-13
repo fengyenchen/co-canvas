@@ -51,6 +51,49 @@ function CanvasContent() {
         })
     }, [fitView, nodes.length, nodesInitialized])
 
+    useEffect(() => {
+        function handleKeyDown(event: KeyboardEvent) {
+            const target = event.target
+
+            if (
+                target instanceof HTMLInputElement ||
+                target instanceof HTMLTextAreaElement ||
+                (target instanceof HTMLElement && target.isContentEditable)
+            ) {
+                return
+            }
+
+            if (!(event.ctrlKey || event.metaKey)) {
+                return
+            }
+
+            const key = event.key.toLowerCase()
+
+            if (key === 'z' && event.shiftKey) {
+                event.preventDefault()
+                redo()
+                return
+            }
+
+            if (key === 'z') {
+                event.preventDefault()
+                undo()
+                return
+            }
+
+            if (key === 'y') {
+                event.preventDefault()
+                redo()
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown)
+        }
+    }, [redo, undo])
+
     return (
         <section className="relative h-full min-w-0 flex-1 bg-canvas">
             <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
@@ -68,7 +111,7 @@ function CanvasContent() {
                         onClick={undo}
                         disabled={!canUndo}
                         aria-label="復原"
-                        title="復原"
+                        title="復原（Ctrl+Z）"
                         className="cursor-pointer border-r border-border px-3 py-2 text-sm text-foreground transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-35"
                     >
                         ↶
@@ -79,7 +122,7 @@ function CanvasContent() {
                         onClick={redo}
                         disabled={!canRedo}
                         aria-label="重做"
-                        title="重做"
+                        title="重做（Ctrl+Shift+Z）"
                         className="cursor-pointer px-3 py-2 text-sm text-foreground transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-35"
                     >
                         ↷
