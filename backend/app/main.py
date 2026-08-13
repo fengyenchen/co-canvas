@@ -19,6 +19,8 @@ from app.services.gemini import (
     chat_with_gemini,
     generate_with_gemini,
 )
+from app.services.mock import chat_with_mock, generate_with_mock
+from app.settings import get_settings
 
 
 logger = logging.getLogger(__name__)
@@ -40,9 +42,13 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
+    settings = get_settings()
+
     return {
         "status": "ok",
         "service": "co-canvas-api",
+        "aiMode": settings.ai_mode,
+        "geminiConfigured": settings.gemini_api_key is not None,
     }
 
 
@@ -76,6 +82,9 @@ async def run_gemini(operation: Awaitable[ResponseT]) -> ResponseT:
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
+    if get_settings().ai_mode == "mock":
+        return chat_with_mock(request)
+
     return await run_gemini(chat_with_gemini(request))
 
 
@@ -87,4 +96,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
 async def generate_suggestion(
     request: GenerateSuggestionRequest,
 ) -> GenerateSuggestionResponse:
+    if get_settings().ai_mode == "mock":
+        return generate_with_mock(request)
+
     return await run_gemini(generate_with_gemini(request))

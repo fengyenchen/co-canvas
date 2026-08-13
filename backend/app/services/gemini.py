@@ -39,11 +39,18 @@ class GeminiConfigurationError(RuntimeError):
 
 def load_settings():
     try:
-        return get_settings()
+        settings = get_settings()
     except ValidationError as error:
         raise GeminiConfigurationError(
             "GEMINI_API_KEY is not configured"
         ) from error
+
+    if settings.gemini_api_key is None:
+        raise GeminiConfigurationError(
+            "GEMINI_API_KEY is not configured"
+        )
+
+    return settings
 
 
 async def chat_with_gemini(request: ChatRequest) -> ChatResponse:

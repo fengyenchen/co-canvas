@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,7 +16,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    gemini_api_key: SecretStr
+    ai_mode: Literal["mock", "gemini"] = "gemini"
+    gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.6-flash"
 
 
