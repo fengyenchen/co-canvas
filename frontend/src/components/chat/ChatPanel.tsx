@@ -18,6 +18,13 @@ export function ChatPanel({
   const [draft, setDraft] = useState('')
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
+  const [neighborSelection, setNeighborSelection] = useState<{
+    contextNodeId: string | null
+    excludedNodeIds: Set<string>
+  }>({
+    contextNodeId: null,
+    excludedNodeIds: new Set(),
+  })
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const previousContextNodeIdRef = useRef<string | null>(null)
@@ -97,6 +104,35 @@ export function ChatPanel({
   const contextNeighborNodes = nodes.filter((node) =>
     neighborNodeIds.has(node.id),
   )
+
+  const excludedNeighborNodeIds =
+    neighborSelection.contextNodeId === activeContextNodeId
+      ? neighborSelection.excludedNodeIds
+      : new Set<string>()
+
+  const selectedContextNeighborNodes = contextNeighborNodes.filter(
+    (node) => !excludedNeighborNodeIds.has(node.id),
+  )
+
+  function toggleNeighborNode(nodeId: string) {
+    setNeighborSelection((selection) => {
+      const excludedNodeIds =
+        selection.contextNodeId === activeContextNodeId
+          ? new Set(selection.excludedNodeIds)
+          : new Set<string>()
+
+      if (excludedNodeIds.has(nodeId)) {
+        excludedNodeIds.delete(nodeId)
+      } else {
+        excludedNodeIds.add(nodeId)
+      }
+
+      return {
+        contextNodeId: activeContextNodeId,
+        excludedNodeIds,
+      }
+    })
+  }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -182,7 +218,7 @@ export function ChatPanel({
           title: contextNode.data.title,
           content: contextNode.data.content,
         },
-        neighborNodes: contextNeighborNodes
+        neighborNodes: selectedContextNeighborNodes
           .map((node) => ({
             id: node.id,
             title: node.data.title,
@@ -236,7 +272,7 @@ export function ChatPanel({
           title: contextNode.data.title,
           content: contextNode.data.content,
         },
-        neighborNodes: contextNeighborNodes
+        neighborNodes: selectedContextNeighborNodes
           .map((node) => ({
             id: node.id,
             title: node.data.title,
@@ -355,7 +391,7 @@ export function ChatPanel({
           <span>
             AI 上下文：目前節點
             {contextNeighborNodes.length > 0
-              ? `＋${contextNeighborNodes.length} 個相鄰節點`
+              ? `＋${selectedContextNeighborNodes.length}/${contextNeighborNodes.length} 個相鄰節點`
               : '（無相鄰節點）'}
           </span>
           <span
@@ -377,11 +413,23 @@ export function ChatPanel({
           {contextNeighborNodes.length > 0 && (
             <div>
               <div className="text-xs text-foreground/50">
-                一層相鄰節點
+                選擇一層相鄰節點
               </div>
-              <ul className="mt-1 space-y-1 text-foreground/70">
+              <ul className="mt-1 space-y-1">
                 {contextNeighborNodes.map((node) => (
-                  <li key={node.id}>• {node.data.title}</li>
+                  <li key={node.id}>
+                    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-foreground/70 transition hover:bg-primary/5">
+                      <input
+                        type="checkbox"
+                        checked={!excludedNeighborNodeIds.has(node.id)}
+                        onChange={() => toggleNeighborNode(node.id)}
+                        className="size-5 shrink-0 accent-primary"
+                      />
+                      <span className="min-w-0 wrap-break-word">
+                        {node.data.title}
+                      </span>
+                    </label>
+                  </li>
                 ))}
               </ul>
             </div>
