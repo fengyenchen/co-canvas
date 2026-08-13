@@ -8,6 +8,9 @@ export type ChatMessage = {
   createdAt: string
   canGenerateNodes?: boolean
   latencyMs?: number
+  isError?: boolean
+  retryAction?: 'chat' | 'suggestion'
+  retryContent?: string
 }
 
 export type NewChatMessage = Pick<
@@ -17,4 +20,7 @@ export type NewChatMessage = Pick<
   | 'contextNodeId'
   | 'canGenerateNodes'
   | 'latencyMs'
+  | 'isError'
+  | 'retryAction'
+  | 'retryContent'
 >

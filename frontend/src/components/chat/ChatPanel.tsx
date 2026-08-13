@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { sendChatMessage } from '../../api/chat'
-import { getAiErrorMessage } from '../../api/errors'
+import {
+  getAiErrorMessage,
+  isRetryableAiError,
+} from '../../api/errors'
 import { generateSuggestion } from '../../api/generateSuggestion'
 import { getHealth } from '../../api/health'
 import type { AiMode } from '../../api/health'
@@ -218,7 +221,7 @@ export function ChatPanel({
 
   async function requestChatResponse(
     content: string,
-    excludedMessageId?: string,
+    excludedMessageIds: string[] = [],
   ) {
     if (
       !content ||
@@ -249,7 +252,7 @@ export function ChatPanel({
             content: node.data.content,
           })),
         history: visibleMessages
-          .filter((message) => message.id !== excludedMessageId)
+          .filter((message) => !excludedMessageIds.includes(message.id))
           .slice(-30)
           .map(({ role, content: messageContent }) => ({
             role,
@@ -281,6 +284,9 @@ export function ChatPanel({
         content: getAiErrorMessage(result.error, 'chat'),
         contextNodeId,
         latencyMs: result.latencyMs,
+        isError: true,
+        retryAction: isRetryableAiError(result.error) ? 'chat' : undefined,
+        retryContent: isRetryableAiError(result.error) ? content : undefined,
       })
     }
 
@@ -336,6 +342,13 @@ export function ChatPanel({
         content: getAiErrorMessage(result.error, 'suggestion'),
         contextNodeId,
         latencyMs: result.latencyMs,
+        isError: true,
+        retryAction: isRetryableAiError(result.error)
+          ? 'suggestion'
+          : undefined,
+        retryContent: isRetryableAiError(result.error)
+          ? sourceContent
+          : undefined,
       })
     }
 
@@ -374,7 +387,7 @@ export function ChatPanel({
     updateMessage(messageId, content)
     setEditingMessageId(null)
     setEditingContent('')
-    void requestChatResponse(content, messageId)
+    void requestChatResponse(content, [messageId])
   }
 
   if (!contextNode) {
@@ -578,11 +591,14 @@ export function ChatPanel({
                   </div>
                 ) : (
                   <div
+                    role={message.isError ? 'alert' : undefined}
                     className={[
                       'whitespace-pre-wrap wrap-break-word rounded-xl px-3 py-2 text-sm',
                       message.role === 'user'
                         ? 'bg-primary text-primary-foreground'
-                        : 'border border-border bg-background text-foreground',
+                        : message.isError
+                          ? 'border border-red-200 bg-red-50 text-red-700'
+                          : 'border border-border bg-background text-foreground',
                     ].join(' ')}
                   >
                     {message.content}
@@ -607,6 +623,45 @@ export function ChatPanel({
                         className="cursor-pointer rounded-md px-2 py-1 text-xs text-foreground/60 transition hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         產生節點
+                      </button>
+                    )}
+
+                    {message.retryAction && message.retryContent && (
+                      <button
+                        type="button"
+                        disabled={isGenerating}
+                        onClick={() => {
+                          const retryContent = message.retryContent
+
+                          if (!retryContent) {
+                            return
+                          }
+
+                          deleteMessage(message.id)
+
+                          if (message.retryAction === 'suggestion') {
+                            void requestSuggestion(retryContent)
+                            return
+                          }
+
+                          const messageIndex = visibleMessages.findIndex(
+                            (candidate) => candidate.id === message.id,
+                          )
+                          const sourceMessage = visibleMessages
+                            .slice(0, messageIndex)
+                            .findLast((candidate) => candidate.role === 'user')
+
+                          void requestChatResponse(
+                            retryContent,
+                            [message.id, sourceMessage?.id]
+                              .filter((id): id is string => Boolean(id)),
+                          )
+                        }}
+                        className="min-h-11 cursor-pointer rounded-md px-2 text-xs font-medium text-primary transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {message.retryAction === 'chat'
+                          ? '重新傳送'
+                          : '重新產生節點'}
                       </button>
                     )}
 

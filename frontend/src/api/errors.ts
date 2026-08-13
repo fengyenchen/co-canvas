@@ -65,3 +65,11 @@ export function getAiErrorMessage(
 
   return `AI 回傳資料格式無效。${retryHint}`
 }
+
+export function isRetryableAiError(error: unknown): boolean {
+  if (!(error instanceof ApiRequestError)) {
+    return true
+  }
+
+  return ![401, 429, 503].includes(error.status)
+}
