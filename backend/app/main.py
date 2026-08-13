@@ -68,6 +68,19 @@ async def run_gemini(operation: Awaitable[ResponseT]) -> ResponseT:
         ) from error
     except APIError as error:
         logger.warning("Gemini API error: %s", error.code)
+
+        if error.code in (400, 401, 403):
+            raise HTTPException(
+                status_code=401,
+                detail="Gemini API Key 無效",
+            ) from error
+
+        if error.code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="Gemini 額度不足或請求過多",
+            ) from error
+
         raise HTTPException(
             status_code=502,
             detail="Gemini 服務暫時無法使用",

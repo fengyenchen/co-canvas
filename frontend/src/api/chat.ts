@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { ChatRole } from '../types/chat'
+import { throwApiRequestError } from './errors'
 
 type ContextNode = {
   id: string
@@ -38,7 +39,7 @@ export async function sendChatMessage(
   })
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`)
+    return throwApiRequestError(response)
   }
 
   return chatResponseSchema.parse(await response.json()).message

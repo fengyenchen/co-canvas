@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { sendChatMessage } from '../../api/chat'
+import { getAiErrorMessage } from '../../api/errors'
 import { generateSuggestion } from '../../api/generateSuggestion'
 import { getHealth } from '../../api/health'
 import type { AiMode } from '../../api/health'
@@ -277,7 +278,7 @@ export function ChatPanel({
     } else {
       addMessage({
         role: 'ai',
-        content: 'AI 回覆失敗，請確認後端已啟動後再試一次。',
+        content: getAiErrorMessage(result.error, 'chat'),
         contextNodeId,
         latencyMs: result.latencyMs,
       })
@@ -332,7 +333,7 @@ export function ChatPanel({
     } else {
       addMessage({
         role: 'ai',
-        content: '產生節點失敗，請稍後再試一次。',
+        content: getAiErrorMessage(result.error, 'suggestion'),
         contextNodeId,
         latencyMs: result.latencyMs,
       })

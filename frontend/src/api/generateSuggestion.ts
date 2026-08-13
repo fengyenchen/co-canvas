@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { AiSuggestion } from '../types/suggestion'
+import { throwApiRequestError } from './errors'
 
 type ContextNode = {
   id: string
@@ -44,7 +45,7 @@ export async function generateSuggestion(
   )
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`)
+    return throwApiRequestError(response)
   }
 
   return suggestionSchema.parse(await response.json())
