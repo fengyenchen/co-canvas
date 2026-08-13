@@ -24,13 +24,15 @@ export function ChatPanel() {
     (state) => state.messages,
   )
 
-  const isGenerating = useChatStore(
-    (state) => state.isGenerating,
+  const generationMode = useChatStore(
+    (state) => state.generationMode,
   )
 
-  const setIsGenerating = useChatStore(
-    (state) => state.setIsGenerating,
+  const setGenerationMode = useChatStore(
+    (state) => state.setGenerationMode,
   )
+
+  const isGenerating = generationMode !== null
 
   const setPendingSuggestion = useChatStore(
     (state) => state.setPendingSuggestion,
@@ -57,7 +59,7 @@ export function ChatPanel() {
       behavior: 'smooth',
       block: 'end',
     })
-  }, [activeContextNodeId, isGenerating, visibleMessages.length])
+  }, [activeContextNodeId, generationMode, visibleMessages.length])
 
   async function requestChatResponse(content: string) {
     if (
@@ -72,7 +74,7 @@ export function ChatPanel() {
     const contextNodeId = activeContextNodeId
 
     clearPendingSuggestion()
-    setIsGenerating(true)
+    setGenerationMode('chat')
 
     try {
       const neighborNodeIds = new Set(
@@ -120,11 +122,11 @@ export function ChatPanel() {
     } catch {
       addMessage({
         role: 'ai',
-        content: '產生建議失敗，請確認後端已啟動後再試一次。',
+        content: 'AI 回覆失敗，請確認後端已啟動後再試一次。',
         contextNodeId,
       })
     } finally {
-      setIsGenerating(false)
+      setGenerationMode(null)
     }
   }
 
@@ -136,7 +138,7 @@ export function ChatPanel() {
     const contextNodeId = activeContextNodeId
 
     clearPendingSuggestion()
-    setIsGenerating(true)
+    setGenerationMode('suggestion')
 
     try {
       const neighborNodeIds = new Set(
@@ -181,7 +183,7 @@ export function ChatPanel() {
         contextNodeId,
       })
     } finally {
-      setIsGenerating(false)
+      setGenerationMode(null)
     }
   }
 
@@ -285,11 +287,17 @@ export function ChatPanel() {
           ))
         )}
 
-        {isGenerating && (
+        {generationMode === 'chat' && (
           <div className="flex justify-start">
             <div className="rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground/60">
               <span className="block animate-pulse">...</span>
             </div>
+          </div>
+        )}
+
+        {generationMode === 'suggestion' && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground/60">
+            <span className="animate-pulse">正在整理節點…</span>
           </div>
         )}
 

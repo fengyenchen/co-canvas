@@ -3,10 +3,12 @@ import { persist } from 'zustand/middleware'
 import type { ChatMessage, NewChatMessage } from '../types/chat'
 import type { SuggestionPreview } from '../types/suggestion'
 
+export type GenerationMode = 'chat' | 'suggestion'
+
 type ChatState = {
   activeContextNodeId: string | null
   messages: ChatMessage[]
-  isGenerating: boolean
+  generationMode: GenerationMode | null
   pendingSuggestion: SuggestionPreview | null
 
   setActiveContextNodeId: (
@@ -15,7 +17,9 @@ type ChatState = {
 
   addMessage: (message: NewChatMessage) => void
 
-  setIsGenerating: (isGenerating: boolean) => void
+  setGenerationMode: (
+    generationMode: GenerationMode | null,
+  ) => void
 
   setPendingSuggestion: (
     preview: SuggestionPreview,
@@ -28,7 +32,7 @@ export const useChatStore = create<ChatState>()(
   persist((set) => ({
     activeContextNodeId: null,
     messages: [],
-    isGenerating: false,
+    generationMode: null,
     pendingSuggestion: null,
 
     setActiveContextNodeId: (nodeId) =>
@@ -48,9 +52,9 @@ export const useChatStore = create<ChatState>()(
         ],
       })),
 
-    setIsGenerating: (isGenerating) =>
+    setGenerationMode: (generationMode) =>
       set({
-        isGenerating,
+        generationMode,
       }),
 
     setPendingSuggestion: (preview) =>
