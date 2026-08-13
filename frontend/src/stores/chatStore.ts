@@ -17,6 +17,12 @@ type ChatState = {
 
   addMessage: (message: NewChatMessage) => void
 
+  clearMessagesByContext: (contextNodeId: string) => void
+
+  deleteMessage: (messageId: string) => void
+
+  updateMessage: (messageId: string, content: string) => void
+
   setGenerationMode: (
     generationMode: GenerationMode | null,
   ) => void
@@ -50,6 +56,33 @@ export const useChatStore = create<ChatState>()(
             createdAt: new Date().toISOString(),
           },
         ],
+      })),
+
+    clearMessagesByContext: (contextNodeId) =>
+      set((state) => ({
+        messages: state.messages.filter(
+          (message) => message.contextNodeId !== contextNodeId,
+        ),
+        pendingSuggestion:
+          state.pendingSuggestion?.contextNodeId === contextNodeId
+            ? null
+            : state.pendingSuggestion,
+      })),
+
+    deleteMessage: (messageId) =>
+      set((state) => ({
+        messages: state.messages.filter(
+          (message) => message.id !== messageId,
+        ),
+      })),
+
+    updateMessage: (messageId, content) =>
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          message.id === messageId
+            ? { ...message, content }
+            : message,
+        ),
       })),
 
     setGenerationMode: (generationMode) =>

@@ -16,6 +16,8 @@ export function ChatPanel({
   mobileHeightPercent,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('')
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editingContent, setEditingContent] = useState('')
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const previousContextNodeIdRef = useRef<string | null>(null)
@@ -30,6 +32,18 @@ export function ChatPanel({
 
   const addMessage = useChatStore(
     (state) => state.addMessage,
+  )
+
+  const clearMessagesByContext = useChatStore(
+    (state) => state.clearMessagesByContext,
+  )
+
+  const deleteMessage = useChatStore(
+    (state) => state.deleteMessage,
+  )
+
+  const updateMessage = useChatStore(
+    (state) => state.updateMessage,
   )
 
   const messages = useChatStore(
@@ -124,7 +138,10 @@ export function ChatPanel({
     )
   }, [activeContextNodeId, visibleMessages])
 
-  async function requestChatResponse(content: string) {
+  async function requestChatResponse(
+    content: string,
+    excludedMessageId?: string,
+  ) {
     if (
       !content ||
       !activeContextNodeId ||
@@ -169,6 +186,7 @@ export function ChatPanel({
             content: node.data.content,
           })),
         history: visibleMessages
+          .filter((message) => message.id !== excludedMessageId)
           .slice(-30)
           .map(({ role, content: messageContent }) => ({
             role,
@@ -280,6 +298,19 @@ export function ChatPanel({
     void requestChatResponse(content)
   }
 
+  function handleResendMessage(messageId: string) {
+    const content = editingContent.trim()
+
+    if (!content || isGenerating) {
+      return
+    }
+
+    updateMessage(messageId, content)
+    setEditingMessageId(null)
+    setEditingContent('')
+    void requestChatResponse(content, messageId)
+  }
+
   if (!contextNode) {
     return null
   }
@@ -301,14 +332,34 @@ export function ChatPanel({
           </span>
         </h2>
 
-        <button
-          type="button"
-          onClick={() => setActiveContextNodeId(null)}
-          aria-label="關閉對話"
-          className="cursor-pointer rounded-md px-2 py-1 text-foreground/60 transition hover:bg-primary/10 hover:text-foreground"
-        >
-          ×
-        </button>
+        <div className="flex items-center gap-1">
+          {visibleMessages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    '確定要清除這個節點的所有對話嗎？',
+                  )
+                ) {
+                  clearMessagesByContext(contextNode.id)
+                }
+              }}
+              className="min-h-11 cursor-pointer rounded-md px-3 text-sm text-foreground/60 transition hover:bg-red-50 hover:text-red-600"
+            >
+              清除此串
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setActiveContextNodeId(null)}
+            aria-label="關閉對話"
+            className="min-h-11 min-w-11 cursor-pointer rounded-md text-foreground/60 transition hover:bg-primary/10 hover:text-foreground"
+          >
+            ×
+          </button>
+        </div>
       </header>
 
       <div className="hidden shrink-0 border-b border-border p-4 lg:block">
@@ -341,19 +392,60 @@ export function ChatPanel({
               }
             >
               <div className="max-w-[85%]">
-                <div
-                  className={[
-                    'whitespace-pre-wrap wrap-break-word rounded-xl px-3 py-2 text-sm',
-                    message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'border border-border bg-background text-foreground',
-                  ].join(' ')}
-                >
-                  {message.content}
-                </div>
+                {editingMessageId === message.id ? (
+                  <div className="rounded-xl border border-primary/30 bg-background p-2 shadow-sm">
+                    <label
+                      htmlFor={`edit-message-${message.id}`}
+                      className="sr-only"
+                    >
+                      編輯訊息
+                    </label>
+                    <textarea
+                      id={`edit-message-${message.id}`}
+                      value={editingContent}
+                      onChange={(event) =>
+                        setEditingContent(event.target.value)
+                      }
+                      rows={3}
+                      autoFocus
+                      className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    />
+                    <div className="mt-2 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingMessageId(null)
+                          setEditingContent('')
+                        }}
+                        className="min-h-11 cursor-pointer rounded-md px-3 text-xs text-foreground/60 transition hover:bg-primary/10"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!editingContent.trim() || isGenerating}
+                        onClick={() => handleResendMessage(message.id)}
+                        className="min-h-11 cursor-pointer rounded-md bg-primary px-3 text-xs text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        重新傳送
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className={[
+                      'whitespace-pre-wrap wrap-break-word rounded-xl px-3 py-2 text-sm',
+                      message.role === 'user'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'border border-border bg-background text-foreground',
+                    ].join(' ')}
+                  >
+                    {message.content}
+                  </div>
+                )}
 
                 {message.role === 'ai' && (
-                  <div className="mt-1 flex min-h-7 items-center gap-1">
+                  <div className="mt-1 flex min-h-11 items-center gap-1">
                     {message.latencyMs !== undefined && (
                       <span className="px-2 text-xs text-foreground/45">
                         回應 {formatLatency(message.latencyMs)}
@@ -372,6 +464,45 @@ export function ChatPanel({
                         產生節點
                       </button>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('確定要刪除此訊息嗎？')) {
+                          deleteMessage(message.id)
+                        }
+                      }}
+                      className="min-h-11 cursor-pointer rounded-md px-2 text-xs text-foreground/50 transition hover:bg-red-50 hover:text-red-600"
+                    >
+                      刪除
+                    </button>
+                  </div>
+                )}
+
+                {message.role === 'user' && editingMessageId !== message.id && (
+                  <div className="mt-1 flex min-h-11 items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      disabled={isGenerating}
+                      onClick={() => {
+                        setEditingMessageId(message.id)
+                        setEditingContent(message.content)
+                      }}
+                      className="min-h-11 cursor-pointer rounded-md px-2 text-xs text-foreground/50 transition hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      編輯
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('確定要刪除此訊息嗎？')) {
+                          deleteMessage(message.id)
+                        }
+                      }}
+                      className="min-h-11 cursor-pointer rounded-md px-2 text-xs text-foreground/50 transition hover:bg-red-50 hover:text-red-600"
+                    >
+                      刪除
+                    </button>
                   </div>
                 )}
               </div>
