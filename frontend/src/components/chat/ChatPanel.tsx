@@ -9,7 +9,10 @@ import { SuggestionPreview } from './SuggestionPreview'
 
 export function ChatPanel() {
   const [draft, setDraft] = useState('')
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const previousContextNodeIdRef = useRef<string | null>(null)
+  const previousMessageCountRef = useRef(0)
 
   const activeContextNodeId = useChatStore(
     (state) => state.activeContextNodeId,
@@ -62,6 +65,57 @@ export function ChatPanel() {
       block: 'end',
     })
   }, [activeContextNodeId, generationMode, visibleMessages.length])
+
+  useEffect(() => {
+    const previousContextNodeId = previousContextNodeIdRef.current
+    const previousMessageCount = previousMessageCountRef.current
+
+    previousContextNodeIdRef.current = activeContextNodeId
+    previousMessageCountRef.current = visibleMessages.length
+
+    if (
+      previousContextNodeId !== activeContextNodeId ||
+      visibleMessages.length <= previousMessageCount ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      return
+    }
+
+    const newestMessage = visibleMessages.at(-1)
+    const messageElements = messagesContainerRef.current
+      ?.querySelectorAll<HTMLElement>('[data-chat-message]')
+    const messageElement = messageElements?.item(
+      (messageElements.length ?? 0) - 1,
+    )
+
+    if (!newestMessage || !messageElement) {
+      return
+    }
+
+    const direction = newestMessage.role === 'user' ? 14 : -14
+
+    messageElement.animate(
+      [
+        {
+          opacity: 0,
+          transform: `translate3d(${direction}px, 8px, 0) scale(0.94)`,
+        },
+        {
+          opacity: 1,
+          transform: `translate3d(${-direction * 0.12}px, -2px, 0) scale(1.025)`,
+          offset: 0.72,
+        },
+        {
+          opacity: 1,
+          transform: 'translate3d(0, 0, 0) scale(1)',
+        },
+      ],
+      {
+        duration: 300,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      },
+    )
+  }, [activeContextNodeId, visibleMessages])
 
   async function requestChatResponse(content: string) {
     if (
@@ -253,7 +307,10 @@ export function ChatPanel() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+      <div
+        ref={messagesContainerRef}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4"
+      >
         {visibleMessages.length === 0 ? (
           <div className="py-8 text-center text-sm text-foreground/50">
             輸入指令來延伸這個節點
@@ -262,6 +319,7 @@ export function ChatPanel() {
           visibleMessages.map((message) => (
             <div
               key={message.id}
+              data-chat-message
               className={
                 message.role === 'user'
                   ? 'flex justify-end'
@@ -309,8 +367,16 @@ export function ChatPanel() {
 
         {generationMode === 'chat' && (
           <div className="flex justify-start">
-            <div className="rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground/60">
-              <span className="block animate-pulse">...</span>
+            <div
+              role="status"
+              aria-label="AI 正在回覆"
+              className="rounded-xl border border-border bg-background px-3 py-3 text-foreground/60"
+            >
+              <span aria-hidden="true" className="flex items-center gap-1">
+                <span className="ai-thinking-dot" />
+                <span className="ai-thinking-dot" />
+                <span className="ai-thinking-dot" />
+              </span>
             </div>
           </div>
         )}
