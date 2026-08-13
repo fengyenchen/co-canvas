@@ -32,13 +32,13 @@ export function NodeEditor() {
     }
 
     return (
-        <aside className="absolute right-4 top-4 z-10 max-h-[calc(100%-2rem)] w-50 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-background p-4 shadow-sm md:w-70 lg:w-80">
+        <aside className="absolute right-4 top-18 z-10 max-h-[calc(100%-5.5rem)] w-50 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-background p-4 shadow-sm md:top-4 md:max-h-[calc(100%-2rem)] md:w-70 lg:w-80">
             <button
                 type="button"
                 onClick={() =>
                     setActiveContextNodeId(selectedNode.id)
                 }
-                className="mb-6 w-full rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:border-primary/30 transition cursor-pointer"
+                className="mb-6 min-h-11 w-full cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground transition hover:border-primary/30"
             >
                 {isActiveContext
                     ? '已設為對話上下文'
@@ -94,7 +94,7 @@ export function NodeEditor() {
                             setActiveContextNodeId(null)
                         }
                     }}
-                    className="w-full cursor-pointer rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-red-200 hover:text-red-600"
+                    className="min-h-11 w-full cursor-pointer rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-red-200 hover:text-red-600"
                 >
                     只刪除此節點
                 </button>
@@ -113,7 +113,7 @@ export function NodeEditor() {
                             setActiveContextNodeId(null)
                         }
                     }}
-                    className="w-full cursor-pointer rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition hover:bg-red-50"
+                    className="min-h-11 w-full cursor-pointer rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition hover:bg-red-50"
                 >
                     刪除此分支
                 </button>

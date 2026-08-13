@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { sendChatMessage } from '../../api/chat'
 import { generateSuggestion } from '../../api/generateSuggestion'
 import { useCanvasStore } from '../../stores/canvasStore'
@@ -7,7 +8,13 @@ import { formatLatency } from '../../utils/formatLatency'
 import { measureRequest } from '../../utils/measureRequest'
 import { SuggestionPreview } from './SuggestionPreview'
 
-export function ChatPanel() {
+type ChatPanelProps = {
+  mobileHeightPercent: number
+}
+
+export function ChatPanel({
+  mobileHeightPercent,
+}: ChatPanelProps) {
   const [draft, setDraft] = useState('')
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -277,8 +284,15 @@ export function ChatPanel() {
     return null
   }
 
+  const mobileHeightStyle = {
+    '--mobile-chat-height': `${mobileHeightPercent}%`,
+  } as CSSProperties
+
   return (
-    <aside className="flex h-[55%] w-full max-w-full shrink-0 flex-col overflow-hidden border-b border-border bg-background lg:h-full lg:w-100 lg:border-b-0 lg:border-r">
+    <aside
+      style={mobileHeightStyle}
+      className="flex h-[var(--mobile-chat-height)] w-full max-w-full shrink-0 flex-col overflow-hidden border-b border-border bg-background lg:h-full lg:w-100 lg:border-b-0 lg:border-r"
+    >
       <header className="flex shrink-0 items-center justify-between border-b border-border p-4">
         <h2 className="font-semibold text-foreground">
           對話
