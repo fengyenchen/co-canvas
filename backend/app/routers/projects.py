@@ -10,6 +10,9 @@ from app.database import get_database_session
 from app.models import Project, ProjectMember
 from app.project_schemas import (
     ProjectCreate,
+    ProjectMemberCreate,
+    ProjectMemberResponse,
+    ProjectMemberUpdate,
     ProjectResponse,
     ProjectRole,
     ProjectSummary,
@@ -137,6 +140,27 @@ def to_project_response(
     )
 
 
+async def get_project_member_or_404(
+    project_id: uuid.UUID,
+    member_id: uuid.UUID,
+    session: AsyncSession,
+) -> ProjectMember:
+    member = await session.scalar(
+        select(ProjectMember).where(
+            ProjectMember.id == member_id,
+            ProjectMember.project_id == project_id,
+        ),
+    )
+
+    if member is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="找不到此專案成員",
+        )
+
+    return member
+
+
 @router.get("", response_model=list[ProjectSummary])
 async def list_projects(
     session: DatabaseSession,
@@ -246,3 +270,112 @@ async def create_project(
     await session.refresh(project)
 
     return to_project_response(project, "owner")
+
+
+@router.get(
+    "/{project_id}/members",
+    response_model=list[ProjectMemberResponse],
+)
+async def list_project_members(
+    project_id: uuid.UUID,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> list[ProjectMember]:
+    await get_project_or_404(project_id, session, user.id)
+    result = await session.scalars(
+        select(ProjectMember)
+        .where(ProjectMember.project_id == project_id)
+        .order_by(ProjectMember.created_at.asc()),
+    )
+
+    return list(result)
+
+
+@router.post(
+    "/{project_id}/members",
+    response_model=ProjectMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_project_member(
+    project_id: uuid.UUID,
+    request: ProjectMemberCreate,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> ProjectMember:
+    await get_project_or_404(project_id, session, user.id)
+
+    if user.email is not None and request.email == user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="你已經是此專案的擁有者",
+        )
+
+    existing_member = await session.scalar(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            func.lower(ProjectMember.email) == request.email,
+        ),
+    )
+
+    if existing_member is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="此 Email 已經在成員名單中",
+        )
+
+    member = ProjectMember(
+        project_id=project_id,
+        email=request.email,
+        role=request.role,
+    )
+    session.add(member)
+    await session.commit()
+    await session.refresh(member)
+
+    return member
+
+
+@router.patch(
+    "/{project_id}/members/{member_id}",
+    response_model=ProjectMemberResponse,
+)
+async def update_project_member(
+    project_id: uuid.UUID,
+    member_id: uuid.UUID,
+    request: ProjectMemberUpdate,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> ProjectMember:
+    await get_project_or_404(project_id, session, user.id)
+    member = await get_project_member_or_404(
+        project_id,
+        member_id,
+        session,
+    )
+    member.role = request.role
+    await session.commit()
+    await session.refresh(member)
+
+    return member
+
+
+@router.delete(
+    "/{project_id}/members/{member_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_project_member(
+    project_id: uuid.UUID,
+    member_id: uuid.UUID,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> Response:
+    await get_project_or_404(project_id, session, user.id)
+    member = await get_project_member_or_404(
+        project_id,
+        member_id,
+        session,
+    )
+    await session.delete(member)
+    await session.commit()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

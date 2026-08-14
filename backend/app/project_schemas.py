@@ -10,6 +10,7 @@ from app.schemas import ApiModel
 ProjectVisibility = Literal["private", "public"]
 ProjectRole = Literal["owner", "editor", "viewer"]
 PublicAccessRole = Literal["editor", "viewer"]
+ProjectMemberRole = Literal["editor", "viewer"]
 
 
 class ProjectPosition(ApiModel):
@@ -127,3 +128,31 @@ class ProjectSummary(ApiModel):
 
 class ProjectResponse(ProjectSummary):
     document: ProjectDocument
+
+
+class ProjectMemberCreate(ApiModel):
+    email: str = Field(
+        min_length=3,
+        max_length=320,
+        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    )
+    role: ProjectMemberRole
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+
+        return value
+
+
+class ProjectMemberUpdate(ApiModel):
+    role: ProjectMemberRole
+
+
+class ProjectMemberResponse(ApiModel):
+    id: uuid.UUID
+    email: str
+    role: ProjectMemberRole
+    created_at: datetime
