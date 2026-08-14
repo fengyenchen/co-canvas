@@ -32,7 +32,7 @@ export function NodeEditor() {
     }
 
     return (
-        <aside className="absolute right-4 top-18 z-10 max-h-[calc(100%-5.5rem)] w-50 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-background p-4 shadow-sm md:top-4 md:max-h-[calc(100%-2rem)] md:w-70 lg:w-80">
+        <aside className="absolute right-4 top-18 z-20 max-h-[calc(100%-5.5rem)] w-50 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-background p-4 shadow-sm md:top-4 md:max-h-[calc(100%-2rem)] md:w-70 lg:w-80">
             <button
                 type="button"
                 onClick={() =>

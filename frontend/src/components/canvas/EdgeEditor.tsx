@@ -38,7 +38,7 @@ function EdgeEditorForm({ edge }: { edge: CanvasEdge }) {
     }
 
     return (
-        <aside className="absolute right-4 top-18 z-10 max-h-[calc(100%-5.5rem)] w-52 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-background p-4 shadow-sm sm:w-64 md:top-4 md:max-h-[calc(100%-2rem)] md:w-72 lg:w-80">
+        <aside className="absolute right-4 top-18 z-20 max-h-[calc(100%-5.5rem)] w-52 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-background p-4 shadow-sm sm:w-64 md:top-4 md:max-h-[calc(100%-2rem)] md:w-72 lg:w-80">
             <h2 className="mb-4 font-semibold text-foreground">
                 連線設定
             </h2>

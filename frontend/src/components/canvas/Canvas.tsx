@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
     Background,
     Controls,
@@ -27,9 +27,11 @@ const nodeTypes: NodeTypes = {
 function CanvasContent() {
     const nodes = useCanvasStore((state) => state.nodes)
     const nodesInitialized = useNodesInitialized()
-    const { fitView } = useReactFlow()
+    const { fitView, getNode, setCenter } = useReactFlow()
     const previousNodeCount = useRef(nodes.length)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [isSearchOpen, setIsSearchOpen] = useState(false)
+    const [searchQuery, setSearchQuery] = useState('')
 
     const edges = useCanvasStore((state) => state.edges)
     const addNode = useCanvasStore((state) => state.addNode)
@@ -51,6 +53,59 @@ function CanvasContent() {
     const setActiveContextNodeId = useChatStore(
         (state) => state.setActiveContextNodeId,
     )
+    const searchResults = useMemo(() => {
+        const query = searchQuery.trim().toLocaleLowerCase()
+
+        if (!query) {
+            return []
+        }
+
+        return nodes
+            .filter((node) =>
+                `${node.data.title}\n${node.data.content}`
+                    .toLocaleLowerCase()
+                    .includes(query),
+            )
+            .sort((firstNode, secondNode) => {
+                const firstTitleMatches = firstNode.data.title
+                    .toLocaleLowerCase()
+                    .includes(query)
+                const secondTitleMatches = secondNode.data.title
+                    .toLocaleLowerCase()
+                    .includes(query)
+
+                return Number(secondTitleMatches) - Number(firstTitleMatches)
+            })
+            .slice(0, 20)
+    }, [nodes, searchQuery])
+
+    function focusNode(nodeId: string) {
+        const node = getNode(nodeId)
+
+        if (!node) {
+            return
+        }
+
+        onNodesChange(
+            nodes.map((canvasNode) => ({
+                type: 'select' as const,
+                id: canvasNode.id,
+                selected: canvasNode.id === nodeId,
+            })),
+        )
+
+        void setCenter(
+            node.position.x + (node.measured?.width ?? 256) / 2,
+            node.position.y + (node.measured?.height ?? 80) / 2,
+            {
+                zoom: 1.15,
+                duration: 300,
+            },
+        )
+        setActiveContextNodeId(nodeId)
+        setIsSearchOpen(false)
+        setSearchQuery('')
+    }
 
     function handleAutoLayout() {
         autoLayout()
@@ -280,6 +335,94 @@ function CanvasContent() {
                         }
                     }}
                 />
+            </div>
+
+            <div className="absolute right-4 top-16 z-10 sm:top-4">
+                <button
+                    type="button"
+                    aria-label="搜尋節點"
+                    aria-expanded={isSearchOpen}
+                    onClick={() => {
+                        setIsSearchOpen((isOpen) => !isOpen)
+                        setSearchQuery('')
+                    }}
+                    className="flex size-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        className="size-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                    >
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-4-4" />
+                    </svg>
+                </button>
+
+                {isSearchOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-background p-3 shadow-lg">
+                        <label
+                            htmlFor="canvas-node-search"
+                            className="mb-2 block text-sm font-medium text-foreground"
+                        >
+                            搜尋節點
+                        </label>
+                        <input
+                            id="canvas-node-search"
+                            type="search"
+                            value={searchQuery}
+                            autoFocus
+                            placeholder="輸入標題或內容"
+                            onChange={(event) =>
+                                setSearchQuery(event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                                if (event.key === 'Escape') {
+                                    setIsSearchOpen(false)
+                                    setSearchQuery('')
+                                }
+                            }}
+                            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none transition placeholder:text-foreground/40 focus:border-primary focus:ring-2 focus:ring-primary/15"
+                        />
+
+                        {searchQuery.trim() && (
+                            <div className="mt-2 max-h-72 overflow-y-auto">
+                                {searchResults.length > 0 ? (
+                                    <ul className="space-y-1">
+                                        {searchResults.map((node) => (
+                                            <li key={node.id}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        focusNode(node.id)
+                                                    }
+                                                    className="min-h-11 w-full cursor-pointer rounded-lg px-3 py-2 text-left transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                                >
+                                                    <span className="block truncate text-sm font-medium text-foreground">
+                                                        {node.data.title ||
+                                                            '未命名節點'}
+                                                    </span>
+                                                    {node.data.content && (
+                                                        <span className="mt-0.5 block truncate text-xs text-foreground/60">
+                                                            {node.data.content}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="px-3 py-4 text-center text-sm text-foreground/55">
+                                        找不到符合的節點
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 hidden -translate-x-1/2 items-center gap-3 rounded-lg border border-border bg-background/90 px-3 py-2 text-xs text-foreground/60 shadow-sm backdrop-blur-sm sm:flex">
