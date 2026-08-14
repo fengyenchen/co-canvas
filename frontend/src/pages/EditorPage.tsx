@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Link, useParams } from 'react-router'
-import { getProject } from '../api/projects'
+import { getProject, updateProject } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
 import { Canvas } from '../components/canvas/Canvas'
 import { ChatPanel } from '../components/chat/ChatPanel'
@@ -14,12 +14,16 @@ import {
   restoreLocalProject,
   setActiveProjectId,
 } from '../utils/localProjectBackup'
+import { createProjectDocument } from '../utils/projectFile'
 
 const MIN_CHAT_HEIGHT_PERCENT = 30
 const MAX_CHAT_HEIGHT_PERCENT = 75
 const DEFAULT_CHAT_HEIGHT_PERCENT = 55
 
 type ProjectLoadState = 'loading' | 'ready' | 'error'
+type ProjectSaveState = 'idle' | 'saving' | 'saved' | 'error'
+
+const SAVE_DELAY_MS = 800
 
 function getProjectLoadErrorMessage(error: unknown): string {
   if (error instanceof ApiRequestError && error.status === 404) {
@@ -48,20 +52,34 @@ export function EditorPage() {
   const { projectId } = useParams()
   const layoutRef = useRef<HTMLDivElement>(null)
   const resizingPointerIdRef = useRef<number | null>(null)
+  const savedDocumentSignatureRef = useRef('')
   const [projectLoadState, setProjectLoadState] =
     useState<ProjectLoadState>('loading')
   const [projectLoadError, setProjectLoadError] = useState('')
+  const [projectSaveState, setProjectSaveState] =
+    useState<ProjectSaveState>('idle')
   const [mobileChatHeight, setMobileChatHeight] = useState(
     DEFAULT_CHAT_HEIGHT_PERCENT,
   )
   const replaceProject = useCanvasStore(
     (state) => state.replaceProject,
   )
+  const nodes = useCanvasStore((state) => state.nodes)
+  const edges = useCanvasStore((state) => state.edges)
   const replaceProjectMessages = useChatStore(
     (state) => state.replaceProjectMessages,
   )
   const activeContextNodeId = useChatStore(
     (state) => state.activeContextNodeId,
+  )
+  const messages = useChatStore((state) => state.messages)
+  const projectDocument = useMemo(
+    () => createProjectDocument(nodes, edges, messages),
+    [edges, messages, nodes],
+  )
+  const projectDocumentSignature = useMemo(
+    () => JSON.stringify(projectDocument),
+    [projectDocument],
   )
 
   useEffect(() => {
@@ -70,6 +88,7 @@ export function EditorPage() {
     async function loadProject() {
       setProjectLoadState('loading')
       setProjectLoadError('')
+      setProjectSaveState('idle')
 
       if (!projectId) {
         setProjectLoadState('error')
@@ -111,6 +130,9 @@ export function EditorPage() {
           project.document.edges,
         )
         replaceProjectMessages(project.document.messages)
+        savedDocumentSignatureRef.current = JSON.stringify(
+          project.document,
+        )
         setActiveProjectId(projectId)
         setProjectLoadState('ready')
       } catch (error) {
@@ -129,6 +151,49 @@ export function EditorPage() {
       isCancelled = true
     }
   }, [projectId, replaceProject, replaceProjectMessages])
+
+  useEffect(() => {
+    if (
+      projectLoadState !== 'ready' ||
+      !projectId ||
+      projectId === LOCAL_PROJECT_ID ||
+      projectDocumentSignature === savedDocumentSignatureRef.current
+    ) {
+      return
+    }
+
+    let isCancelled = false
+    const timeoutId = window.setTimeout(async () => {
+      setProjectSaveState('saving')
+
+      try {
+        await updateProject(projectId, {
+          document: projectDocument,
+        })
+
+        if (isCancelled) {
+          return
+        }
+
+        savedDocumentSignatureRef.current = projectDocumentSignature
+        setProjectSaveState('saved')
+      } catch {
+        if (!isCancelled) {
+          setProjectSaveState('error')
+        }
+      }
+    }, SAVE_DELAY_MS)
+
+    return () => {
+      isCancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [
+    projectDocument,
+    projectDocumentSignature,
+    projectId,
+    projectLoadState,
+  ])
 
   if (projectLoadState === 'loading') {
     return (
@@ -250,6 +315,21 @@ export function EditorPage() {
       )}
 
       <Canvas />
+
+      {projectId !== LOCAL_PROJECT_ID && projectSaveState !== 'idle' && (
+        <p
+          role="status"
+          className={`pointer-events-none fixed bottom-4 right-4 z-20 rounded-lg border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur-sm ${
+            projectSaveState === 'error'
+              ? 'border-red-300 text-red-600'
+              : 'border-border text-muted-foreground'
+          }`}
+        >
+          {projectSaveState === 'saving' && '儲存中…'}
+          {projectSaveState === 'saved' && '已儲存'}
+          {projectSaveState === 'error' && '儲存失敗'}
+        </p>
+      )}
     </div>
   )
 }

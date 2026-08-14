@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { CanvasEdge, CanvasNode } from '../types/canvas'
 import type { ChatMessage } from '../types/chat'
+import type { ProjectDocument } from '../types/project'
 
 const originSchema = z.enum(['user', 'ai'])
 
@@ -90,11 +91,21 @@ export function createProjectFile(
   edges: CanvasEdge[],
   messages: ChatMessage[],
 ): ProjectFile {
+  return {
+    ...createProjectDocument(nodes, edges, messages),
+    exportedAt: new Date().toISOString(),
+  }
+}
+
+export function createProjectDocument(
+  nodes: CanvasNode[],
+  edges: CanvasEdge[],
+  messages: ChatMessage[],
+): ProjectDocument {
   const nodeIds = new Set(nodes.map((node) => node.id))
 
   return {
     version: 1,
-    exportedAt: new Date().toISOString(),
     nodes: nodes.map((node) => ({
       id: node.id,
       type: 'concept',
