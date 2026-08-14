@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from google.genai.errors import APIError
 
 from app.database import DatabaseConnectionError, check_database_connection
+from app.routers.projects import router as projects_router
 from app.schemas import (
     ChatRequest,
     ChatResponse,
@@ -39,6 +40,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(projects_router)
 
 
 @app.get("/health")

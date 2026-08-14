@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.schemas import ApiModel
 
@@ -65,10 +65,33 @@ class ProjectCreate(ApiModel):
     name: str = Field(min_length=1, max_length=120)
     document: ProjectDocument = Field(default_factory=ProjectDocument)
 
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        name = value.strip()
+
+        if not name:
+            raise ValueError("專案名稱不可為空白")
+
+        return name
+
 
 class ProjectUpdate(ApiModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     document: ProjectDocument | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        name = value.strip()
+
+        if not name:
+            raise ValueError("專案名稱不可為空白")
+
+        return name
 
     @model_validator(mode="after")
     def require_change(self) -> "ProjectUpdate":
