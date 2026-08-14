@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { createProject, listProjects } from '../api/projects'
+import {
+  createProject,
+  deleteProject,
+  listProjects,
+  updateProject,
+} from '../api/projects'
 import { ApiRequestError } from '../api/errors'
 import type { ProjectSummary } from '../types/project'
 
@@ -31,6 +36,7 @@ function getLoadErrorMessage(error: unknown) {
 
 export function HomePage() {
   const createDialogRef = useRef<HTMLDialogElement>(null)
+  const renameDialogRef = useRef<HTMLDialogElement>(null)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -40,6 +46,22 @@ export function HomePage() {
   const [createErrorMessage, setCreateErrorMessage] = useState<
     string | null
   >(null)
+  const [renamingProject, setRenamingProject] =
+    useState<ProjectSummary | null>(null)
+  const [renamedProjectName, setRenamedProjectName] = useState('')
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameErrorMessage, setRenameErrorMessage] = useState<
+    string | null
+  >(null)
+  const [deletingProjectId, setDeletingProjectId] = useState<
+    string | null
+  >(null)
+  const [actionErrorMessage, setActionErrorMessage] = useState<
+    string | null
+  >(null)
+  const [copiedProjectId, setCopiedProjectId] = useState<string | null>(
+    null,
+  )
 
   useEffect(() => {
     let isCancelled = false
@@ -90,6 +112,83 @@ export function HomePage() {
       setCreateErrorMessage(getLoadErrorMessage(error))
     } finally {
       setIsCreating(false)
+    }
+  }
+
+  function openRenameDialog(project: ProjectSummary) {
+    setRenamingProject(project)
+    setRenamedProjectName(project.name)
+    setRenameErrorMessage(null)
+    renameDialogRef.current?.showModal()
+  }
+
+  async function handleRenameProject() {
+    const name = renamedProjectName.trim()
+
+    if (!renamingProject || !name || isRenaming) {
+      return
+    }
+
+    setIsRenaming(true)
+    setRenameErrorMessage(null)
+
+    try {
+      const updatedProject = await updateProject(
+        renamingProject.id,
+        { name },
+      )
+      setProjects((currentProjects) =>
+        currentProjects.map((project) =>
+          project.id === updatedProject.id
+            ? updatedProject
+            : project,
+        ),
+      )
+      renameDialogRef.current?.close()
+    } catch (error) {
+      setRenameErrorMessage(getLoadErrorMessage(error))
+    } finally {
+      setIsRenaming(false)
+    }
+  }
+
+  async function handleDeleteProject(project: ProjectSummary) {
+    if (
+      deletingProjectId ||
+      !window.confirm(`確定要刪除「${project.name}」嗎？此操作無法復原。`)
+    ) {
+      return
+    }
+
+    setDeletingProjectId(project.id)
+    setActionErrorMessage(null)
+
+    try {
+      await deleteProject(project.id)
+      setProjects((currentProjects) =>
+        currentProjects.filter(
+          (currentProject) => currentProject.id !== project.id,
+        ),
+      )
+    } catch (error) {
+      setActionErrorMessage(getLoadErrorMessage(error))
+    } finally {
+      setDeletingProjectId(null)
+    }
+  }
+
+  async function handleCopyProjectLink(projectId: string) {
+    try {
+      const projectUrl = new URL(
+        `/projects/${projectId}`,
+        window.location.origin,
+      ).toString()
+
+      await navigator.clipboard.writeText(projectUrl)
+      setCopiedProjectId(projectId)
+      window.setTimeout(() => setCopiedProjectId(null), 2000)
+    } catch {
+      setActionErrorMessage('無法複製分享連結，請稍後再試。')
     }
   }
 
@@ -180,37 +279,129 @@ export function HomePage() {
           )}
 
           {!isLoading && !errorMessage && projects.length > 0 && (
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {projects.map((project) => (
-                <li key={project.id}>
-                  <Link
-                    to={`/projects/${project.id}`}
-                    className="group flex min-h-32 flex-col justify-between rounded-xl border border-border bg-background p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 motion-reduce:transform-none"
+            <>
+              {actionErrorMessage && (
+                <p
+                  role="alert"
+                  className="mb-4 rounded-lg border border-red-200 bg-background px-4 py-3 text-sm text-red-600"
+                >
+                  {actionErrorMessage}
+                </p>
+              )}
+
+              <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {projects.map((project) => (
+                  <li
+                    key={project.id}
+                    className="relative rounded-xl border border-border bg-background shadow-sm transition hover:border-primary/30 hover:shadow-md"
                   >
-                    <h3 className="line-clamp-2 font-semibold text-foreground">
-                      {project.name}
-                    </h3>
-                    <div className="mt-6 flex items-center justify-between gap-3 text-sm text-foreground/55">
-                      <span>
-                        更新於 {formatUpdatedAt(project.updatedAt)}
-                      </span>
-                      <svg
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                        className="size-5 shrink-0 transition-transform group-hover:translate-x-0.5 motion-reduce:transform-none"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                    <Link
+                      to={`/projects/${project.id}`}
+                      className="group flex min-h-40 flex-col justify-between rounded-xl p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+                    >
+                      <h3 className="line-clamp-2 pr-11 font-semibold text-foreground">
+                        {project.name}
+                      </h3>
+                      <div className="mt-6 flex items-center justify-between gap-3 text-sm text-foreground/55">
+                        <span>
+                          更新於 {formatUpdatedAt(project.updatedAt)}
+                        </span>
+                        <svg
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                          className="size-5 shrink-0 transition-transform group-hover:translate-x-0.5 motion-reduce:transform-none"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="m9 18 6-6-6-6" />
+                        </svg>
+                      </div>
+                    </Link>
+
+                    <details
+                      className="group/menu absolute right-2 top-2 z-10"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.currentTarget.removeAttribute('open')
+                        }
+                      }}
+                    >
+                      <summary
+                        aria-label={`開啟「${project.name}」專案選單`}
+                        className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                       >
-                        <path d="m9 18 6-6-6-6" />
-                      </svg>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+                        <svg
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                          className="size-5"
+                          fill="currentColor"
+                        >
+                          <circle cx="5" cy="12" r="1.5" />
+                          <circle cx="12" cy="12" r="1.5" />
+                          <circle cx="19" cy="12" r="1.5" />
+                        </svg>
+                      </summary>
+
+                      <div className="absolute right-0 top-full mt-1 w-48 overflow-hidden rounded-xl border border-border bg-background p-1 shadow-lg">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.currentTarget
+                              .closest('details')
+                              ?.removeAttribute('open')
+                            openRenameDialog(project)
+                          }}
+                          className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                        >
+                          重新命名
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.currentTarget
+                              .closest('details')
+                              ?.removeAttribute('open')
+                            void handleCopyProjectLink(project.id)
+                          }}
+                          className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                        >
+                          {copiedProjectId === project.id
+                            ? '已複製連結'
+                            : '複製分享連結'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled
+                          title="登入功能完成後開放"
+                          className="min-h-11 w-full cursor-not-allowed rounded-lg px-3 text-left text-sm text-foreground/40"
+                        >
+                          權限管理（尚未開放）
+                        </button>
+                        <div className="my-1 border-t border-border" />
+                        <button
+                          type="button"
+                          disabled={deletingProjectId !== null}
+                          onClick={(event) => {
+                            event.currentTarget
+                              .closest('details')
+                              ?.removeAttribute('open')
+                            void handleDeleteProject(project)
+                          }}
+                          className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {deletingProjectId === project.id
+                            ? '刪除中…'
+                            : '刪除專案'}
+                        </button>
+                      </div>
+                    </details>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </section>
       </div>
@@ -287,6 +478,78 @@ export function HomePage() {
               className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCreating ? '建立中…' : '建立專案'}
+            </button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog
+        ref={renameDialogRef}
+        aria-labelledby="rename-project-title"
+        onClose={() => {
+          setRenamingProject(null)
+          setRenamedProjectName('')
+          setRenameErrorMessage(null)
+        }}
+        className="m-auto w-[min(28rem,calc(100%-2rem))] rounded-2xl border border-border bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/20"
+      >
+        <form
+          className="p-6"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleRenameProject()
+          }}
+        >
+          <h2
+            id="rename-project-title"
+            className="text-xl font-semibold text-foreground"
+          >
+            重新命名專案
+          </h2>
+
+          <label
+            htmlFor="renamed-project-name"
+            className="mt-5 block text-sm font-medium text-foreground"
+          >
+            專案名稱
+          </label>
+          <input
+            id="renamed-project-name"
+            value={renamedProjectName}
+            autoFocus
+            required
+            maxLength={120}
+            disabled={isRenaming}
+            onChange={(event) =>
+              setRenamedProjectName(event.target.value)
+            }
+            className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
+          />
+
+          {renameErrorMessage && (
+            <p
+              role="alert"
+              className="mt-3 text-sm leading-6 text-red-600"
+            >
+              {renameErrorMessage}
+            </p>
+          )}
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={isRenaming}
+              onClick={() => renameDialogRef.current?.close()}
+              className="min-h-11 cursor-pointer rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={!renamedProjectName.trim() || isRenaming}
+              className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isRenaming ? '儲存中…' : '儲存名稱'}
             </button>
           </div>
         </form>
