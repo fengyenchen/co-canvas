@@ -11,6 +11,7 @@ from app.project_schemas import (
     ProjectCreate,
     ProjectResponse,
     ProjectSummary,
+    ProjectUpdate,
 )
 
 
@@ -23,6 +24,21 @@ DatabaseSession = Annotated[
     AsyncSession,
     Depends(get_database_session),
 ]
+
+
+async def get_project_or_404(
+    project_id: uuid.UUID,
+    session: AsyncSession,
+) -> Project:
+    project = await session.get(Project, project_id)
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="找不到此專案",
+        )
+
+    return project
 
 
 @router.get("", response_model=list[ProjectSummary])
@@ -39,13 +55,25 @@ async def get_project(
     project_id: uuid.UUID,
     session: DatabaseSession,
 ) -> Project:
-    project = await session.get(Project, project_id)
+    return await get_project_or_404(project_id, session)
 
-    if project is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="找不到此專案",
-        )
+
+@router.patch("/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: uuid.UUID,
+    request: ProjectUpdate,
+    session: DatabaseSession,
+) -> Project:
+    project = await get_project_or_404(project_id, session)
+
+    if request.name is not None:
+        project.name = request.name
+
+    if request.document is not None:
+        project.document = request.document.model_dump(by_alias=True)
+
+    await session.commit()
+    await session.refresh(project)
 
     return project
 
