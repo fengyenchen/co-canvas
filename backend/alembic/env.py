@@ -8,6 +8,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import app.models  # noqa: F401
 from app.database import Base, DatabaseConfigurationError, to_sqlalchemy_url
 from app.settings import get_settings
 
