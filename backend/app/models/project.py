@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +29,12 @@ class Project(Base):
         String(255),
         nullable=True,
         index=True,
+    )
+    visibility: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="private",
+        server_default=text("'private'"),
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     document: Mapped[dict[str, Any]] = mapped_column(

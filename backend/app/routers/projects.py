@@ -87,6 +87,9 @@ async def update_project(
     if request.document is not None:
         project.document = request.document.model_dump(by_alias=True)
 
+    if request.visibility is not None:
+        project.visibility = request.visibility
+
     await session.commit()
     await session.refresh(project)
 
@@ -124,6 +127,7 @@ async def create_project(
         owner_id=user.id,
         name=request.name.strip(),
         document=request.document.model_dump(by_alias=True),
+        visibility=request.visibility,
     )
     session.add(project)
     await session.commit()

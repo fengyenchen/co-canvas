@@ -8,9 +8,12 @@ export type ProjectDocument = {
   messages: ChatMessage[]
 }
 
+export type ProjectVisibility = 'private' | 'public'
+
 export type ProjectSummary = {
   id: string
   name: string
+  visibility: ProjectVisibility
   createdAt: string
   updatedAt: string
 }
@@ -22,9 +25,11 @@ export type Project = ProjectSummary & {
 export type CreateProjectInput = {
   name: string
   document?: ProjectDocument
+  visibility?: ProjectVisibility
 }
 
 export type UpdateProjectInput = {
   name?: string
   document?: ProjectDocument
+  visibility?: ProjectVisibility
 }

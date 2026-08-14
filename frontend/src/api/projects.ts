@@ -11,6 +11,7 @@ import { throwApiRequestError } from './errors'
 const projectSummarySchema = z.object({
   id: z.uuid(),
   name: z.string(),
+  visibility: z.enum(['private', 'public']),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

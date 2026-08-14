@@ -7,6 +7,9 @@ from pydantic import Field, field_validator, model_validator
 from app.schemas import ApiModel
 
 
+ProjectVisibility = Literal["private", "public"]
+
+
 class ProjectPosition(ApiModel):
     x: float
     y: float
@@ -64,6 +67,7 @@ class ProjectDocument(ApiModel):
 class ProjectCreate(ApiModel):
     name: str = Field(min_length=1, max_length=120)
     document: ProjectDocument = Field(default_factory=ProjectDocument)
+    visibility: ProjectVisibility = "private"
 
     @field_validator("name")
     @classmethod
@@ -79,6 +83,7 @@ class ProjectCreate(ApiModel):
 class ProjectUpdate(ApiModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     document: ProjectDocument | None = None
+    visibility: ProjectVisibility | None = None
 
     @field_validator("name")
     @classmethod
@@ -95,7 +100,11 @@ class ProjectUpdate(ApiModel):
 
     @model_validator(mode="after")
     def require_change(self) -> "ProjectUpdate":
-        if self.name is None and self.document is None:
+        if (
+            self.name is None
+            and self.document is None
+            and self.visibility is None
+        ):
             raise ValueError("至少需要提供一個要更新的欄位")
 
         return self
@@ -104,6 +113,7 @@ class ProjectUpdate(ApiModel):
 class ProjectSummary(ApiModel):
     id: uuid.UUID
     name: str
+    visibility: ProjectVisibility
     created_at: datetime
     updated_at: datetime
 
