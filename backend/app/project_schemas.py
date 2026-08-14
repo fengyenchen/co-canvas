@@ -8,6 +8,8 @@ from app.schemas import ApiModel
 
 
 ProjectVisibility = Literal["private", "public"]
+ProjectRole = Literal["owner", "editor", "viewer"]
+PublicAccessRole = Literal["editor", "viewer"]
 
 
 class ProjectPosition(ApiModel):
@@ -68,6 +70,7 @@ class ProjectCreate(ApiModel):
     name: str = Field(min_length=1, max_length=120)
     document: ProjectDocument = Field(default_factory=ProjectDocument)
     visibility: ProjectVisibility = "private"
+    public_access_role: PublicAccessRole = "viewer"
 
     @field_validator("name")
     @classmethod
@@ -84,6 +87,7 @@ class ProjectUpdate(ApiModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     document: ProjectDocument | None = None
     visibility: ProjectVisibility | None = None
+    public_access_role: PublicAccessRole | None = None
 
     @field_validator("name")
     @classmethod
@@ -104,6 +108,7 @@ class ProjectUpdate(ApiModel):
             self.name is None
             and self.document is None
             and self.visibility is None
+            and self.public_access_role is None
         ):
             raise ValueError("至少需要提供一個要更新的欄位")
 
@@ -114,6 +119,7 @@ class ProjectSummary(ApiModel):
     id: uuid.UUID
     name: str
     visibility: ProjectVisibility
+    public_access_role: PublicAccessRole
     created_at: datetime
     updated_at: datetime
 

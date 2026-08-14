@@ -122,6 +122,9 @@ async def update_project(
     if request.visibility is not None:
         project.visibility = request.visibility
 
+    if request.public_access_role is not None:
+        project.public_access_role = request.public_access_role
+
     await session.commit()
     await session.refresh(project)
 
@@ -160,6 +163,7 @@ async def create_project(
         name=request.name.strip(),
         document=request.document.model_dump(by_alias=True),
         visibility=request.visibility,
+        public_access_role=request.public_access_role,
     )
     session.add(project)
     await session.commit()

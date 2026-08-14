@@ -36,6 +36,12 @@ class Project(Base):
         default="private",
         server_default=text("'private'"),
     )
+    public_access_role: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="viewer",
+        server_default=text("'viewer'"),
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     document: Mapped[dict[str, Any]] = mapped_column(
         JSONB,

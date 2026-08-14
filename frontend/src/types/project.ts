@@ -9,11 +9,14 @@ export type ProjectDocument = {
 }
 
 export type ProjectVisibility = 'private' | 'public'
+export type ProjectRole = 'owner' | 'editor' | 'viewer'
+export type PublicAccessRole = Exclude<ProjectRole, 'owner'>
 
 export type ProjectSummary = {
   id: string
   name: string
   visibility: ProjectVisibility
+  publicAccessRole: PublicAccessRole
   createdAt: string
   updatedAt: string
 }
@@ -26,10 +29,12 @@ export type CreateProjectInput = {
   name: string
   document?: ProjectDocument
   visibility?: ProjectVisibility
+  publicAccessRole?: PublicAccessRole
 }
 
 export type UpdateProjectInput = {
   name?: string
   document?: ProjectDocument
   visibility?: ProjectVisibility
+  publicAccessRole?: PublicAccessRole
 }
