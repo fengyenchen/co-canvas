@@ -12,11 +12,15 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
+    "@neondatabase/neon-js": "^0.7.0-beta",
     "@tailwindcss/vite": "^4.3.3",
     "@xyflow/react": "^12.11.2",
+    "better-auth": "^1.6.23",
+    "lucide-react": "^1.31.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "^8.3.0",
+    "react-router-dom": "^7.18.2",
     "tailwindcss": "^4.3.3",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
