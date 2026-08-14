@@ -372,6 +372,7 @@ export function EditorPage() {
         canManageProjectPermissions={
           projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
         }
+        canCopyProjectLink={projectId !== LOCAL_PROJECT_ID}
         onRenameProject={() => setActiveSettingsDialog('rename')}
         onManageProjectPermissions={() =>
           setActiveSettingsDialog('permissions')

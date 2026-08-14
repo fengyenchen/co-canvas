@@ -29,6 +29,7 @@ type CanvasProps = {
     isReadOnly?: boolean
     canRenameProject?: boolean
     canManageProjectPermissions?: boolean
+    canCopyProjectLink?: boolean
     onRenameProject?: () => void
     onManageProjectPermissions?: () => void
 }
@@ -37,6 +38,7 @@ function CanvasContent({
     isReadOnly = false,
     canRenameProject = false,
     canManageProjectPermissions = false,
+    canCopyProjectLink = false,
     onRenameProject,
     onManageProjectPermissions,
 }: CanvasProps) {
@@ -47,6 +49,9 @@ function CanvasContent({
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [isSearchOpen, setIsSearchOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [copyLinkState, setCopyLinkState] = useState<
+        'idle' | 'copied' | 'error'
+    >('idle')
 
     const edges = useCanvasStore((state) => state.edges)
     const addNode = useCanvasStore((state) => state.addNode)
@@ -93,6 +98,22 @@ function CanvasContent({
             })
             .slice(0, 20)
     }, [nodes, searchQuery])
+
+    async function handleCopyProjectLink() {
+        try {
+            const projectUrl = new URL(
+                window.location.pathname,
+                window.location.origin,
+            ).toString()
+
+            await navigator.clipboard.writeText(projectUrl)
+            setCopyLinkState('copied')
+        } catch {
+            setCopyLinkState('error')
+        }
+
+        window.setTimeout(() => setCopyLinkState('idle'), 2000)
+    }
 
     function focusNode(nodeId: string) {
         const node = getNode(nodeId)
@@ -368,7 +389,22 @@ function CanvasContent({
                                 權限管理
                             </button>
                         )}
-                        {(canRenameProject || canManageProjectPermissions) && (
+                        {canCopyProjectLink && (
+                            <button
+                                type="button"
+                                onClick={() => void handleCopyProjectLink()}
+                                className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                            >
+                                {copyLinkState === 'copied'
+                                    ? '已複製連結'
+                                    : copyLinkState === 'error'
+                                      ? '複製失敗，請重試'
+                                      : '複製分享連結'}
+                            </button>
+                        )}
+                        {(canRenameProject ||
+                            canManageProjectPermissions ||
+                            canCopyProjectLink) && (
                             <div className="my-1 border-t border-border" />
                         )}
                         <button
