@@ -4,6 +4,7 @@ import type { ChatMessage } from '../types/chat'
 import {
   createProjectFile,
   parseProjectFile,
+  projectDocumentSchema,
 } from './projectFile'
 
 const nodes: CanvasNode[] = [
@@ -108,5 +109,39 @@ describe('projectFile', () => {
     expect(() => parseProjectFile(invalidProject)).toThrow(
       '連線引用了不存在的節點',
     )
+  })
+
+  it('接受後端回傳為 null 的可選欄位', () => {
+    const project = projectDocumentSchema.parse({
+      version: 1,
+      nodes,
+      edges: [
+        {
+          id: 'edge-without-label',
+          source: 'node-1',
+          target: 'node-2',
+          label: null,
+          data: null,
+        },
+      ],
+      messages: [
+        {
+          id: 'message-with-null-fields',
+          role: 'ai',
+          content: '測試回覆',
+          contextNodeId: null,
+          createdAt: '2026-08-14T00:00:00.000Z',
+          canGenerateNodes: null,
+          latencyMs: null,
+          isError: null,
+          retryAction: null,
+          retryContent: null,
+        },
+      ],
+    })
+
+    expect(project.edges[0]?.label).toBeUndefined()
+    expect(project.edges[0]?.data).toBeUndefined()
+    expect(project.messages[0]?.latencyMs).toBeUndefined()
   })
 })

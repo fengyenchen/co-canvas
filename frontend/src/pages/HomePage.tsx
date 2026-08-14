@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import {
   createProject,
   deleteProject,
@@ -9,6 +9,9 @@ import {
 import { ApiRequestError } from '../api/errors'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 import type { ProjectSummary } from '../types/project'
+import { getLocalProjectDocument } from '../utils/localProjectBackup'
+
+type CreateProjectMode = 'empty' | 'local'
 
 function formatUpdatedAt(value: string) {
   const date = new Date(value)
@@ -36,6 +39,7 @@ function getLoadErrorMessage(error: unknown) {
 }
 
 export function HomePage() {
+  const navigate = useNavigate()
   const createDialogRef = useRef<HTMLDialogElement>(null)
   const renameDialogRef = useRef<HTMLDialogElement>(null)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
@@ -43,6 +47,8 @@ export function HomePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [projectName, setProjectName] = useState('')
+  const [createProjectMode, setCreateProjectMode] =
+    useState<CreateProjectMode>('empty')
   const [isCreating, setIsCreating] = useState(false)
   const [createErrorMessage, setCreateErrorMessage] = useState<
     string | null
@@ -142,14 +148,44 @@ export function HomePage() {
     setCreateErrorMessage(null)
 
     try {
-      const project = await createProject({ name })
+      const localDocument =
+        createProjectMode === 'local'
+          ? getLocalProjectDocument()
+          : null
+
+      if (
+        createProjectMode === 'local' &&
+        (!localDocument ||
+          (localDocument.nodes.length === 0 &&
+            localDocument.edges.length === 0 &&
+            localDocument.messages.length === 0))
+      ) {
+        setCreateErrorMessage('本機畫布目前沒有內容可儲存。')
+        return
+      }
+
+      const project = await createProject({
+        name,
+        ...(localDocument ? { document: localDocument } : {}),
+      })
       setProjects((currentProjects) => [project, ...currentProjects])
       createDialogRef.current?.close()
+
+      if (createProjectMode === 'local') {
+        void navigate(`/projects/${project.id}`)
+      }
     } catch (error) {
       setCreateErrorMessage(getLoadErrorMessage(error))
     } finally {
       setIsCreating(false)
     }
+  }
+
+  function openCreateProjectDialog(mode: CreateProjectMode) {
+    setCreateProjectMode(mode)
+    setProjectName(mode === 'local' ? '本機畫布' : '')
+    setCreateErrorMessage(null)
+    createDialogRef.current?.showModal()
   }
 
   function openRenameDialog(project: ProjectSummary) {
@@ -311,7 +347,7 @@ export function HomePage() {
             {authUserEmail && (
               <button
                 type="button"
-                onClick={() => createDialogRef.current?.showModal()}
+                onClick={() => openCreateProjectDialog('empty')}
                 className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
                 新增專案
@@ -321,12 +357,23 @@ export function HomePage() {
         </header>
 
         <section className="py-8" aria-labelledby="project-list-title">
-          <h2
-            id="project-list-title"
-            className="mb-4 text-lg font-semibold text-foreground"
-          >
-            你的專案
-          </h2>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2
+              id="project-list-title"
+              className="text-lg font-semibold text-foreground"
+            >
+              你的專案
+            </h2>
+            {authUserEmail && (
+              <button
+                type="button"
+                onClick={() => openCreateProjectDialog('local')}
+                className="min-h-11 cursor-pointer self-start rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:self-auto"
+              >
+                將本機畫布存到雲端
+              </button>
+            )}
+          </div>
 
           {isAuthLoading && (
             <div
@@ -549,6 +596,7 @@ export function HomePage() {
         aria-describedby="create-project-description"
         onClose={() => {
           setProjectName('')
+          setCreateProjectMode('empty')
           setCreateErrorMessage(null)
         }}
         className="m-auto w-[min(28rem,calc(100%-2rem))] rounded-2xl border border-border bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/20"
@@ -564,13 +612,17 @@ export function HomePage() {
             id="create-project-title"
             className="text-xl font-semibold text-foreground"
           >
-            新增專案
+            {createProjectMode === 'local'
+              ? '儲存本機畫布'
+              : '新增專案'}
           </h2>
           <p
             id="create-project-description"
             className="mt-2 text-sm leading-6 text-foreground/60"
           >
-            輸入名稱後，專案會儲存在 Neon。
+            {createProjectMode === 'local'
+              ? '建立一份雲端副本，本機畫布會繼續保留。'
+              : '輸入名稱後，專案會儲存在 Neon。'}
           </p>
 
           <label
@@ -614,7 +666,11 @@ export function HomePage() {
               disabled={!projectName.trim() || isCreating}
               className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isCreating ? '建立中…' : '建立專案'}
+              {isCreating
+                ? '儲存中…'
+                : createProjectMode === 'local'
+                  ? '儲存到雲端'
+                  : '建立專案'}
             </button>
           </div>
         </form>

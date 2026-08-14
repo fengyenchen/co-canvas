@@ -1,6 +1,11 @@
 import { useCanvasStore } from '../stores/canvasStore'
 import { useChatStore } from '../stores/chatStore'
-import { createProjectFile, parseProjectFile } from './projectFile'
+import type { ProjectDocument } from '../types/project'
+import {
+  createProjectDocument,
+  createProjectFile,
+  parseProjectFile,
+} from './projectFile'
 
 export const LOCAL_PROJECT_ID = 'local'
 
@@ -28,6 +33,35 @@ export function backupLocalProject(): boolean {
     return true
   } catch {
     return false
+  }
+}
+
+export function getLocalProjectDocument(): ProjectDocument | null {
+  try {
+    const activeProjectId = getActiveProjectId()
+
+    if (!activeProjectId || activeProjectId === LOCAL_PROJECT_ID) {
+      const { nodes, edges } = useCanvasStore.getState()
+      const { messages } = useChatStore.getState()
+
+      return createProjectDocument(nodes, edges, messages)
+    }
+
+    const rawProject = localStorage.getItem(LOCAL_PROJECT_BACKUP_KEY)
+
+    if (!rawProject) {
+      return null
+    }
+
+    const project = parseProjectFile(JSON.parse(rawProject))
+
+    return createProjectDocument(
+      project.nodes,
+      project.edges,
+      project.messages,
+    )
+  } catch {
+    return null
   }
 }
 

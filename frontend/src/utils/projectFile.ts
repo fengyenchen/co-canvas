@@ -4,6 +4,20 @@ import type { ChatMessage } from '../types/chat'
 import type { ProjectDocument } from '../types/project'
 
 const originSchema = z.enum(['user', 'ai'])
+const nullToUndefined = (value: unknown) =>
+  value === null ? undefined : value
+const optionalStringSchema = z.preprocess(
+  nullToUndefined,
+  z.string().optional(),
+)
+const optionalBooleanSchema = z.preprocess(
+  nullToUndefined,
+  z.boolean().optional(),
+)
+const optionalNonnegativeNumberSchema = z.preprocess(
+  nullToUndefined,
+  z.number().nonnegative().optional(),
+)
 
 const canvasNodeSchema = z.object({
   id: z.string().min(1),
@@ -23,24 +37,36 @@ const canvasEdgeSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1),
   target: z.string().min(1),
-  label: z.string().optional(),
-  data: z.object({
-    label: z.string().optional(),
-    origin: originSchema,
-  }).optional(),
+  label: optionalStringSchema,
+  data: z.preprocess(
+    nullToUndefined,
+    z
+      .object({
+        label: optionalStringSchema,
+        origin: originSchema,
+      })
+      .optional(),
+  ),
 })
 
 const chatMessageSchema = z.object({
   id: z.string().min(1),
   role: z.enum(['user', 'ai']),
   content: z.string(),
-  contextNodeId: z.string().nullable(),
+  contextNodeId: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
   createdAt: z.string(),
-  canGenerateNodes: z.boolean().optional(),
-  latencyMs: z.number().nonnegative().optional(),
-  isError: z.boolean().optional(),
-  retryAction: z.enum(['chat', 'suggestion']).optional(),
-  retryContent: z.string().optional(),
+  canGenerateNodes: optionalBooleanSchema,
+  latencyMs: optionalNonnegativeNumberSchema,
+  isError: optionalBooleanSchema,
+  retryAction: z.preprocess(
+    nullToUndefined,
+    z.enum(['chat', 'suggestion']).optional(),
+  ),
+  retryContent: optionalStringSchema,
 })
 
 const projectDocumentShape = {
