@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google.genai.errors import APIError
 
+from app.database import DatabaseConnectionError, check_database_connection
 from app.schemas import (
     ChatRequest,
     ChatResponse,
@@ -49,6 +50,29 @@ async def health():
         "service": "co-canvas-api",
         "aiMode": settings.ai_mode,
         "geminiConfigured": settings.gemini_api_key is not None,
+        "databaseConfigured": settings.database_url is not None,
+    }
+
+
+@app.get("/health/database")
+async def database_health():
+    try:
+        is_configured = await check_database_connection()
+    except DatabaseConnectionError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="資料庫連線失敗",
+        ) from error
+
+    if not is_configured:
+        return {
+            "status": "not_configured",
+            "database": "neon-postgres",
+        }
+
+    return {
+        "status": "ok",
+        "database": "neon-postgres",
     }
 
 
