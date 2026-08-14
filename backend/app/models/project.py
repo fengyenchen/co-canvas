@@ -25,6 +25,11 @@ class Project(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
+    owner_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     document: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
