@@ -248,12 +248,12 @@ function CanvasContent() {
 
     return (
         <section className="relative h-full min-w-0 flex-1 bg-canvas">
-            <div className="absolute left-4 top-4 z-10 flex items-center gap-1 sm:gap-2">
+            <div className="absolute left-4 right-4 top-4 z-10 flex items-center justify-between gap-2 sm:right-auto sm:justify-start">
                 <Link
                     to="/"
                     aria-label="返回專案列表"
                     title="返回專案列表"
-                    className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-xl text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    className="flex h-11 min-w-11 flex-1 items-center justify-center rounded-lg border border-border bg-background text-xl text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-11 sm:flex-none"
                 >
                     <span aria-hidden="true">←</span>
                 </Link>
@@ -261,7 +261,7 @@ function CanvasContent() {
                 <button
                     type="button"
                     onClick={addNode}
-                    className="min-h-11 cursor-pointer rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-4"
+                    className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg bg-primary px-2 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-none sm:px-4"
                 >
                     <span className="sm:hidden">新增</span>
                     <span className="hidden sm:inline">新增節點</span>
@@ -271,20 +271,20 @@ function CanvasContent() {
                     type="button"
                     onClick={handleAutoLayout}
                     disabled={nodes.length < 2}
-                    className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:px-4"
+                    className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-none sm:px-4"
                 >
                     <span className="sm:hidden">排版</span>
                     <span className="hidden sm:inline">自動排版</span>
                 </button>
 
-                <div className="flex min-h-11 overflow-hidden rounded-lg border border-border bg-background shadow-sm">
+                <div className="flex min-h-11 min-w-[5.5rem] flex-1 overflow-hidden rounded-lg border border-border bg-background shadow-sm sm:flex-none">
                     <button
                         type="button"
                         onClick={undo}
                         disabled={!canUndo}
                         aria-label="復原"
                         title="復原（Ctrl+Z）"
-                        className="min-w-11 cursor-pointer border-r border-border px-3 py-2 text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35"
+                        className="min-w-11 flex-1 cursor-pointer border-r border-border px-2 py-2 text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:px-3"
                     >
                         ↶
                     </button>
@@ -295,14 +295,14 @@ function CanvasContent() {
                         disabled={!canRedo}
                         aria-label="重做"
                         title="重做（Ctrl+Shift+Z）"
-                        className="min-w-11 cursor-pointer px-3 py-2 text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35"
+                        className="min-w-11 flex-1 cursor-pointer px-2 py-2 text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:px-3"
                     >
                         ↷
                     </button>
                 </div>
 
-                <details className="group relative">
-                    <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                <details className="group relative min-w-0 flex-1 sm:flex-none">
+                    <summary className="flex min-h-11 w-full cursor-pointer list-none items-center justify-center rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-3">
                         專案
                     </summary>
 

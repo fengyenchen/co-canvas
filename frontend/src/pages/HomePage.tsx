@@ -170,10 +170,7 @@ export function HomePage() {
       })
       setProjects((currentProjects) => [project, ...currentProjects])
       createDialogRef.current?.close()
-
-      if (createProjectMode === 'local') {
-        void navigate(`/projects/${project.id}`)
-      }
+      void navigate(`/projects/${project.id}`)
     } catch (error) {
       setCreateErrorMessage(getLoadErrorMessage(error))
     } finally {
@@ -320,10 +317,10 @@ export function HomePage() {
                 確認登入中…
               </span>
             ) : authUserEmail ? (
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                 <span
                   title={authUserEmail}
-                  className="inline-flex min-h-11 max-w-48 items-center rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground/65 shadow-sm"
+                  className="inline-flex min-h-11 w-full min-w-0 max-w-none items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground/65 shadow-sm sm:w-auto sm:max-w-48 sm:justify-start"
                 >
                   <span className="truncate">{authUserEmail}</span>
                 </span>
