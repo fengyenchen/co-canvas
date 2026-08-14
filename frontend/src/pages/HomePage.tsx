@@ -7,6 +7,7 @@ import {
   updateProject,
 } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
+import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 import type { ProjectSummary } from '../types/project'
 
 function formatUpdatedAt(value: string) {
@@ -196,14 +197,22 @@ export function HomePage() {
     <main className="min-h-screen bg-canvas px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl">
         <header className="flex flex-col gap-5 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-primary">Co-Canvas</p>
-            <h1 className="mt-1 text-3xl font-semibold text-foreground">
-              專案
-            </h1>
-            <p className="mt-2 text-foreground/60">
-              選擇一個專案，繼續整理你的思考脈絡。
-            </p>
+          <div className="flex items-start gap-4">
+            <img
+              src={coCanvasMark}
+              alt=""
+              width="64"
+              height="64"
+              className="size-14 shrink-0 sm:size-16"
+            />
+            <div>
+              <h1 className="text-3xl font-semibold text-foreground">
+                專案
+              </h1>
+              <p className="mt-2 text-foreground/60">
+                選擇一個專案，繼續整理你的思考脈絡。
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -212,6 +221,12 @@ export function HomePage() {
               className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
               開啟本機畫布
+            </Link>
+            <Link
+              to="/auth/sign-in"
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              登入
             </Link>
             <button
               type="button"
