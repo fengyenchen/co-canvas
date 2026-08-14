@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import CurrentUser
+from app.auth import CurrentUser, OptionalCurrentUser
 from app.database import get_database_session
 from app.models import Project
 from app.project_schemas import (
@@ -48,6 +48,38 @@ async def get_project_or_404(
     return project
 
 
+async def get_readable_project(
+    project_id: uuid.UUID,
+    session: AsyncSession,
+    user: OptionalCurrentUser,
+) -> Project:
+    project = await session.get(Project, project_id)
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="找不到此專案",
+        )
+
+    if project.visibility == "public":
+        return project
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="請先登入以查看此專案",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if project.owner_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="你沒有查看此專案的權限",
+        )
+
+    return project
+
+
 @router.get("", response_model=list[ProjectSummary])
 async def list_projects(
     session: DatabaseSession,
@@ -67,9 +99,9 @@ async def list_projects(
 async def get_project(
     project_id: uuid.UUID,
     session: DatabaseSession,
-    user: CurrentUser,
+    user: OptionalCurrentUser,
 ) -> Project:
-    return await get_project_or_404(project_id, session, user.id)
+    return await get_readable_project(project_id, session, user)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

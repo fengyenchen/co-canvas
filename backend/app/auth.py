@@ -84,3 +84,18 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
+
+
+async def get_optional_current_user(
+    credentials: BearerCredentials,
+) -> AuthenticatedUser | None:
+    if credentials is None:
+        return None
+
+    return await get_current_user(credentials)
+
+
+OptionalCurrentUser = Annotated[
+    AuthenticatedUser | None,
+    Depends(get_optional_current_user),
+]
