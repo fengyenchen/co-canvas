@@ -63,6 +63,38 @@ export function HomePage() {
   const [copiedProjectId, setCopiedProjectId] = useState<string | null>(
     null,
   )
+  const [authUserEmail, setAuthUserEmail] = useState<string | null>(null)
+  const [isAuthLoading, setIsAuthLoading] = useState(true)
+  const [isSigningOut, setIsSigningOut] = useState(false)
+
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadSession() {
+      try {
+        const { authClient } = await import('../lib/auth')
+        const { data } = await authClient.getSession()
+
+        if (!isCancelled) {
+          setAuthUserEmail(data?.user.email ?? null)
+        }
+      } catch {
+        if (!isCancelled) {
+          setAuthUserEmail(null)
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsAuthLoading(false)
+        }
+      }
+    }
+
+    void loadSession()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let isCancelled = false
@@ -193,6 +225,22 @@ export function HomePage() {
     }
   }
 
+  async function handleSignOut() {
+    if (isSigningOut) {
+      return
+    }
+
+    setIsSigningOut(true)
+
+    try {
+      const { authClient } = await import('../lib/auth')
+      await authClient.signOut()
+      setAuthUserEmail(null)
+    } finally {
+      setIsSigningOut(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-canvas px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl">
@@ -222,12 +270,38 @@ export function HomePage() {
             >
               開啟本機畫布
             </Link>
-            <Link
-              to="/auth/sign-in"
-              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-            >
-              登入
-            </Link>
+            {isAuthLoading ? (
+              <span
+                role="status"
+                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground/50 shadow-sm"
+              >
+                確認登入中…
+              </span>
+            ) : authUserEmail ? (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <span
+                  title={authUserEmail}
+                  className="inline-flex min-h-11 max-w-48 items-center rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground/65 shadow-sm"
+                >
+                  <span className="truncate">{authUserEmail}</span>
+                </span>
+                <button
+                  type="button"
+                  disabled={isSigningOut}
+                  onClick={() => void handleSignOut()}
+                  className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSigningOut ? '登出中…' : '登出'}
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/auth/sign-in"
+                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                登入
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => createDialogRef.current?.showModal()}
