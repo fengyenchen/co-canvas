@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import CurrentUser
 from app.database import get_database_session
 from app.models import Project
 from app.project_schemas import (
@@ -29,8 +30,14 @@ DatabaseSession = Annotated[
 async def get_project_or_404(
     project_id: uuid.UUID,
     session: AsyncSession,
+    owner_id: str,
 ) -> Project:
-    project = await session.get(Project, project_id)
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_id == owner_id,
+        ),
+    )
 
     if project is None:
         raise HTTPException(
@@ -42,9 +49,15 @@ async def get_project_or_404(
 
 
 @router.get("", response_model=list[ProjectSummary])
-async def list_projects(session: DatabaseSession) -> list[Project]:
+async def list_projects(
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> list[Project]:
     result = await session.scalars(
-        select(Project).order_by(Project.updated_at.desc()).limit(100),
+        select(Project)
+        .where(Project.owner_id == user.id)
+        .order_by(Project.updated_at.desc())
+        .limit(100),
     )
 
     return list(result)
@@ -54,8 +67,9 @@ async def list_projects(session: DatabaseSession) -> list[Project]:
 async def get_project(
     project_id: uuid.UUID,
     session: DatabaseSession,
+    user: CurrentUser,
 ) -> Project:
-    return await get_project_or_404(project_id, session)
+    return await get_project_or_404(project_id, session, user.id)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -63,8 +77,9 @@ async def update_project(
     project_id: uuid.UUID,
     request: ProjectUpdate,
     session: DatabaseSession,
+    user: CurrentUser,
 ) -> Project:
-    project = await get_project_or_404(project_id, session)
+    project = await get_project_or_404(project_id, session, user.id)
 
     if request.name is not None:
         project.name = request.name
@@ -85,8 +100,9 @@ async def update_project(
 async def delete_project(
     project_id: uuid.UUID,
     session: DatabaseSession,
+    user: CurrentUser,
 ) -> Response:
-    project = await get_project_or_404(project_id, session)
+    project = await get_project_or_404(project_id, session, user.id)
 
     await session.delete(project)
     await session.commit()
@@ -102,8 +118,10 @@ async def delete_project(
 async def create_project(
     request: ProjectCreate,
     session: DatabaseSession,
+    user: CurrentUser,
 ) -> Project:
     project = Project(
+        owner_id=user.id,
         name=request.name.strip(),
         document=request.document.model_dump(by_alias=True),
     )

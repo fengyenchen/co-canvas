@@ -97,6 +97,10 @@ export function HomePage() {
   }, [])
 
   useEffect(() => {
+    if (isAuthLoading || !authUserEmail) {
+      return
+    }
+
     let isCancelled = false
 
     async function loadProjects() {
@@ -125,12 +129,12 @@ export function HomePage() {
     return () => {
       isCancelled = true
     }
-  }, [loadAttempt])
+  }, [authUserEmail, isAuthLoading, loadAttempt])
 
   async function handleCreateProject() {
     const name = projectName.trim()
 
-    if (!name || isCreating) {
+    if (!authUserEmail || !name || isCreating) {
       return
     }
 
@@ -236,6 +240,8 @@ export function HomePage() {
       const { authClient } = await import('../lib/auth')
       await authClient.signOut()
       setAuthUserEmail(null)
+      setProjects([])
+      setErrorMessage(null)
     } finally {
       setIsSigningOut(false)
     }
@@ -302,13 +308,15 @@ export function HomePage() {
                 登入
               </Link>
             )}
-            <button
-              type="button"
-              onClick={() => createDialogRef.current?.showModal()}
-              className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-            >
-              新增專案
-            </button>
+            {authUserEmail && (
+              <button
+                type="button"
+                onClick={() => createDialogRef.current?.showModal()}
+                className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                新增專案
+              </button>
+            )}
           </div>
         </header>
 
@@ -320,7 +328,39 @@ export function HomePage() {
             你的專案
           </h2>
 
-          {isLoading && (
+          {isAuthLoading && (
+            <div
+              role="status"
+              aria-label="正在確認登入狀態"
+              className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            >
+              {[0, 1, 2].map((item) => (
+                <div
+                  key={item}
+                  className="h-32 animate-pulse rounded-xl border border-border bg-background/70"
+                />
+              ))}
+            </div>
+          )}
+
+          {!isAuthLoading && !authUserEmail && (
+            <div className="rounded-xl border border-dashed border-border bg-background/70 px-6 py-10 text-center">
+              <h3 className="font-semibold text-foreground">
+                登入後使用雲端專案
+              </h3>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-foreground/60">
+                未登入時仍可使用本機畫布；登入後即可跨裝置存取專案。
+              </p>
+              <Link
+                to="/auth/sign-in"
+                className="mt-5 inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                登入
+              </Link>
+            </div>
+          )}
+
+          {!isAuthLoading && authUserEmail && isLoading && (
             <div
               role="status"
               aria-label="正在載入專案"
@@ -335,7 +375,7 @@ export function HomePage() {
             </div>
           )}
 
-          {!isLoading && errorMessage && (
+          {!isAuthLoading && authUserEmail && !isLoading && errorMessage && (
             <div
               role="alert"
               className="rounded-xl border border-border bg-background p-6"
@@ -356,7 +396,11 @@ export function HomePage() {
             </div>
           )}
 
-          {!isLoading && !errorMessage && projects.length === 0 && (
+          {!isAuthLoading &&
+            authUserEmail &&
+            !isLoading &&
+            !errorMessage &&
+            projects.length === 0 && (
             <div className="rounded-xl border border-dashed border-border bg-background/70 px-6 py-12 text-center">
               <h3 className="font-semibold text-foreground">
                 還沒有雲端專案
@@ -367,7 +411,11 @@ export function HomePage() {
             </div>
           )}
 
-          {!isLoading && !errorMessage && projects.length > 0 && (
+          {!isAuthLoading &&
+            authUserEmail &&
+            !isLoading &&
+            !errorMessage &&
+            projects.length > 0 && (
             <>
               {actionErrorMessage && (
                 <p

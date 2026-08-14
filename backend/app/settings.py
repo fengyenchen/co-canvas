@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import AnyHttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.6-flash"
     database_url: SecretStr | None = None
     database_migration_url: SecretStr | None = None
+    neon_auth_jwks_url: AnyHttpUrl | None = None
 
 
 @lru_cache

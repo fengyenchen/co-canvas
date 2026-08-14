@@ -54,6 +54,7 @@ async def health():
         "aiMode": settings.ai_mode,
         "geminiConfigured": settings.gemini_api_key is not None,
         "databaseConfigured": settings.database_url is not None,
+        "authConfigured": settings.neon_auth_jwks_url is not None,
     }
 
 
