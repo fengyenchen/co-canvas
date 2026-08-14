@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import { Link, useParams } from 'react-router'
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router'
 import { getProject, updateProject } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
 import { Canvas } from '../components/canvas/Canvas'
@@ -50,6 +55,8 @@ function clampChatHeight(value: number): number {
 
 export function EditorPage() {
   const { projectId } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
   const layoutRef = useRef<HTMLDivElement>(null)
   const resizingPointerIdRef = useRef<number | null>(null)
   const savedDocumentSignatureRef = useRef('')
@@ -58,6 +65,8 @@ export function EditorPage() {
   const [projectLoadError, setProjectLoadError] = useState('')
   const [projectSaveState, setProjectSaveState] =
     useState<ProjectSaveState>('idle')
+  const [projectSaveRequiresLogin, setProjectSaveRequiresLogin] =
+    useState(false)
   const [mobileChatHeight, setMobileChatHeight] = useState(
     DEFAULT_CHAT_HEIGHT_PERCENT,
   )
@@ -89,6 +98,7 @@ export function EditorPage() {
       setProjectLoadState('loading')
       setProjectLoadError('')
       setProjectSaveState('idle')
+      setProjectSaveRequiresLogin(false)
 
       if (!projectId) {
         setProjectLoadState('error')
@@ -140,6 +150,15 @@ export function EditorPage() {
           return
         }
 
+        if (error instanceof ApiRequestError && error.status === 401) {
+          const returnTo = `${location.pathname}${location.search}`
+          void navigate(
+            `/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`,
+            { replace: true },
+          )
+          return
+        }
+
         setProjectLoadError(getProjectLoadErrorMessage(error))
         setProjectLoadState('error')
       }
@@ -150,7 +169,14 @@ export function EditorPage() {
     return () => {
       isCancelled = true
     }
-  }, [projectId, replaceProject, replaceProjectMessages])
+  }, [
+    location.pathname,
+    location.search,
+    navigate,
+    projectId,
+    replaceProject,
+    replaceProjectMessages,
+  ])
 
   useEffect(() => {
     if (
@@ -165,6 +191,7 @@ export function EditorPage() {
     let isCancelled = false
     const timeoutId = window.setTimeout(async () => {
       setProjectSaveState('saving')
+      setProjectSaveRequiresLogin(false)
 
       try {
         await updateProject(projectId, {
@@ -177,9 +204,12 @@ export function EditorPage() {
 
         savedDocumentSignatureRef.current = projectDocumentSignature
         setProjectSaveState('saved')
-      } catch {
+      } catch (error) {
         if (!isCancelled) {
           setProjectSaveState('error')
+          setProjectSaveRequiresLogin(
+            error instanceof ApiRequestError && error.status === 401,
+          )
         }
       }
     }, SAVE_DELAY_MS)
@@ -317,18 +347,29 @@ export function EditorPage() {
       <Canvas />
 
       {projectId !== LOCAL_PROJECT_ID && projectSaveState !== 'idle' && (
-        <p
+        <div
           role="status"
-          className={`pointer-events-none fixed bottom-4 right-4 z-20 rounded-lg border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur-sm ${
+          className={`fixed bottom-4 right-4 z-20 flex items-center gap-2 rounded-lg border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur-sm ${
             projectSaveState === 'error'
               ? 'border-red-300 text-red-600'
-              : 'border-border text-muted-foreground'
+              : 'pointer-events-none border-border text-muted-foreground'
           }`}
         >
           {projectSaveState === 'saving' && '儲存中…'}
           {projectSaveState === 'saved' && '已儲存'}
-          {projectSaveState === 'error' && '儲存失敗'}
-        </p>
+          {projectSaveState === 'error' &&
+            (projectSaveRequiresLogin ? '登入已過期，尚未儲存' : '儲存失敗')}
+          {projectSaveRequiresLogin && (
+            <Link
+              to={`/auth/sign-in?returnTo=${encodeURIComponent(
+                `${location.pathname}${location.search}`,
+              )}`}
+              className="inline-flex min-h-8 items-center rounded-md border border-red-300 px-2 font-medium text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+            >
+              重新登入
+            </Link>
+          )}
+        </div>
       )}
     </div>
   )

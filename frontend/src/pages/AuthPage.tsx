@@ -6,7 +6,12 @@ import {
   type AuthViewPath,
 } from '@neondatabase/neon-js/auth/react/ui'
 import '@neondatabase/neon-js/ui/css'
-import { Link, useNavigate, useParams } from 'react-router'
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router'
 import coCanvasLogo from '../assets/branding/co-canvas-logo-primary.svg'
 import { authClient } from '../lib/auth'
 
@@ -51,13 +56,37 @@ const authLocalizationZhTw = {
   UNEXPECTED_ERROR: '發生未預期的錯誤，請稍後再試。',
 } satisfies AuthLocalization
 
+function getSafeReturnTo(value: string | null): string {
+  if (
+    value &&
+    value.startsWith('/') &&
+    !value.startsWith('//') &&
+    !value.startsWith('/auth')
+  ) {
+    return value
+  }
+
+  return '/'
+}
+
 function AuthLink({ href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) {
-  return <Link to={href ?? '/'} {...props} />
+  const [searchParams] = useSearchParams()
+  const returnTo = getSafeReturnTo(searchParams.get('returnTo'))
+  let destination = href ?? '/'
+
+  if (returnTo !== '/' && destination.startsWith('/auth/')) {
+    const separator = destination.includes('?') ? '&' : '?'
+    destination += `${separator}returnTo=${encodeURIComponent(returnTo)}`
+  }
+
+  return <Link to={destination} {...props} />
 }
 
 export function AuthPage() {
   const navigate = useNavigate()
   const { authPath = 'sign-in' } = useParams()
+  const [searchParams] = useSearchParams()
+  const returnTo = getSafeReturnTo(searchParams.get('returnTo'))
 
   return (
     <main className="min-h-dvh bg-canvas px-4 py-6 sm:px-6 sm:py-10">
@@ -92,7 +121,7 @@ export function AuthPage() {
         <NeonAuthUIProvider
           authClient={authClient}
           basePath="/auth"
-          redirectTo="/"
+          redirectTo={returnTo}
           navigate={(href) => navigate(href)}
           replace={(href) => navigate(href, { replace: true })}
           Link={AuthLink}
@@ -101,7 +130,7 @@ export function AuthPage() {
         >
           <AuthView
             path={authPath as AuthViewPath}
-            redirectTo="/"
+            redirectTo={returnTo}
           />
         </NeonAuthUIProvider>
       </div>
