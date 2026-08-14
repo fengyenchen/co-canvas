@@ -91,6 +91,9 @@ async def get_project_role(
     if user is not None and project.owner_id == user.id:
         return "owner"
 
+    if project.visibility == "public":
+        return project.public_access_role
+
     if user is not None:
         member_filters = [ProjectMember.user_id == user.id]
 
@@ -108,9 +111,6 @@ async def get_project_role(
 
         if member_role in ("editor", "viewer"):
             return member_role
-
-    if project.visibility == "public":
-        return project.public_access_role
 
     return None
 

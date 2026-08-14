@@ -1,15 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
+  addProjectMember,
   createProject,
   deleteProject,
+  listProjectMembers,
   listProjects,
+  removeProjectMember,
   updateProject,
+  updateProjectMember,
 } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 import type {
   ProjectSummary,
+  ProjectMember,
+  ProjectMemberRole,
   ProjectVisibility,
   PublicAccessRole,
 } from '../types/project'
@@ -73,6 +79,19 @@ export function HomePage() {
     useState<PublicAccessRole>('viewer')
   const [isSavingPermission, setIsSavingPermission] = useState(false)
   const [permissionErrorMessage, setPermissionErrorMessage] = useState<
+    string | null
+  >(null)
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([])
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false)
+  const [hasLoadedMembers, setHasLoadedMembers] = useState(false)
+  const [memberEmail, setMemberEmail] = useState('')
+  const [newMemberRole, setNewMemberRole] =
+    useState<ProjectMemberRole>('viewer')
+  const [isAddingMember, setIsAddingMember] = useState(false)
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(
+    null,
+  )
+  const [memberErrorMessage, setMemberErrorMessage] = useState<
     string | null
   >(null)
   const [deletingProjectId, setDeletingProjectId] = useState<
@@ -242,7 +261,110 @@ export function HomePage() {
     setProjectVisibility(project.visibility)
     setPublicAccessRole(project.publicAccessRole)
     setPermissionErrorMessage(null)
+    setProjectMembers([])
+    setHasLoadedMembers(false)
+    setMemberEmail('')
+    setNewMemberRole('viewer')
+    setMemberErrorMessage(null)
     permissionDialogRef.current?.showModal()
+    if (project.visibility === 'private') {
+      void loadProjectMembers(project.id)
+    }
+  }
+
+  async function loadProjectMembers(projectId: string) {
+    setIsLoadingMembers(true)
+    setMemberErrorMessage(null)
+
+    try {
+      setProjectMembers(await listProjectMembers(projectId))
+      setHasLoadedMembers(true)
+    } catch (error) {
+      setMemberErrorMessage(getLoadErrorMessage(error))
+    } finally {
+      setIsLoadingMembers(false)
+    }
+  }
+
+  async function handleAddMember() {
+    const email = memberEmail.trim().toLowerCase()
+
+    if (!permissionProject || !email || isAddingMember) {
+      return
+    }
+
+    setIsAddingMember(true)
+    setMemberErrorMessage(null)
+
+    try {
+      const member = await addProjectMember(
+        permissionProject.id,
+        email,
+        newMemberRole,
+      )
+      setProjectMembers((members) => [...members, member])
+      setMemberEmail('')
+      setNewMemberRole('viewer')
+    } catch (error) {
+      setMemberErrorMessage(getLoadErrorMessage(error))
+    } finally {
+      setIsAddingMember(false)
+    }
+  }
+
+  async function handleUpdateMemberRole(
+    member: ProjectMember,
+    role: ProjectMemberRole,
+  ) {
+    if (!permissionProject || updatingMemberId) {
+      return
+    }
+
+    setUpdatingMemberId(member.id)
+    setMemberErrorMessage(null)
+
+    try {
+      const updatedMember = await updateProjectMember(
+        permissionProject.id,
+        member.id,
+        role,
+      )
+      setProjectMembers((members) =>
+        members.map((currentMember) =>
+          currentMember.id === updatedMember.id
+            ? updatedMember
+            : currentMember,
+        ),
+      )
+    } catch (error) {
+      setMemberErrorMessage(getLoadErrorMessage(error))
+    } finally {
+      setUpdatingMemberId(null)
+    }
+  }
+
+  async function handleRemoveMember(member: ProjectMember) {
+    if (
+      !permissionProject ||
+      updatingMemberId ||
+      !window.confirm(`確定要移除 ${member.email} 嗎？`)
+    ) {
+      return
+    }
+
+    setUpdatingMemberId(member.id)
+    setMemberErrorMessage(null)
+
+    try {
+      await removeProjectMember(permissionProject.id, member.id)
+      setProjectMembers((members) =>
+        members.filter((currentMember) => currentMember.id !== member.id),
+      )
+    } catch (error) {
+      setMemberErrorMessage(getLoadErrorMessage(error))
+    } finally {
+      setUpdatingMemberId(null)
+    }
   }
 
   async function handleSavePermission() {
@@ -809,16 +931,15 @@ export function HomePage() {
           setProjectVisibility('private')
           setPublicAccessRole('viewer')
           setPermissionErrorMessage(null)
+          setProjectMembers([])
+          setHasLoadedMembers(false)
+          setMemberEmail('')
+          setNewMemberRole('viewer')
+          setMemberErrorMessage(null)
         }}
         className="m-auto max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100%-2rem))] overflow-y-auto rounded-2xl border border-border bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/20"
       >
-        <form
-          className="p-5 sm:p-6"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void handleSavePermission()
-          }}
-        >
+        <div className="p-5 sm:p-6">
           <h2
             id="permission-dialog-title"
             className="text-xl font-semibold text-foreground"
@@ -844,7 +965,17 @@ export function HomePage() {
                   value="private"
                   checked={projectVisibility === 'private'}
                   disabled={isSavingPermission}
-                  onChange={() => setProjectVisibility('private')}
+                  onChange={() => {
+                    setProjectVisibility('private')
+
+                    if (
+                      permissionProject &&
+                      !hasLoadedMembers &&
+                      !isLoadingMembers
+                    ) {
+                      void loadProjectMembers(permissionProject.id)
+                    }
+                  }}
                   className="mt-1 size-4 accent-primary"
                 />
                 <span>
@@ -932,6 +1063,144 @@ export function HomePage() {
             </fieldset>
           )}
 
+          {projectVisibility === 'private' && (
+            <section
+              className="mt-6 border-t border-border pt-6"
+              aria-labelledby="project-members-title"
+            >
+            <h3
+              id="project-members-title"
+              className="text-sm font-medium text-foreground"
+            >
+              專案成員
+            </h3>
+
+            <div className="mt-3 flex min-h-16 flex-col justify-center gap-1 rounded-xl border border-border bg-canvas px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-foreground">
+                  {authUserEmail ?? '目前使用者'}
+                </div>
+                <div className="mt-0.5 text-xs text-foreground/50">
+                  專案擁有者
+                </div>
+              </div>
+              <span className="text-xs font-medium text-foreground/60">
+                擁有者
+              </span>
+            </div>
+
+            <form
+              className="mt-4 grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-[minmax(0,1fr)_8rem_auto] sm:items-end"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void handleAddMember()
+              }}
+            >
+              <label className="min-w-0">
+                <span className="mb-1 block text-xs font-medium text-foreground/65">
+                  成員 Email
+                </span>
+                <input
+                  type="email"
+                  required
+                  maxLength={320}
+                  value={memberEmail}
+                  disabled={isAddingMember}
+                  onChange={(event) => setMemberEmail(event.target.value)}
+                  placeholder="name@example.com"
+                  className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none transition placeholder:text-foreground/35 focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-50"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1 block text-xs font-medium text-foreground/65">
+                  角色
+                </span>
+                <select
+                  value={newMemberRole}
+                  disabled={isAddingMember}
+                  onChange={(event) =>
+                    setNewMemberRole(
+                      event.target.value as ProjectMemberRole,
+                    )
+                  }
+                  className="min-h-11 w-full cursor-pointer rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="viewer">檢視者</option>
+                  <option value="editor">編輯者</option>
+                </select>
+              </label>
+
+              <button
+                type="submit"
+                disabled={!memberEmail.trim() || isAddingMember}
+                className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isAddingMember ? '加入中…' : '加入'}
+              </button>
+            </form>
+
+            {memberErrorMessage && (
+              <p role="alert" className="mt-3 text-sm leading-6 text-red-600">
+                {memberErrorMessage}
+              </p>
+            )}
+
+            {isLoadingMembers ? (
+              <p role="status" className="mt-4 text-sm text-foreground/55">
+                正在載入成員…
+              </p>
+            ) : projectMembers.length === 0 ? (
+              <p className="mt-4 text-sm text-foreground/50">
+                尚未加入其他成員。
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-2">
+                {projectMembers.map((member) => (
+                  <li
+                    key={member.id}
+                    className="flex flex-col gap-3 rounded-xl border border-border px-4 py-3 sm:flex-row sm:items-center"
+                  >
+                    <span
+                      title={member.email}
+                      className="min-w-0 flex-1 truncate text-sm text-foreground"
+                    >
+                      {member.email}
+                    </span>
+                    <label className="sm:w-28">
+                      <span className="sr-only">
+                        設定 {member.email} 的角色
+                      </span>
+                      <select
+                        value={member.role}
+                        disabled={updatingMemberId !== null}
+                        onChange={(event) =>
+                          void handleUpdateMemberRole(
+                            member,
+                            event.target.value as ProjectMemberRole,
+                          )
+                        }
+                        className="min-h-11 w-full cursor-pointer rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="viewer">檢視者</option>
+                        <option value="editor">編輯者</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      disabled={updatingMemberId !== null}
+                      onClick={() => void handleRemoveMember(member)}
+                      className="min-h-11 cursor-pointer rounded-lg px-3 text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {updatingMemberId === member.id ? '處理中…' : '移除'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            </section>
+          )}
+
           {permissionErrorMessage && (
             <p role="alert" className="mt-4 text-sm leading-6 text-red-600">
               {permissionErrorMessage}
@@ -948,14 +1217,15 @@ export function HomePage() {
               取消
             </button>
             <button
-              type="submit"
+              type="button"
+              onClick={() => void handleSavePermission()}
               disabled={!permissionProject || isSavingPermission}
               className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSavingPermission ? '儲存中…' : '儲存權限'}
             </button>
           </div>
-        </form>
+        </div>
       </dialog>
     </main>
   )

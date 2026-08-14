@@ -2,6 +2,8 @@ import { z } from 'zod'
 import type {
   CreateProjectInput,
   Project,
+  ProjectMember,
+  ProjectMemberRole,
   ProjectSummary,
   UpdateProjectInput,
 } from '../types/project'
@@ -20,6 +22,13 @@ const projectSummarySchema = z.object({
 
 const projectSchema = projectSummarySchema.extend({
   document: projectDocumentSchema,
+})
+
+const projectMemberSchema = z.object({
+  id: z.uuid(),
+  email: z.email(),
+  role: z.enum(['editor', 'viewer']),
+  createdAt: z.string(),
 })
 
 const API_BASE_URL =
@@ -109,6 +118,80 @@ export async function updateProject(
 export async function deleteProject(projectId: string): Promise<void> {
   const response = await fetch(
     `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}`,
+    {
+      method: 'DELETE',
+      headers: await createRequestHeaders(),
+    },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+}
+
+export async function listProjectMembers(
+  projectId: string,
+): Promise<ProjectMember[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/members`,
+    { headers: await createRequestHeaders() },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+
+  return z.array(projectMemberSchema).parse(await response.json())
+}
+
+export async function addProjectMember(
+  projectId: string,
+  email: string,
+  role: ProjectMemberRole,
+): Promise<ProjectMember> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/members`,
+    {
+      method: 'POST',
+      headers: await createRequestHeaders(true),
+      body: JSON.stringify({ email, role }),
+    },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+
+  return projectMemberSchema.parse(await response.json())
+}
+
+export async function updateProjectMember(
+  projectId: string,
+  memberId: string,
+  role: ProjectMemberRole,
+): Promise<ProjectMember> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(memberId)}`,
+    {
+      method: 'PATCH',
+      headers: await createRequestHeaders(true),
+      body: JSON.stringify({ role }),
+    },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+
+  return projectMemberSchema.parse(await response.json())
+}
+
+export async function removeProjectMember(
+  projectId: string,
+  memberId: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(memberId)}`,
     {
       method: 'DELETE',
       headers: await createRequestHeaders(),
