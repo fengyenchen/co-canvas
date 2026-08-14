@@ -8,6 +8,7 @@ import {
     useReactFlow,
 } from '@xyflow/react'
 import type { NodeTypes } from '@xyflow/react'
+import { Link } from 'react-router'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import { renderCanvasPng } from '../../utils/exportCanvasImage'
@@ -248,6 +249,15 @@ function CanvasContent() {
     return (
         <section className="relative h-full min-w-0 flex-1 bg-canvas">
             <div className="absolute left-4 top-4 z-10 flex items-center gap-1 sm:gap-2">
+                <Link
+                    to="/"
+                    aria-label="返回專案列表"
+                    title="返回專案列表"
+                    className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-xl text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                    <span aria-hidden="true">←</span>
+                </Link>
+
                 <button
                     type="button"
                     onClick={addNode}
