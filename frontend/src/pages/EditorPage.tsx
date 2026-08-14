@@ -20,6 +20,7 @@ import {
   setActiveProjectId,
 } from '../utils/localProjectBackup'
 import { createProjectDocument } from '../utils/projectFile'
+import type { ProjectRole } from '../types/project'
 
 const MIN_CHAT_HEIGHT_PERCENT = 30
 const MAX_CHAT_HEIGHT_PERCENT = 75
@@ -67,6 +68,8 @@ export function EditorPage() {
     useState<ProjectSaveState>('idle')
   const [projectSaveRequiresLogin, setProjectSaveRequiresLogin] =
     useState(false)
+  const [projectAccessRole, setProjectAccessRole] =
+    useState<ProjectRole>('owner')
   const [mobileChatHeight, setMobileChatHeight] = useState(
     DEFAULT_CHAT_HEIGHT_PERCENT,
   )
@@ -99,6 +102,7 @@ export function EditorPage() {
       setProjectLoadError('')
       setProjectSaveState('idle')
       setProjectSaveRequiresLogin(false)
+      setProjectAccessRole('owner')
 
       if (!projectId) {
         setProjectLoadState('error')
@@ -140,6 +144,7 @@ export function EditorPage() {
           project.document.edges,
         )
         replaceProjectMessages(project.document.messages)
+        setProjectAccessRole(project.accessRole)
         savedDocumentSignatureRef.current = JSON.stringify(
           project.document,
         )
@@ -181,6 +186,7 @@ export function EditorPage() {
   useEffect(() => {
     if (
       projectLoadState !== 'ready' ||
+      projectAccessRole === 'viewer' ||
       !projectId ||
       projectId === LOCAL_PROJECT_ID ||
       projectDocumentSignature === savedDocumentSignatureRef.current
@@ -222,6 +228,7 @@ export function EditorPage() {
     projectDocument,
     projectDocumentSignature,
     projectId,
+    projectAccessRole,
     projectLoadState,
   ])
 
@@ -306,7 +313,10 @@ export function EditorPage() {
       ref={layoutRef}
       className="flex h-screen w-screen flex-col overflow-hidden bg-background lg:flex-row"
     >
-      <ChatPanel mobileHeightPercent={mobileChatHeight} />
+      <ChatPanel
+        mobileHeightPercent={mobileChatHeight}
+        isReadOnly={projectAccessRole === 'viewer'}
+      />
 
       {activeContextNodeId && (
         <div className="relative z-30 h-0 shrink-0 lg:hidden">
@@ -344,7 +354,7 @@ export function EditorPage() {
         </div>
       )}
 
-      <Canvas />
+      <Canvas isReadOnly={projectAccessRole === 'viewer'} />
 
       {projectId !== LOCAL_PROJECT_ID && projectSaveState !== 'idle' && (
         <div

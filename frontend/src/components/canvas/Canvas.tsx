@@ -25,7 +25,11 @@ const nodeTypes: NodeTypes = {
     concept: ConceptNode,
 }
 
-function CanvasContent() {
+type CanvasProps = {
+    isReadOnly?: boolean
+}
+
+function CanvasContent({ isReadOnly = false }: CanvasProps) {
     const nodes = useCanvasStore((state) => state.nodes)
     const nodesInitialized = useNodesInitialized()
     const { fitView, getNode, setCenter } = useReactFlow()
@@ -109,6 +113,10 @@ function CanvasContent() {
     }
 
     function handleAutoLayout() {
+        if (isReadOnly) {
+            return
+        }
+
         autoLayout()
 
         window.requestAnimationFrame(() => {
@@ -205,6 +213,10 @@ function CanvasContent() {
 
     useEffect(() => {
         function handleKeyDown(event: KeyboardEvent) {
+            if (isReadOnly) {
+                return
+            }
+
             const target = event.target
 
             if (
@@ -244,7 +256,7 @@ function CanvasContent() {
         return () => {
             window.removeEventListener('keydown', handleKeyDown)
         }
-    }, [redo, undo])
+    }, [isReadOnly, redo, undo])
 
     return (
         <section className="relative h-full min-w-0 flex-1 bg-canvas">
@@ -258,48 +270,59 @@ function CanvasContent() {
                     <span aria-hidden="true">←</span>
                 </Link>
 
-                <button
-                    type="button"
-                    onClick={addNode}
-                    className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg bg-primary px-2 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-none sm:px-4"
-                >
-                    <span className="sm:hidden">新增</span>
-                    <span className="hidden sm:inline">新增節點</span>
-                </button>
-
-                <button
-                    type="button"
-                    onClick={handleAutoLayout}
-                    disabled={nodes.length < 2}
-                    className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-none sm:px-4"
-                >
-                    <span className="sm:hidden">排版</span>
-                    <span className="hidden sm:inline">自動排版</span>
-                </button>
-
-                <div className="flex min-h-11 min-w-[5.5rem] flex-1 overflow-hidden rounded-lg border border-border bg-background shadow-sm sm:flex-none">
-                    <button
-                        type="button"
-                        onClick={undo}
-                        disabled={!canUndo}
-                        aria-label="復原"
-                        title="復原（Ctrl+Z）"
-                        className="min-w-11 flex-1 cursor-pointer border-r border-border px-2 py-2 text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:px-3"
+                {isReadOnly ? (
+                    <span
+                        role="status"
+                        className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground/65 shadow-sm sm:flex-none"
                     >
-                        ↶
-                    </button>
+                        僅供檢視
+                    </span>
+                ) : (
+                    <>
+                        <button
+                            type="button"
+                            onClick={addNode}
+                            className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg bg-primary px-2 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-none sm:px-4"
+                        >
+                            <span className="sm:hidden">新增</span>
+                            <span className="hidden sm:inline">新增節點</span>
+                        </button>
 
-                    <button
-                        type="button"
-                        onClick={redo}
-                        disabled={!canRedo}
-                        aria-label="重做"
-                        title="重做（Ctrl+Shift+Z）"
-                        className="min-w-11 flex-1 cursor-pointer px-2 py-2 text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:px-3"
-                    >
-                        ↷
-                    </button>
-                </div>
+                        <button
+                            type="button"
+                            onClick={handleAutoLayout}
+                            disabled={nodes.length < 2}
+                            className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-none sm:px-4"
+                        >
+                            <span className="sm:hidden">排版</span>
+                            <span className="hidden sm:inline">自動排版</span>
+                        </button>
+
+                        <div className="flex min-h-11 min-w-[5.5rem] flex-1 overflow-hidden rounded-lg border border-border bg-background shadow-sm sm:flex-none">
+                            <button
+                                type="button"
+                                onClick={undo}
+                                disabled={!canUndo}
+                                aria-label="復原"
+                                title="復原（Ctrl+Z）"
+                                className="min-w-11 flex-1 cursor-pointer border-r border-border px-2 py-2 text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:px-3"
+                            >
+                                ↶
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={redo}
+                                disabled={!canRedo}
+                                aria-label="重做"
+                                title="重做（Ctrl+Shift+Z）"
+                                className="min-w-11 flex-1 cursor-pointer px-2 py-2 text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:px-3"
+                            >
+                                ↷
+                            </button>
+                        </div>
+                    </>
+                )}
 
                 <details className="group relative min-w-0 flex-1 sm:flex-none">
                     <summary className="flex min-h-11 w-full cursor-pointer list-none items-center justify-center rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-3">
@@ -314,13 +337,15 @@ function CanvasContent() {
                         >
                             匯出 JSON
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10"
-                        >
-                            匯入 JSON
-                        </button>
+                        {!isReadOnly && (
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10"
+                            >
+                                匯入 JSON
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={() => void handleExportPng()}
@@ -436,15 +461,21 @@ function CanvasContent() {
             </div>
 
             <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 hidden -translate-x-1/2 items-center gap-3 rounded-lg border border-border bg-background/90 px-3 py-2 text-xs text-foreground/60 shadow-sm backdrop-blur-sm sm:flex">
-                <span>Shift + 拖曳：框選</span>
-                <span aria-hidden="true">·</span>
-                <span>Space + 拖曳：移動畫布</span>
-                <span aria-hidden="true">·</span>
-                <span>雙擊節點：進入對話</span>
+                {isReadOnly ? (
+                    <span>可搜尋、縮放、移動畫布及查看對話</span>
+                ) : (
+                    <>
+                        <span>Shift + 拖曳：框選</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Space + 拖曳：移動畫布</span>
+                        <span aria-hidden="true">·</span>
+                        <span>雙擊節點：進入對話</span>
+                    </>
+                )}
             </div>
 
-            <NodeEditor />
-            <EdgeEditor />
+            {!isReadOnly && <NodeEditor />}
+            {!isReadOnly && <EdgeEditor />}
 
             <ReactFlow
                 nodes={nodes}
@@ -452,10 +483,14 @@ function CanvasContent() {
                 nodeTypes={nodeTypes}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
+                onConnect={isReadOnly ? undefined : onConnect}
                 onNodeDoubleClick={(_, node) =>
                     setActiveContextNodeId(node.id)
                 }
+                nodesDraggable={!isReadOnly}
+                nodesConnectable={!isReadOnly}
+                edgesReconnectable={!isReadOnly}
+                deleteKeyCode={isReadOnly ? null : ['Backspace', 'Delete']}
                 className="bg-canvas"
                 fitView
             >
@@ -466,10 +501,10 @@ function CanvasContent() {
     )
 }
 
-export function Canvas() {
+export function Canvas({ isReadOnly = false }: CanvasProps) {
     return (
         <ReactFlowProvider>
-            <CanvasContent />
+            <CanvasContent isReadOnly={isReadOnly} />
         </ReactFlowProvider>
     )
 }

@@ -16,10 +16,12 @@ import { SuggestionPreview } from './SuggestionPreview'
 
 type ChatPanelProps = {
   mobileHeightPercent: number
+  isReadOnly?: boolean
 }
 
 export function ChatPanel({
   mobileHeightPercent,
+  isReadOnly = false,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('')
   const [aiMode, setAiMode] = useState<AiMode | 'offline'>('offline')
@@ -225,6 +227,7 @@ export function ChatPanel({
   ) {
     if (
       !content ||
+      isReadOnly ||
       !activeContextNodeId ||
       !contextNode ||
       isGenerating
@@ -294,7 +297,12 @@ export function ChatPanel({
   }
 
   async function requestSuggestion(sourceContent: string) {
-    if (!activeContextNodeId || !contextNode || isGenerating) {
+    if (
+      isReadOnly ||
+      !activeContextNodeId ||
+      !contextNode ||
+      isGenerating
+    ) {
       return
     }
 
@@ -360,6 +368,7 @@ export function ChatPanel({
 
     if (
       !content ||
+      isReadOnly ||
       !activeContextNodeId ||
       !contextNode ||
       isGenerating
@@ -380,7 +389,7 @@ export function ChatPanel({
   function handleResendMessage(messageId: string) {
     const content = editingContent.trim()
 
-    if (!content || isGenerating) {
+    if (!content || isReadOnly || isGenerating) {
       return
     }
 
@@ -450,7 +459,7 @@ export function ChatPanel({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          {visibleMessages.length > 0 && (
+          {!isReadOnly && visibleMessages.length > 0 && (
             <button
               type="button"
               onClick={() => {
@@ -515,8 +524,9 @@ export function ChatPanel({
                       <input
                         type="checkbox"
                         checked={!excludedNeighborNodeIds.has(node.id)}
+                        disabled={isReadOnly}
                         onChange={() => toggleNeighborNode(node.id)}
-                        className="size-5 shrink-0 accent-primary"
+                        className="size-5 shrink-0 accent-primary disabled:opacity-50"
                       />
                       <span className="min-w-0 wrap-break-word">
                         {node.data.title}
@@ -536,7 +546,7 @@ export function ChatPanel({
       >
         {visibleMessages.length === 0 ? (
           <div className="py-8 text-center text-sm text-foreground/50">
-            輸入指令來延伸這個節點
+            {isReadOnly ? '這個節點尚無對話' : '輸入指令來延伸這個節點'}
           </div>
         ) : (
           visibleMessages.map((message) => (
@@ -550,7 +560,7 @@ export function ChatPanel({
               }
             >
               <div className="max-w-[85%]">
-                {editingMessageId === message.id ? (
+                {!isReadOnly && editingMessageId === message.id ? (
                   <div className="rounded-xl border border-primary/30 bg-background p-2 shadow-sm">
                     <label
                       htmlFor={`edit-message-${message.id}`}
@@ -613,7 +623,7 @@ export function ChatPanel({
                       </span>
                     )}
 
-                    {message.canGenerateNodes && (
+                    {!isReadOnly && message.canGenerateNodes && (
                       <button
                         type="button"
                         onClick={() => {
@@ -626,7 +636,7 @@ export function ChatPanel({
                       </button>
                     )}
 
-                    {message.retryAction && message.retryContent && (
+                    {!isReadOnly && message.retryAction && message.retryContent && (
                       <button
                         type="button"
                         disabled={isGenerating}
@@ -665,21 +675,25 @@ export function ChatPanel({
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm('確定要刪除此訊息嗎？')) {
-                          deleteMessage(message.id)
-                        }
-                      }}
-                      className="min-h-11 cursor-pointer rounded-md px-2 text-xs text-foreground/50 transition hover:bg-red-50 hover:text-red-600"
-                    >
-                      刪除
-                    </button>
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('確定要刪除此訊息嗎？')) {
+                            deleteMessage(message.id)
+                          }
+                        }}
+                        className="min-h-11 cursor-pointer rounded-md px-2 text-xs text-foreground/50 transition hover:bg-red-50 hover:text-red-600"
+                      >
+                        刪除
+                      </button>
+                    )}
                   </div>
                 )}
 
-                {message.role === 'user' && editingMessageId !== message.id && (
+                {!isReadOnly &&
+                  message.role === 'user' &&
+                  editingMessageId !== message.id && (
                   <div className="mt-1 flex min-h-11 items-center justify-end gap-1">
                     <button
                       type="button"
@@ -732,53 +746,66 @@ export function ChatPanel({
           </div>
         )}
 
-        <SuggestionPreview
-          onRegenerate={(prompt) => {
-            void requestSuggestion(prompt)
-          }}
-        />
+        {!isReadOnly && (
+          <SuggestionPreview
+            onRegenerate={(prompt) => {
+              void requestSuggestion(prompt)
+            }}
+          />
+        )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="shrink-0 border-t border-border p-4">
-        <label
-          htmlFor="chat-message"
-          className="mb-2 hidden text-sm text-foreground/70 lg:block"
-        >
-          輸入訊息
-        </label>
+      {isReadOnly ? (
+        <div className="shrink-0 border-t border-border p-4">
+          <p
+            role="status"
+            className="rounded-lg border border-border bg-canvas px-3 py-3 text-center text-sm text-foreground/65"
+          >
+            你目前只有檢視權限
+          </p>
+        </div>
+      ) : (
+        <div className="shrink-0 border-t border-border p-4">
+          <label
+            htmlFor="chat-message"
+            className="mb-2 hidden text-sm text-foreground/70 lg:block"
+          >
+            輸入訊息
+          </label>
 
-        <textarea
-          id="chat-message"
-          value={draft}
-          onChange={(event) =>
-            setDraft(event.target.value)
-          }
-          onKeyDown={(event) => {
-            if (
-              event.key === 'Enter' &&
-              !event.shiftKey &&
-              !event.nativeEvent.isComposing
-            ) {
-              event.preventDefault()
-              handleSend()
+          <textarea
+            id="chat-message"
+            value={draft}
+            onChange={(event) =>
+              setDraft(event.target.value)
             }
-          }}
-          rows={2}
-          placeholder="想問什麼…"
-          className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-        />
+            onKeyDown={(event) => {
+              if (
+                event.key === 'Enter' &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault()
+                handleSend()
+              }
+            }}
+            rows={2}
+            placeholder="想問什麼…"
+            className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+          />
 
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={!draft.trim()  || isGenerating}
-          className="mt-2 w-full cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          送出
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!draft.trim()  || isGenerating}
+            className="mt-2 w-full cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            送出
+          </button>
+        </div>
+      )}
     </aside>
   )
 }
