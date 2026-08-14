@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { listProjects } from '../api/projects'
+import { createProject, listProjects } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
 import type { ProjectSummary } from '../types/project'
 
@@ -30,10 +30,16 @@ function getLoadErrorMessage(error: unknown) {
 }
 
 export function HomePage() {
+  const createDialogRef = useRef<HTMLDialogElement>(null)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
+  const [projectName, setProjectName] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
+  const [createErrorMessage, setCreateErrorMessage] = useState<
+    string | null
+  >(null)
 
   useEffect(() => {
     let isCancelled = false
@@ -66,6 +72,27 @@ export function HomePage() {
     }
   }, [loadAttempt])
 
+  async function handleCreateProject() {
+    const name = projectName.trim()
+
+    if (!name || isCreating) {
+      return
+    }
+
+    setIsCreating(true)
+    setCreateErrorMessage(null)
+
+    try {
+      const project = await createProject({ name })
+      setProjects((currentProjects) => [project, ...currentProjects])
+      createDialogRef.current?.close()
+    } catch (error) {
+      setCreateErrorMessage(getLoadErrorMessage(error))
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-canvas px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl">
@@ -80,12 +107,21 @@ export function HomePage() {
             </p>
           </div>
 
-          <Link
-            to="/projects/local"
-            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          >
-            開啟本機畫布
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Link
+              to="/projects/local"
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              開啟本機畫布
+            </Link>
+            <button
+              type="button"
+              onClick={() => createDialogRef.current?.showModal()}
+              className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              新增專案
+            </button>
+          </div>
         </header>
 
         <section className="py-8" aria-labelledby="project-list-title">
@@ -138,7 +174,7 @@ export function HomePage() {
                 還沒有雲端專案
               </h3>
               <p className="mt-2 text-sm leading-6 text-foreground/60">
-                下一步加入新增專案後，就能從這裡開始建立。
+                點擊「新增專案」，建立第一個雲端畫布。
               </p>
             </div>
           )}
@@ -178,6 +214,83 @@ export function HomePage() {
           )}
         </section>
       </div>
+
+      <dialog
+        ref={createDialogRef}
+        aria-labelledby="create-project-title"
+        aria-describedby="create-project-description"
+        onClose={() => {
+          setProjectName('')
+          setCreateErrorMessage(null)
+        }}
+        className="m-auto w-[min(28rem,calc(100%-2rem))] rounded-2xl border border-border bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/20"
+      >
+        <form
+          className="p-6"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleCreateProject()
+          }}
+        >
+          <h2
+            id="create-project-title"
+            className="text-xl font-semibold text-foreground"
+          >
+            新增專案
+          </h2>
+          <p
+            id="create-project-description"
+            className="mt-2 text-sm leading-6 text-foreground/60"
+          >
+            輸入名稱後，專案會儲存在 Neon。
+          </p>
+
+          <label
+            htmlFor="project-name"
+            className="mt-5 block text-sm font-medium text-foreground"
+          >
+            專案名稱
+          </label>
+          <input
+            id="project-name"
+            value={projectName}
+            autoFocus
+            required
+            maxLength={120}
+            disabled={isCreating}
+            onChange={(event) => setProjectName(event.target.value)}
+            className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none transition placeholder:text-foreground/40 focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
+            placeholder="例如：研究計畫整理"
+          />
+
+          {createErrorMessage && (
+            <p
+              role="alert"
+              className="mt-3 text-sm leading-6 text-red-600"
+            >
+              {createErrorMessage}
+            </p>
+          )}
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={isCreating}
+              onClick={() => createDialogRef.current?.close()}
+              className="min-h-11 cursor-pointer rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={!projectName.trim() || isCreating}
+              className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isCreating ? '建立中…' : '建立專案'}
+            </button>
+          </div>
+        </form>
+      </dialog>
     </main>
   )
 }
