@@ -2,7 +2,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import AuthenticatedUser, CurrentUser, OptionalCurrentUser
@@ -166,14 +166,47 @@ async def list_projects(
     session: DatabaseSession,
     user: CurrentUser,
 ) -> list[ProjectSummary]:
-    result = await session.scalars(
-        select(Project)
-        .where(Project.owner_id == user.id)
+    member_filters = [ProjectMember.user_id == user.id]
+
+    if user.email is not None:
+        member_filters.append(
+            func.lower(ProjectMember.email) == user.email,
+        )
+
+    result = await session.execute(
+        select(Project, ProjectMember.role)
+        .outerjoin(
+            ProjectMember,
+            and_(
+                ProjectMember.project_id == Project.id,
+                or_(*member_filters),
+            ),
+        )
+        .where(
+            or_(
+                Project.owner_id == user.id,
+                ProjectMember.id.is_not(None),
+            ),
+        )
         .order_by(Project.updated_at.desc())
         .limit(100),
     )
 
-    return [to_project_summary(project, "owner") for project in result]
+    summaries: list[ProjectSummary] = []
+
+    for project, member_role in result:
+        if project.owner_id == user.id:
+            access_role: ProjectRole = "owner"
+        elif project.visibility == "public":
+            access_role = project.public_access_role
+        elif member_role in ("editor", "viewer"):
+            access_role = member_role
+        else:
+            continue
+
+        summaries.append(to_project_summary(project, access_role))
+
+    return summaries
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)

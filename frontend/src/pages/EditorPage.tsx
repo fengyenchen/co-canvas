@@ -10,6 +10,10 @@ import { getProject, updateProject } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
 import { Canvas } from '../components/canvas/Canvas'
 import { ChatPanel } from '../components/chat/ChatPanel'
+import {
+  ProjectSettingsDialogs,
+  type ProjectSettingsDialog,
+} from '../components/project/ProjectSettingsDialogs'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useChatStore } from '../stores/chatStore'
 import {
@@ -20,7 +24,7 @@ import {
   setActiveProjectId,
 } from '../utils/localProjectBackup'
 import { createProjectDocument } from '../utils/projectFile'
-import type { ProjectRole } from '../types/project'
+import type { Project, ProjectRole } from '../types/project'
 
 const MIN_CHAT_HEIGHT_PERCENT = 30
 const MAX_CHAT_HEIGHT_PERCENT = 75
@@ -70,6 +74,9 @@ export function EditorPage() {
     useState(false)
   const [projectAccessRole, setProjectAccessRole] =
     useState<ProjectRole>('owner')
+  const [loadedProject, setLoadedProject] = useState<Project | null>(null)
+  const [activeSettingsDialog, setActiveSettingsDialog] =
+    useState<ProjectSettingsDialog>(null)
   const [mobileChatHeight, setMobileChatHeight] = useState(
     DEFAULT_CHAT_HEIGHT_PERCENT,
   )
@@ -103,6 +110,8 @@ export function EditorPage() {
       setProjectSaveState('idle')
       setProjectSaveRequiresLogin(false)
       setProjectAccessRole('owner')
+      setLoadedProject(null)
+      setActiveSettingsDialog(null)
 
       if (!projectId) {
         setProjectLoadState('error')
@@ -145,6 +154,7 @@ export function EditorPage() {
         )
         replaceProjectMessages(project.document.messages)
         setProjectAccessRole(project.accessRole)
+        setLoadedProject(project)
         savedDocumentSignatureRef.current = JSON.stringify(
           project.document,
         )
@@ -354,7 +364,32 @@ export function EditorPage() {
         </div>
       )}
 
-      <Canvas isReadOnly={projectAccessRole === 'viewer'} />
+      <Canvas
+        isReadOnly={projectAccessRole === 'viewer'}
+        canRenameProject={
+          projectId !== LOCAL_PROJECT_ID && projectAccessRole !== 'viewer'
+        }
+        canManageProjectPermissions={
+          projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
+        }
+        onRenameProject={() => setActiveSettingsDialog('rename')}
+        onManageProjectPermissions={() =>
+          setActiveSettingsDialog('permissions')
+        }
+      />
+
+      {loadedProject && activeSettingsDialog && (
+        <ProjectSettingsDialogs
+          key={`${loadedProject.id}-${activeSettingsDialog}`}
+          project={loadedProject}
+          activeDialog={activeSettingsDialog}
+          onClose={() => setActiveSettingsDialog(null)}
+          onProjectUpdated={(project) => {
+            setLoadedProject(project)
+            setProjectAccessRole(project.accessRole)
+          }}
+        />
+      )}
 
       {projectId !== LOCAL_PROJECT_ID && projectSaveState !== 'idle' && (
         <div

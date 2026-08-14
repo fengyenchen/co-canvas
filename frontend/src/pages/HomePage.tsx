@@ -16,6 +16,7 @@ import type {
   ProjectSummary,
   ProjectMember,
   ProjectMemberRole,
+  ProjectRole,
   ProjectVisibility,
   PublicAccessRole,
 } from '../types/project'
@@ -34,6 +35,16 @@ function formatUpdatedAt(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date)
+}
+
+function getProjectRoleLabel(role: ProjectRole) {
+  const labels: Record<ProjectRole, string> = {
+    owner: '擁有者',
+    editor: '編輯者',
+    viewer: '檢視者',
+  }
+
+  return labels[role]
 }
 
 function getLoadErrorMessage(error: unknown) {
@@ -651,9 +662,14 @@ export function HomePage() {
                       to={`/projects/${project.id}`}
                       className="group flex min-h-40 flex-col justify-between rounded-xl p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
                     >
-                      <h3 className="line-clamp-2 pr-11 font-semibold text-foreground">
-                        {project.name}
-                      </h3>
+                      <div className="pr-11">
+                        <h3 className="line-clamp-2 font-semibold text-foreground">
+                          {project.name}
+                        </h3>
+                        <span className="mt-2 inline-flex rounded-full border border-border bg-primary/5 px-2.5 py-1 text-xs font-medium text-foreground/65">
+                          {getProjectRoleLabel(project.accessRole)}
+                        </span>
+                      </div>
                       <div className="mt-6 flex items-center justify-between gap-3 text-sm text-foreground/55">
                         <span>
                           更新於 {formatUpdatedAt(project.updatedAt)}
@@ -698,18 +714,20 @@ export function HomePage() {
                       </summary>
 
                       <div className="absolute right-0 top-full mt-1 w-48 overflow-hidden rounded-xl border border-border bg-background p-1 shadow-lg">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.currentTarget
-                              .closest('details')
-                              ?.removeAttribute('open')
-                            openRenameDialog(project)
-                          }}
-                          className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                        >
-                          重新命名
-                        </button>
+                        {project.accessRole !== 'viewer' && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.currentTarget
+                                .closest('details')
+                                ?.removeAttribute('open')
+                              openRenameDialog(project)
+                            }}
+                            className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                          >
+                            重新命名
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(event) => {
@@ -738,22 +756,26 @@ export function HomePage() {
                             權限管理
                           </button>
                         )}
-                        <div className="my-1 border-t border-border" />
-                        <button
-                          type="button"
-                          disabled={deletingProjectId !== null}
-                          onClick={(event) => {
-                            event.currentTarget
-                              .closest('details')
-                              ?.removeAttribute('open')
-                            void handleDeleteProject(project)
-                          }}
-                          className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {deletingProjectId === project.id
-                            ? '刪除中…'
-                            : '刪除專案'}
-                        </button>
+                        {project.accessRole === 'owner' && (
+                          <>
+                            <div className="my-1 border-t border-border" />
+                            <button
+                              type="button"
+                              disabled={deletingProjectId !== null}
+                              onClick={(event) => {
+                                event.currentTarget
+                                  .closest('details')
+                                  ?.removeAttribute('open')
+                                void handleDeleteProject(project)
+                              }}
+                              className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {deletingProjectId === project.id
+                                ? '刪除中…'
+                                : '刪除專案'}
+                            </button>
+                          </>
+                        )}
                       </div>
                     </details>
                   </li>

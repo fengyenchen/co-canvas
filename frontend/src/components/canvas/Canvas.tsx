@@ -27,9 +27,19 @@ const nodeTypes: NodeTypes = {
 
 type CanvasProps = {
     isReadOnly?: boolean
+    canRenameProject?: boolean
+    canManageProjectPermissions?: boolean
+    onRenameProject?: () => void
+    onManageProjectPermissions?: () => void
 }
 
-function CanvasContent({ isReadOnly = false }: CanvasProps) {
+function CanvasContent({
+    isReadOnly = false,
+    canRenameProject = false,
+    canManageProjectPermissions = false,
+    onRenameProject,
+    onManageProjectPermissions,
+}: CanvasProps) {
     const nodes = useCanvasStore((state) => state.nodes)
     const nodesInitialized = useNodesInitialized()
     const { fitView, getNode, setCenter } = useReactFlow()
@@ -330,6 +340,37 @@ function CanvasContent({ isReadOnly = false }: CanvasProps) {
                     </summary>
 
                     <div className="absolute right-0 top-full mt-2 w-40 overflow-hidden rounded-lg border border-border bg-background p-1 shadow-md">
+                        {canRenameProject && (
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.currentTarget
+                                        .closest('details')
+                                        ?.removeAttribute('open')
+                                    onRenameProject?.()
+                                }}
+                                className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                            >
+                                重新命名
+                            </button>
+                        )}
+                        {canManageProjectPermissions && (
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.currentTarget
+                                        .closest('details')
+                                        ?.removeAttribute('open')
+                                    onManageProjectPermissions?.()
+                                }}
+                                className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                            >
+                                權限管理
+                            </button>
+                        )}
+                        {(canRenameProject || canManageProjectPermissions) && (
+                            <div className="my-1 border-t border-border" />
+                        )}
                         <button
                             type="button"
                             onClick={handleExportJson}
@@ -501,10 +542,10 @@ function CanvasContent({ isReadOnly = false }: CanvasProps) {
     )
 }
 
-export function Canvas({ isReadOnly = false }: CanvasProps) {
+export function Canvas(props: CanvasProps) {
     return (
         <ReactFlowProvider>
-            <CanvasContent isReadOnly={isReadOnly} />
+            <CanvasContent {...props} />
         </ReactFlowProvider>
     )
 }
