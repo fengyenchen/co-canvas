@@ -17,6 +17,7 @@ export type ProjectSummary = {
   name: string
   visibility: ProjectVisibility
   publicAccessRole: PublicAccessRole
+  accessRole: ProjectRole
   createdAt: string
   updatedAt: string
 }

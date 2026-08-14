@@ -13,6 +13,7 @@ const projectSummarySchema = z.object({
   name: z.string(),
   visibility: z.enum(['private', 'public']),
   publicAccessRole: z.enum(['editor', 'viewer']),
+  accessRole: z.enum(['owner', 'editor', 'viewer']),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

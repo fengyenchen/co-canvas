@@ -120,6 +120,7 @@ class ProjectSummary(ApiModel):
     name: str
     visibility: ProjectVisibility
     public_access_role: PublicAccessRole
+    access_role: ProjectRole
     created_at: datetime
     updated_at: datetime
 

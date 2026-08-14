@@ -2,15 +2,16 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import CurrentUser, OptionalCurrentUser
+from app.auth import AuthenticatedUser, CurrentUser, OptionalCurrentUser
 from app.database import get_database_session
-from app.models import Project
+from app.models import Project, ProjectMember
 from app.project_schemas import (
     ProjectCreate,
     ProjectResponse,
+    ProjectRole,
     ProjectSummary,
     ProjectUpdate,
 )
@@ -52,7 +53,7 @@ async def get_readable_project(
     project_id: uuid.UUID,
     session: AsyncSession,
     user: OptionalCurrentUser,
-) -> Project:
+) -> tuple[Project, ProjectRole]:
     project = await session.get(Project, project_id)
 
     if project is None:
@@ -61,8 +62,10 @@ async def get_readable_project(
             detail="找不到此專案",
         )
 
-    if project.visibility == "public":
-        return project
+    role = await get_project_role(project, session, user)
+
+    if role is not None:
+        return project, role
 
     if user is None:
         raise HTTPException(
@@ -71,20 +74,74 @@ async def get_readable_project(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if project.owner_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="你沒有查看此專案的權限",
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="你沒有查看此專案的權限",
+    )
+
+
+async def get_project_role(
+    project: Project,
+    session: AsyncSession,
+    user: AuthenticatedUser | None,
+) -> ProjectRole | None:
+    if user is not None and project.owner_id == user.id:
+        return "owner"
+
+    if user is not None:
+        member_filters = [ProjectMember.user_id == user.id]
+
+        if user.email is not None:
+            member_filters.append(
+                func.lower(ProjectMember.email) == user.email,
+            )
+
+        member_role = await session.scalar(
+            select(ProjectMember.role).where(
+                ProjectMember.project_id == project.id,
+                or_(*member_filters),
+            ),
         )
 
-    return project
+        if member_role in ("editor", "viewer"):
+            return member_role
+
+    if project.visibility == "public":
+        return project.public_access_role
+
+    return None
+
+
+def to_project_summary(
+    project: Project,
+    access_role: ProjectRole,
+) -> ProjectSummary:
+    return ProjectSummary(
+        id=project.id,
+        name=project.name,
+        visibility=project.visibility,
+        public_access_role=project.public_access_role,
+        access_role=access_role,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+    )
+
+
+def to_project_response(
+    project: Project,
+    access_role: ProjectRole,
+) -> ProjectResponse:
+    return ProjectResponse(
+        **to_project_summary(project, access_role).model_dump(),
+        document=project.document,
+    )
 
 
 @router.get("", response_model=list[ProjectSummary])
 async def list_projects(
     session: DatabaseSession,
     user: CurrentUser,
-) -> list[Project]:
+) -> list[ProjectSummary]:
     result = await session.scalars(
         select(Project)
         .where(Project.owner_id == user.id)
@@ -92,7 +149,7 @@ async def list_projects(
         .limit(100),
     )
 
-    return list(result)
+    return [to_project_summary(project, "owner") for project in result]
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -100,8 +157,9 @@ async def get_project(
     project_id: uuid.UUID,
     session: DatabaseSession,
     user: OptionalCurrentUser,
-) -> Project:
-    return await get_readable_project(project_id, session, user)
+) -> ProjectResponse:
+    project, role = await get_readable_project(project_id, session, user)
+    return to_project_response(project, role)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -109,9 +167,27 @@ async def update_project(
     project_id: uuid.UUID,
     request: ProjectUpdate,
     session: DatabaseSession,
-    user: CurrentUser,
-) -> Project:
-    project = await get_project_or_404(project_id, session, user.id)
+    user: OptionalCurrentUser,
+) -> ProjectResponse:
+    project, role = await get_readable_project(project_id, session, user)
+
+    if role == "viewer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="你只有檢視權限",
+        )
+
+    if (
+        role != "owner"
+        and (
+            request.visibility is not None
+            or request.public_access_role is not None
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有擁有者可以變更專案權限",
+        )
 
     if request.name is not None:
         project.name = request.name
@@ -128,7 +204,7 @@ async def update_project(
     await session.commit()
     await session.refresh(project)
 
-    return project
+    return to_project_response(project, role)
 
 
 @router.delete(
@@ -157,7 +233,7 @@ async def create_project(
     request: ProjectCreate,
     session: DatabaseSession,
     user: CurrentUser,
-) -> Project:
+) -> ProjectResponse:
     project = Project(
         owner_id=user.id,
         name=request.name.strip(),
@@ -169,4 +245,4 @@ async def create_project(
     await session.commit()
     await session.refresh(project)
 
-    return project
+    return to_project_response(project, "owner")
