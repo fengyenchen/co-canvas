@@ -1,11 +1,16 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_database_session
 from app.models import Project
-from app.project_schemas import ProjectCreate, ProjectResponse
+from app.project_schemas import (
+    ProjectCreate,
+    ProjectResponse,
+    ProjectSummary,
+)
 
 
 router = APIRouter(
@@ -17,6 +22,15 @@ DatabaseSession = Annotated[
     AsyncSession,
     Depends(get_database_session),
 ]
+
+
+@router.get("", response_model=list[ProjectSummary])
+async def list_projects(session: DatabaseSession) -> list[Project]:
+    result = await session.scalars(
+        select(Project).order_by(Project.updated_at.desc()).limit(100),
+    )
+
+    return list(result)
 
 
 @router.post(
