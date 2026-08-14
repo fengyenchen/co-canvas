@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -76,6 +76,22 @@ async def update_project(
     await session.refresh(project)
 
     return project
+
+
+@router.delete(
+    "/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_project(
+    project_id: uuid.UUID,
+    session: DatabaseSession,
+) -> Response:
+    project = await get_project_or_404(project_id, session)
+
+    await session.delete(project)
+    await session.commit()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
