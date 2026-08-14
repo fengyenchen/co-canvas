@@ -8,7 +8,11 @@ import {
 } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
-import type { ProjectSummary } from '../types/project'
+import type {
+  ProjectSummary,
+  ProjectVisibility,
+  PublicAccessRole,
+} from '../types/project'
 import { getLocalProjectDocument } from '../utils/localProjectBackup'
 
 type CreateProjectMode = 'empty' | 'local'
@@ -42,6 +46,7 @@ export function HomePage() {
   const navigate = useNavigate()
   const createDialogRef = useRef<HTMLDialogElement>(null)
   const renameDialogRef = useRef<HTMLDialogElement>(null)
+  const permissionDialogRef = useRef<HTMLDialogElement>(null)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -58,6 +63,16 @@ export function HomePage() {
   const [renamedProjectName, setRenamedProjectName] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameErrorMessage, setRenameErrorMessage] = useState<
+    string | null
+  >(null)
+  const [permissionProject, setPermissionProject] =
+    useState<ProjectSummary | null>(null)
+  const [projectVisibility, setProjectVisibility] =
+    useState<ProjectVisibility>('private')
+  const [publicAccessRole, setPublicAccessRole] =
+    useState<PublicAccessRole>('viewer')
+  const [isSavingPermission, setIsSavingPermission] = useState(false)
+  const [permissionErrorMessage, setPermissionErrorMessage] = useState<
     string | null
   >(null)
   const [deletingProjectId, setDeletingProjectId] = useState<
@@ -219,6 +234,40 @@ export function HomePage() {
       setRenameErrorMessage(getLoadErrorMessage(error))
     } finally {
       setIsRenaming(false)
+    }
+  }
+
+  function openPermissionDialog(project: ProjectSummary) {
+    setPermissionProject(project)
+    setProjectVisibility(project.visibility)
+    setPublicAccessRole(project.publicAccessRole)
+    setPermissionErrorMessage(null)
+    permissionDialogRef.current?.showModal()
+  }
+
+  async function handleSavePermission() {
+    if (!permissionProject || isSavingPermission) {
+      return
+    }
+
+    setIsSavingPermission(true)
+    setPermissionErrorMessage(null)
+
+    try {
+      const updatedProject = await updateProject(permissionProject.id, {
+        visibility: projectVisibility,
+        publicAccessRole,
+      })
+      setProjects((currentProjects) =>
+        currentProjects.map((project) =>
+          project.id === updatedProject.id ? updatedProject : project,
+        ),
+      )
+      permissionDialogRef.current?.close()
+    } catch (error) {
+      setPermissionErrorMessage(getLoadErrorMessage(error))
+    } finally {
+      setIsSavingPermission(false)
     }
   }
 
@@ -553,14 +602,20 @@ export function HomePage() {
                             ? '已複製連結'
                             : '複製分享連結'}
                         </button>
-                        <button
-                          type="button"
-                          disabled
-                          title="登入功能完成後開放"
-                          className="min-h-11 w-full cursor-not-allowed rounded-lg px-3 text-left text-sm text-foreground/40"
-                        >
-                          權限管理（尚未開放）
-                        </button>
+                        {project.accessRole === 'owner' && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.currentTarget
+                                .closest('details')
+                                ?.removeAttribute('open')
+                              openPermissionDialog(project)
+                            }}
+                            className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                          >
+                            權限管理
+                          </button>
+                        )}
                         <div className="my-1 border-t border-border" />
                         <button
                           type="button"
@@ -740,6 +795,164 @@ export function HomePage() {
               className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isRenaming ? '儲存中…' : '儲存名稱'}
+            </button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog
+        ref={permissionDialogRef}
+        aria-labelledby="permission-dialog-title"
+        aria-describedby="permission-dialog-description"
+        onClose={() => {
+          setPermissionProject(null)
+          setProjectVisibility('private')
+          setPublicAccessRole('viewer')
+          setPermissionErrorMessage(null)
+        }}
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100%-2rem))] overflow-y-auto rounded-2xl border border-border bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/20"
+      >
+        <form
+          className="p-5 sm:p-6"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleSavePermission()
+          }}
+        >
+          <h2
+            id="permission-dialog-title"
+            className="text-xl font-semibold text-foreground"
+          >
+            權限管理
+          </h2>
+          <p
+            id="permission-dialog-description"
+            className="mt-2 text-sm leading-6 text-foreground/60"
+          >
+            設定誰能開啟「{permissionProject?.name}」，以及公開訪客能做什麼。
+          </p>
+
+          <fieldset className="mt-6">
+            <legend className="text-sm font-medium text-foreground">
+              專案可見範圍
+            </legend>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <input
+                  type="radio"
+                  name="project-visibility"
+                  value="private"
+                  checked={projectVisibility === 'private'}
+                  disabled={isSavingPermission}
+                  onChange={() => setProjectVisibility('private')}
+                  className="mt-1 size-4 accent-primary"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-foreground">
+                    私人
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-foreground/55">
+                    只有被加入的成員可以開啟
+                  </span>
+                </span>
+              </label>
+              <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <input
+                  type="radio"
+                  name="project-visibility"
+                  value="public"
+                  checked={projectVisibility === 'public'}
+                  disabled={isSavingPermission}
+                  onChange={() => setProjectVisibility('public')}
+                  className="mt-1 size-4 accent-primary"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-foreground">
+                    公開
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-foreground/55">
+                    任何取得連結的人都能開啟
+                  </span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          {projectVisibility === 'public' && (
+            <fieldset className="mt-6 border-t border-border pt-6">
+              <legend className="text-sm font-medium text-foreground">
+                公開訪客權限
+              </legend>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                  <input
+                    type="radio"
+                    name="public-access-role"
+                    value="viewer"
+                    checked={publicAccessRole === 'viewer'}
+                    disabled={isSavingPermission}
+                    onChange={() => setPublicAccessRole('viewer')}
+                    className="mt-1 size-4 accent-primary"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-foreground">
+                      可以檢視
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-foreground/55">
+                      能查看畫布，但不能修改
+                    </span>
+                  </span>
+                </label>
+                <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                  <input
+                    type="radio"
+                    name="public-access-role"
+                    value="editor"
+                    checked={publicAccessRole === 'editor'}
+                    disabled={isSavingPermission}
+                    onChange={() => setPublicAccessRole('editor')}
+                    className="mt-1 size-4 accent-primary"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-foreground">
+                      可以編輯
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-foreground/55">
+                      能直接修改畫布與對話
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              {publicAccessRole === 'editor' && (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                  任何取得連結的人都能修改內容，變更者不一定能被識別。
+                </p>
+              )}
+            </fieldset>
+          )}
+
+          {permissionErrorMessage && (
+            <p role="alert" className="mt-4 text-sm leading-6 text-red-600">
+              {permissionErrorMessage}
+            </p>
+          )}
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={isSavingPermission}
+              onClick={() => permissionDialogRef.current?.close()}
+              className="min-h-11 cursor-pointer rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={!permissionProject || isSavingPermission}
+              className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSavingPermission ? '儲存中…' : '儲存權限'}
             </button>
           </div>
         </form>
