@@ -42,13 +42,17 @@ const chatMessageSchema = z.object({
   retryContent: z.string().optional(),
 })
 
-export const projectFileSchema = z.object({
+const projectDocumentShape = {
   version: z.literal(1),
-  exportedAt: z.string(),
   nodes: z.array(canvasNodeSchema),
   edges: z.array(canvasEdgeSchema),
   messages: z.array(chatMessageSchema),
-}).superRefine((project, context) => {
+}
+
+function validateProjectRelations(
+  project: z.infer<typeof projectDocumentSchema>,
+  context: z.core.$RefinementCtx,
+) {
   const nodeIds = new Set(project.nodes.map((node) => node.id))
 
   project.edges.forEach((edge, index) => {
@@ -60,8 +64,18 @@ export const projectFileSchema = z.object({
       })
     }
   })
+}
 
-})
+export const projectDocumentSchema = z
+  .object(projectDocumentShape)
+  .superRefine(validateProjectRelations)
+
+export const projectFileSchema = z
+  .object({
+    ...projectDocumentShape,
+    exportedAt: z.string(),
+  })
+  .superRefine(validateProjectRelations)
 
 export type ProjectFile = {
   version: 1
