@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.6-flash"
     database_url: SecretStr | None = None
+    database_migration_url: SecretStr | None = None
 
 
 @lru_cache
