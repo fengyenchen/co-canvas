@@ -2,17 +2,15 @@ import { useEffect, useRef } from 'react'
 import {
     Background,
     Controls,
-    getNodesBounds,
-    getViewportForBounds,
     ReactFlow,
     ReactFlowProvider,
     useNodesInitialized,
     useReactFlow,
 } from '@xyflow/react'
 import type { NodeTypes } from '@xyflow/react'
-import { toPng } from 'html-to-image'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
+import { renderCanvasPng } from '../../utils/exportCanvasImage'
 import {
     createProjectFile,
     downloadFile,
@@ -31,7 +29,6 @@ function CanvasContent() {
     const nodesInitialized = useNodesInitialized()
     const { fitView } = useReactFlow()
     const previousNodeCount = useRef(nodes.length)
-    const canvasSectionRef = useRef<HTMLElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const edges = useCanvasStore((state) => state.edges)
@@ -112,46 +109,23 @@ function CanvasContent() {
     }
 
     async function handleExportPng() {
-        const viewport = canvasSectionRef.current
-            ?.querySelector<HTMLElement>('.react-flow__viewport')
-
-        if (!viewport || nodes.length === 0) {
+        if (nodes.length === 0) {
             window.alert('畫布目前沒有可匯出的節點。')
             return
         }
 
-        const width = 1920
-        const height = 1080
-        const bounds = getNodesBounds(nodes)
-        const { x, y, zoom } = getViewportForBounds(
-            bounds,
-            width,
-            height,
-            0.1,
-            2,
-            0.12,
-        )
-        const dataUrl = await toPng(viewport, {
-            backgroundColor: '#eeeef1',
-            width,
-            height,
-            filter: (element) =>
-                !(
-                    element instanceof HTMLElement &&
-                    element.classList.contains('react-flow__handle')
-                ),
-            style: {
-                width: `${width}px`,
-                height: `${height}px`,
-                transform: `translate(${x}px, ${y}px) scale(${zoom})`,
-            },
-        })
-        const link = document.createElement('a')
-        const date = new Date().toISOString().slice(0, 10)
+        try {
+            const image = await renderCanvasPng(nodes, edges)
+            const date = new Date().toISOString().slice(0, 10)
 
-        link.href = dataUrl
-        link.download = `co-canvas-${date}.png`
-        link.click()
+            downloadFile(
+                image,
+                `co-canvas-${date}.png`,
+                'image/png',
+            )
+        } catch {
+            window.alert('圖片匯出失敗，請稍後再試一次。')
+        }
     }
 
     useEffect(() => {
@@ -217,10 +191,7 @@ function CanvasContent() {
     }, [redo, undo])
 
     return (
-        <section
-            ref={canvasSectionRef}
-            className="relative h-full min-w-0 flex-1 bg-canvas"
-        >
+        <section className="relative h-full min-w-0 flex-1 bg-canvas">
             <div className="absolute left-4 top-4 z-10 flex items-center gap-1 sm:gap-2">
                 <button
                     type="button"
