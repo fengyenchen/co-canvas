@@ -49,6 +49,7 @@ function CanvasContent({
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [isSearchOpen, setIsSearchOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false)
     const [copyLinkState, setCopyLinkState] = useState<
         'idle' | 'copied' | 'error'
     >('idle')
@@ -291,6 +292,15 @@ function CanvasContent({
 
     return (
         <section className="relative h-full min-w-0 flex-1 bg-canvas">
+            {isProjectMenuOpen && (
+                <button
+                    type="button"
+                    aria-label="關閉專案選單"
+                    onClick={() => setIsProjectMenuOpen(false)}
+                    className="fixed inset-0 z-[9] cursor-default bg-transparent"
+                />
+            )}
+
             <div className="absolute left-4 right-4 top-4 z-10 flex items-center justify-between gap-2 sm:right-auto sm:justify-start">
                 <Link
                     to="/"
@@ -355,19 +365,32 @@ function CanvasContent({
                     </>
                 )}
 
-                <details className="group relative min-w-0 flex-1 sm:flex-none">
-                    <summary className="flex min-h-11 w-full cursor-pointer list-none items-center justify-center rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-3">
+                <div
+                    className="relative min-w-0 flex-1 sm:flex-none"
+                    onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                            setIsProjectMenuOpen(false)
+                        }
+                    }}
+                >
+                    <button
+                        type="button"
+                        aria-expanded={isProjectMenuOpen}
+                        onClick={() =>
+                            setIsProjectMenuOpen((isOpen) => !isOpen)
+                        }
+                        className="flex min-h-11 w-full cursor-pointer list-none items-center justify-center rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-3"
+                    >
                         專案
-                    </summary>
+                    </button>
 
+                    {isProjectMenuOpen && (
                     <div className="absolute right-0 top-full mt-2 w-40 overflow-hidden rounded-lg border border-border bg-background p-1 shadow-md">
                         {canRenameProject && (
                             <button
                                 type="button"
-                                onClick={(event) => {
-                                    event.currentTarget
-                                        .closest('details')
-                                        ?.removeAttribute('open')
+                                onClick={() => {
+                                    setIsProjectMenuOpen(false)
                                     onRenameProject?.()
                                 }}
                                 className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -378,10 +401,8 @@ function CanvasContent({
                         {canManageProjectPermissions && (
                             <button
                                 type="button"
-                                onClick={(event) => {
-                                    event.currentTarget
-                                        .closest('details')
-                                        ?.removeAttribute('open')
+                                onClick={() => {
+                                    setIsProjectMenuOpen(false)
                                     onManageProjectPermissions?.()
                                 }}
                                 className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -432,7 +453,8 @@ function CanvasContent({
                             匯出 PNG
                         </button>
                     </div>
-                </details>
+                    )}
+                </div>
 
                 <input
                     ref={fileInputRef}

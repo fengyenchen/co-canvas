@@ -114,6 +114,9 @@ export function HomePage() {
   const [copiedProjectId, setCopiedProjectId] = useState<string | null>(
     null,
   )
+  const [openProjectMenuId, setOpenProjectMenuId] = useState<
+    string | null
+  >(null)
   const [authUserEmail, setAuthUserEmail] = useState<string | null>(null)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -643,6 +646,15 @@ export function HomePage() {
             !errorMessage &&
             projects.length > 0 && (
             <>
+              {openProjectMenuId && (
+                <button
+                  type="button"
+                  aria-label="關閉專案選單"
+                  onClick={() => setOpenProjectMenuId(null)}
+                  className="fixed inset-0 z-20 cursor-default bg-transparent"
+                />
+              )}
+
               {actionErrorMessage && (
                 <p
                   role="alert"
@@ -689,16 +701,23 @@ export function HomePage() {
                       </div>
                     </Link>
 
-                    <details
-                      className="group/menu absolute right-2 top-2 z-10"
+                    <div
+                      className="absolute right-2 top-2 z-30"
                       onKeyDown={(event) => {
                         if (event.key === 'Escape') {
-                          event.currentTarget.removeAttribute('open')
+                          setOpenProjectMenuId(null)
                         }
                       }}
                     >
-                      <summary
+                      <button
+                        type="button"
                         aria-label={`開啟「${project.name}」專案選單`}
+                        aria-expanded={openProjectMenuId === project.id}
+                        onClick={() =>
+                          setOpenProjectMenuId((currentId) =>
+                            currentId === project.id ? null : project.id,
+                          )
+                        }
                         className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                       >
                         <svg
@@ -711,16 +730,15 @@ export function HomePage() {
                           <circle cx="12" cy="12" r="1.5" />
                           <circle cx="19" cy="12" r="1.5" />
                         </svg>
-                      </summary>
+                      </button>
 
+                      {openProjectMenuId === project.id && (
                       <div className="absolute right-0 top-full mt-1 w-48 overflow-hidden rounded-xl border border-border bg-background p-1 shadow-lg">
                         {project.accessRole !== 'viewer' && (
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.currentTarget
-                                .closest('details')
-                                ?.removeAttribute('open')
+                            onClick={() => {
+                              setOpenProjectMenuId(null)
                               openRenameDialog(project)
                             }}
                             className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -730,10 +748,8 @@ export function HomePage() {
                         )}
                         <button
                           type="button"
-                          onClick={(event) => {
-                            event.currentTarget
-                              .closest('details')
-                              ?.removeAttribute('open')
+                          onClick={() => {
+                            setOpenProjectMenuId(null)
                             void handleCopyProjectLink(project.id)
                           }}
                           className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -745,10 +761,8 @@ export function HomePage() {
                         {project.accessRole === 'owner' && (
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.currentTarget
-                                .closest('details')
-                                ?.removeAttribute('open')
+                            onClick={() => {
+                              setOpenProjectMenuId(null)
                               openPermissionDialog(project)
                             }}
                             className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -762,10 +776,8 @@ export function HomePage() {
                             <button
                               type="button"
                               disabled={deletingProjectId !== null}
-                              onClick={(event) => {
-                                event.currentTarget
-                                  .closest('details')
-                                  ?.removeAttribute('open')
+                              onClick={() => {
+                                setOpenProjectMenuId(null)
                                 void handleDeleteProject(project)
                               }}
                               className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-50"
@@ -777,7 +789,8 @@ export function HomePage() {
                           </>
                         )}
                       </div>
-                    </details>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
