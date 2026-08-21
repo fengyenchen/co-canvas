@@ -56,6 +56,12 @@ export function LandingPage() {
         </Link>
 
         <nav aria-label="主要導覽" className="flex items-center gap-2">
+          <a
+            href="#features"
+            className="hidden min-h-11 cursor-pointer items-center justify-center rounded-lg px-4 text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:inline-flex"
+          >
+            核心功能
+          </a>
           <Link
             to="/auth/sign-in?returnTo=%2Fprojects"
             className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
@@ -103,7 +109,7 @@ export function LandingPage() {
 
           <div
             aria-label="對話與節點畫布示意"
-            className="relative mx-auto aspect-[4/3] w-full max-w-lg overflow-hidden rounded-3xl border border-border bg-background shadow-xl shadow-foreground/5"
+            className="relative mx-auto aspect-4/3 w-full max-w-lg overflow-hidden rounded-3xl border border-border bg-background shadow-xl shadow-foreground/5"
           >
             <div className="absolute inset-y-0 left-0 w-[38%] border-r border-border bg-canvas/70 p-4 sm:p-5">
               <div className="h-3 w-16 rounded-full bg-foreground/15" />
@@ -115,7 +121,7 @@ export function LandingPage() {
               </div>
             </div>
 
-            <div className="absolute inset-y-0 right-0 w-[62%] bg-[radial-gradient(circle,var(--color-border)_1px,transparent_1px)] [background-size:20px_20px]">
+            <div className="absolute inset-y-0 right-0 w-[62%] bg-[radial-gradient(circle,var(--color-border)_1px,transparent_1px)] [bg-size:20px_20px]">
               <div className="absolute left-[24%] top-[16%] w-[56%] rounded-xl border border-primary/30 bg-background px-3 py-3 text-xs font-semibold shadow-md">
                 研究計畫
               </div>
@@ -128,6 +134,137 @@ export function LandingPage() {
               <div className="absolute left-1/2 top-[38%] h-[14%] w-px bg-foreground/25" />
               <div className="absolute left-[28%] top-[45%] h-px w-[44%] bg-foreground/25" />
             </div>
+          </div>
+        </section>
+
+        <section
+          id="features"
+          aria-labelledby="features-title"
+          className="scroll-mt-6 border-t border-border bg-background"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="mx-auto max-w-2xl text-center">
+              <h2
+                id="features-title"
+                className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl"
+              >
+                從選定脈絡，到建立結構
+              </h2>
+              <p className="mt-4 text-base leading-7 text-foreground/60">
+                AI 負責提出內容與關係，你決定從哪裡開始、哪些建議值得保留。
+              </p>
+            </div>
+
+            <ol className="mt-12 grid gap-5 lg:grid-cols-3">
+              <li className="flex min-w-0 flex-col rounded-2xl border border-border bg-canvas/55 p-5 shadow-sm sm:p-6">
+                <div
+                  aria-hidden="true"
+                  className="relative h-44 overflow-hidden rounded-xl border border-border bg-background"
+                >
+                  <div className="absolute left-5 top-5 rounded-full bg-primary/10 px-3 py-1.5 text-[0.7rem] font-medium text-primary">
+                    目前延伸
+                  </div>
+                  <div className="absolute left-[27%] top-[33%] w-[48%] rounded-lg border border-primary bg-background px-3 py-2.5 text-xs font-semibold shadow-md">
+                    研究問題
+                  </div>
+                  <div className="absolute bottom-4 left-4 w-[36%] rounded-lg border border-border bg-background px-3 py-2 text-[0.7rem] text-foreground/55 shadow-sm">
+                    研究方法
+                  </div>
+                  <div className="absolute bottom-4 right-4 w-[36%] rounded-lg border border-border bg-background px-3 py-2 text-[0.7rem] text-foreground/55 shadow-sm">
+                    評估方式
+                  </div>
+                  <div className="absolute left-1/2 top-[60%] h-[14%] w-px bg-foreground/20" />
+                  <div className="absolute bottom-[35%] left-[28%] h-px w-[44%] bg-foreground/20" />
+                </div>
+
+                <div className="mt-6 flex items-center gap-3">
+                  <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                    1
+                  </span>
+                  <h3 className="text-lg font-semibold">選定對話上下文</h3>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-foreground/60">
+                  直接選取想延伸的節點。系統只帶入該節點及相鄰內容，讓 AI 回應更聚焦、更容易預測。
+                </p>
+              </li>
+
+              <li className="flex min-w-0 flex-col rounded-2xl border border-border bg-canvas/55 p-5 shadow-sm sm:p-6">
+                <div
+                  aria-hidden="true"
+                  className="relative h-44 overflow-hidden rounded-xl border border-border bg-background p-4"
+                >
+                  <div className="ml-auto max-w-[78%] rounded-2xl rounded-br-md bg-primary px-3 py-2.5 text-[0.7rem] leading-5 text-primary-foreground shadow-sm">
+                    比較這兩種研究方法的優缺點
+                  </div>
+                  <div className="mt-3 max-w-[86%] rounded-2xl rounded-bl-md border border-border bg-canvas px-3 py-2.5 text-[0.7rem] leading-5 text-foreground/60">
+                    我會整理成兩個方案與一個比較節點。
+                  </div>
+                  <div className="absolute bottom-4 left-4 right-4 flex items-center justify-center gap-2">
+                    <div className="rounded-lg border border-border bg-background px-3 py-2 text-[0.65rem] font-medium shadow-sm">
+                      方法 A
+                    </div>
+                    <div className="h-px min-w-4 flex-1 bg-foreground/20" />
+                    <div className="rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-[0.65rem] font-medium text-primary shadow-sm">
+                      比較
+                    </div>
+                    <div className="h-px min-w-4 flex-1 bg-foreground/20" />
+                    <div className="rounded-lg border border-border bg-background px-3 py-2 text-[0.65rem] font-medium shadow-sm">
+                      方法 B
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex items-center gap-3">
+                  <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                    2
+                  </span>
+                  <h3 className="text-lg font-semibold">用對話產生結構</h3>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-foreground/60">
+                  用自然語言要求 AI 拆解、延伸或比較。結構化結果會轉成節點內容與語意關係，而不是只留在線性訊息中。
+                </p>
+              </li>
+
+              <li className="flex min-w-0 flex-col rounded-2xl border border-border bg-canvas/55 p-5 shadow-sm sm:p-6">
+                <div
+                  aria-hidden="true"
+                  className="relative h-44 overflow-hidden rounded-xl border border-border bg-background p-4"
+                >
+                  <div className="text-xs font-semibold">AI 建議預覽</div>
+                  <div className="mt-3 space-y-2">
+                    {['釐清研究目標', '拆解執行步驟', '檢查潛在風險'].map(
+                      (label) => (
+                        <div
+                          key={label}
+                          className="flex items-center gap-2 rounded-lg border border-border bg-canvas/60 px-3 py-2 text-[0.7rem] text-foreground/65"
+                        >
+                          <span className="size-2 rounded-full bg-primary" />
+                          {label}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                  <div className="absolute bottom-3 right-3 flex gap-2">
+                    <div className="rounded-md border border-border px-3 py-1.5 text-[0.65rem] text-foreground/55">
+                      取消
+                    </div>
+                    <div className="rounded-md bg-primary px-3 py-1.5 text-[0.65rem] font-medium text-primary-foreground">
+                      加入畫布
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex items-center gap-3">
+                  <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                    3
+                  </span>
+                  <h3 className="text-lg font-semibold">預覽後再加入</h3>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-foreground/60">
+                  AI 不會直接改動畫布。先檢查建議的節點與連線，再選擇加入、重新生成或取消，保留操作控制權。
+                </p>
+              </li>
+            </ol>
           </div>
         </section>
       </main>
