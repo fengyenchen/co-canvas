@@ -36,6 +36,12 @@ body {
   min-height: 100vh;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 .react-flow__edge-path {
   stroke: #a1a1aa;
   stroke-width: 1.5;

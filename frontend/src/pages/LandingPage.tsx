@@ -167,8 +167,8 @@ export function LandingPage() {
               <div className="absolute right-[7%] top-[52%] w-[40%] rounded-xl border border-border bg-background px-3 py-3 text-xs shadow-md">
                 執行時程
               </div>
-              <div className="absolute left-1/2 top-[38%] h-[14%] w-px bg-foreground/25" />
-              <div className="absolute left-[28%] top-[45%] h-px w-[44%] bg-foreground/25" />
+              <div className="absolute left-1/2 top-[34%] h-[14%] w-px bg-foreground/25" />
+              <div className="absolute left-[28%] top-[42%] h-px w-[44%] bg-foreground/25" />
             </div>
           </Reveal>
         </section>
