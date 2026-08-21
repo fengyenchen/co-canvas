@@ -37,6 +37,20 @@ class GeminiConfigurationError(RuntimeError):
     pass
 
 
+async def validate_gemini_api_key(api_key: str) -> None:
+    settings, resolved_api_key = load_settings(api_key)
+
+    async with genai.Client(api_key=resolved_api_key).aio as client:
+        await client.models.generate_content(
+            model=settings.gemini_model,
+            contents="請只回覆 OK",
+            config=types.GenerateContentConfig(
+                max_output_tokens=2,
+                temperature=0,
+            ),
+        )
+
+
 def load_settings(api_key: str | None = None):
     try:
         settings = get_settings()

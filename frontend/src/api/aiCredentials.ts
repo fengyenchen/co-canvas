@@ -8,6 +8,12 @@ const aiCredentialSchema = z.object({
   status: z.enum(['unverified', 'valid', 'invalid']).nullable(),
   lastValidatedAt: z.string().nullable(),
   updatedAt: z.string().nullable(),
+  validationResult: z.enum([
+    'valid',
+    'invalid',
+    'quota_exceeded',
+    'unavailable',
+  ]).nullable(),
 })
 
 export type AiCredential = z.infer<typeof aiCredentialSchema>

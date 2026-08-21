@@ -8,6 +8,12 @@ from app.schemas import ApiModel
 
 AiProvider = Literal["gemini"]
 AiCredentialStatus = Literal["unverified", "valid", "invalid"]
+AiCredentialValidationResult = Literal[
+    "valid",
+    "invalid",
+    "quota_exceeded",
+    "unavailable",
+]
 
 
 class AiCredentialUpsert(ApiModel):
@@ -29,3 +35,4 @@ class AiCredentialResponse(ApiModel):
     status: AiCredentialStatus | None = None
     last_validated_at: datetime | None = None
     updated_at: datetime | None = None
+    validation_result: AiCredentialValidationResult | None = None

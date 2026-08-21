@@ -542,6 +542,7 @@ export function HomePage() {
         status: null,
         lastValidatedAt: null,
         updatedAt: null,
+        validationResult: null,
       })
       setGeminiApiKey('')
     } catch (error) {
@@ -929,7 +930,11 @@ export function HomePage() {
                     已設定 ••••{aiCredential.keyHint}
                   </p>
                   <p className="mt-1 text-xs text-foreground/55">
-                    {aiCredential.status === 'valid'
+                    {aiCredential.validationResult === 'quota_exceeded'
+                      ? '額度不足，已暫時改用 Mock'
+                      : aiCredential.validationResult === 'unavailable'
+                        ? '暫時無法驗證，已儲存 Key'
+                        : aiCredential.status === 'valid'
                       ? '已驗證'
                       : aiCredential.status === 'invalid'
                         ? '驗證失敗'
@@ -1011,7 +1016,7 @@ export function HomePage() {
               className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSavingAiSettings
-                ? '儲存中…'
+                ? '驗證中…'
                 : aiCredential?.configured
                   ? '替換 Key'
                   : '儲存 Key'}
