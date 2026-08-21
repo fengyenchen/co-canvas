@@ -8,7 +8,7 @@ import type {
   UpdateProjectInput,
 } from '../types/project'
 import { projectDocumentSchema } from '../utils/projectFile'
-import { throwApiRequestError } from './errors'
+import { ApiRequestError, throwApiRequestError } from './errors'
 
 const projectSummarySchema = z.object({
   id: z.uuid(),
@@ -37,8 +37,18 @@ const API_BASE_URL =
 async function createRequestHeaders(
   includeJsonContentType = false,
 ): Promise<HeadersInit> {
-  const { getAuthToken } = await import('../lib/auth')
-  const token = await getAuthToken()
+  let token: string | null
+
+  try {
+    const { getAuthToken } = await import('../lib/auth')
+    token = await getAuthToken()
+  } catch {
+    throw new ApiRequestError(
+      401,
+      '登入狀態已失效，請登出後重新登入',
+    )
+  }
+
   const headers = new Headers()
 
   if (includeJsonContentType) {

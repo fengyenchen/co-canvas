@@ -168,7 +168,7 @@ http://localhost:8000/health/database
 
 ## 正式環境
 
-部署前端時，先將 `frontend/.env` 的 `VITE_API_BASE_URL` 改成正式後端網址，並將 `VITE_SITE_URL` 改成正式前端網址，再建立靜態檔案：
+部署前端時，先將 `frontend/.env` 的 `VITE_API_BASE_URL` 改成正式後端網址，再建立靜態檔案：
 
 ```powershell
 cd C:\co-canvas\frontend
