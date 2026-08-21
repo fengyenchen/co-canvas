@@ -1,7 +1,9 @@
 import asyncio
 import logging
 from collections.abc import Awaitable
-from typing import Annotated, Callable, TypeVar
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Annotated, Callable, Literal, TypeVar
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,10 +18,11 @@ from app.models import UserAiCredential
 from app.routers.ai_credentials import router as ai_credentials_router
 from app.routers.projects import router as projects_router
 from app.schemas import (
+    AiFallbackReason,
+    ChatApiResponse,
     ChatRequest,
-    ChatResponse,
+    GenerateSuggestionApiResponse,
     GenerateSuggestionRequest,
-    GenerateSuggestionResponse,
 )
 from app.services.gemini import (
     GeminiConfigurationError,
@@ -42,6 +45,15 @@ DatabaseSession = Annotated[
     Depends(get_database_session),
 ]
 ProjectId = Annotated[str | None, Query(alias="projectId")]
+
+
+@dataclass(frozen=True)
+class AiRequestRuntime:
+    use_mock: bool
+    api_key: str | None = None
+    fallback_reason: AiFallbackReason | None = None
+    uses_user_key: bool = False
+
 
 app = FastAPI(
     title="Co-Canvas API",
@@ -99,10 +111,10 @@ async def database_health():
 async def run_gemini(
     operation: Awaitable[ResponseT],
     fallback: Callable[[], ResponseT] | None = None,
-) -> ResponseT:
+) -> tuple[ResponseT, AiFallbackReason | None]:
     try:
         async with asyncio.timeout(30):
-            return await operation
+            return await operation, None
     except GeminiConfigurationError as error:
         raise HTTPException(
             status_code=503,
@@ -117,7 +129,12 @@ async def run_gemini(
         logger.warning("Gemini API error: %s", error.code)
 
         if fallback is not None and error.code in (400, 401, 403, 429):
-            return fallback()
+            reason: AiFallbackReason = (
+                "quota_exceeded"
+                if error.code == 429
+                else "invalid_key"
+            )
+            return fallback(), reason
 
         if error.code in (400, 401, 403):
             raise HTTPException(
@@ -173,50 +190,110 @@ async def resolve_ai_api_key(
     project_id: str | None,
     user: AuthenticatedUser | None,
     session: AsyncSession,
-) -> tuple[bool, str | None]:
+) -> AiRequestRuntime:
     settings = get_settings()
 
     if settings.ai_mode == "mock":
-        return True, None
+        return AiRequestRuntime(
+            use_mock=True,
+            fallback_reason="configured_mock",
+        )
 
     if project_id is None or project_id == "local":
         if settings.gemini_api_key is None:
-            return True, None
+            return AiRequestRuntime(
+                use_mock=True,
+                fallback_reason="missing_key",
+            )
 
-        return False, settings.gemini_api_key.get_secret_value()
+        return AiRequestRuntime(
+            use_mock=False,
+            api_key=settings.gemini_api_key.get_secret_value(),
+        )
 
     if user is None:
-        return True, None
+        return AiRequestRuntime(
+            use_mock=True,
+            fallback_reason="unauthenticated",
+        )
 
     api_key = await get_user_gemini_api_key(session, user)
-    return api_key is None, api_key
+    if api_key is None:
+        return AiRequestRuntime(
+            use_mock=True,
+            fallback_reason="missing_key",
+        )
+
+    return AiRequestRuntime(
+        use_mock=False,
+        api_key=api_key,
+        uses_user_key=True,
+    )
 
 
-@app.post("/api/chat", response_model=ChatResponse)
+async def update_user_key_status(
+    session: AsyncSession,
+    user: AuthenticatedUser,
+    status: Literal["valid", "invalid"],
+) -> None:
+    credential = await session.scalar(
+        select(UserAiCredential).where(
+            UserAiCredential.user_id == user.id,
+            UserAiCredential.provider == "gemini",
+        ),
+    )
+
+    if credential is None:
+        return
+
+    credential.status = status
+    credential.last_validated_at = datetime.now(timezone.utc)
+    await session.commit()
+
+
+@app.post("/api/chat", response_model=ChatApiResponse)
 async def chat(
     request: ChatRequest,
     session: DatabaseSession,
     user: OptionalCurrentUser,
     project_id: ProjectId = None,
-) -> ChatResponse:
-    use_mock, api_key = await resolve_ai_api_key(
+) -> ChatApiResponse:
+    runtime = await resolve_ai_api_key(
         project_id,
         user,
         session,
     )
 
-    if use_mock:
-        return chat_with_mock(request)
+    if runtime.use_mock:
+        response = chat_with_mock(request)
+        return ChatApiResponse(
+            message=response.message,
+            ai_mode="mock",
+            fallback_reason=runtime.fallback_reason,
+        )
 
-    return await run_gemini(
-        chat_with_gemini(request, api_key),
+    response, fallback_reason = await run_gemini(
+        chat_with_gemini(request, runtime.api_key),
         fallback=lambda: chat_with_mock(request),
+    )
+
+    if runtime.uses_user_key and user is not None:
+        await update_user_key_status(
+            session,
+            user,
+            "invalid" if fallback_reason == "invalid_key" else "valid",
+        )
+
+    return ChatApiResponse(
+        message=response.message,
+        ai_mode="mock" if fallback_reason else "gemini",
+        fallback_reason=fallback_reason,
     )
 
 
 @app.post(
     "/api/suggestions/generate",
-    response_model=GenerateSuggestionResponse,
+    response_model=GenerateSuggestionApiResponse,
     response_model_exclude_none=True,
 )
 async def generate_suggestion(
@@ -224,17 +301,35 @@ async def generate_suggestion(
     session: DatabaseSession,
     user: OptionalCurrentUser,
     project_id: ProjectId = None,
-) -> GenerateSuggestionResponse:
-    use_mock, api_key = await resolve_ai_api_key(
+) -> GenerateSuggestionApiResponse:
+    runtime = await resolve_ai_api_key(
         project_id,
         user,
         session,
     )
 
-    if use_mock:
-        return generate_with_mock(request)
+    if runtime.use_mock:
+        response = generate_with_mock(request)
+        return GenerateSuggestionApiResponse(
+            **response.model_dump(),
+            ai_mode="mock",
+            fallback_reason=runtime.fallback_reason,
+        )
 
-    return await run_gemini(
-        generate_with_gemini(request, api_key),
+    response, fallback_reason = await run_gemini(
+        generate_with_gemini(request, runtime.api_key),
         fallback=lambda: generate_with_mock(request),
+    )
+
+    if runtime.uses_user_key and user is not None:
+        await update_user_key_status(
+            session,
+            user,
+            "invalid" if fallback_reason == "invalid_key" else "valid",
+        )
+
+    return GenerateSuggestionApiResponse(
+        **response.model_dump(),
+        ai_mode="mock" if fallback_reason else "gemini",
+        fallback_reason=fallback_reason,
     )

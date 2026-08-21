@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { sendChatMessage } from '../../api/chat'
+import { getGeminiCredential } from '../../api/aiCredentials'
 import {
+  ApiRequestError,
   getAiErrorMessage,
   isRetryableAiError,
 } from '../../api/errors'
 import { generateSuggestion } from '../../api/generateSuggestion'
 import { getHealth } from '../../api/health'
 import type { AiMode } from '../../api/health'
+import type { AiFallbackReason } from '../../types/ai'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import { formatLatency } from '../../utils/formatLatency'
@@ -27,6 +30,8 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('')
   const [aiMode, setAiMode] = useState<AiMode | 'offline'>('offline')
+  const [aiFallbackReason, setAiFallbackReason] =
+    useState<AiFallbackReason | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [neighborSelection, setNeighborSelection] = useState<{
@@ -128,22 +133,62 @@ export function ChatPanel({
   useEffect(() => {
     let isCurrent = true
 
-    void getHealth()
-      .then((health) => {
+    async function loadAiMode() {
+      try {
+        if (projectId && projectId !== 'local') {
+          const credential = await getGeminiCredential()
+
+          if (!isCurrent) {
+            return
+          }
+
+          if (!credential.configured) {
+            setAiMode('mock')
+            setAiFallbackReason('missing_key')
+            return
+          }
+
+          if (credential.status === 'invalid') {
+            setAiMode('mock')
+            setAiFallbackReason('invalid_key')
+            return
+          }
+
+          setAiMode('gemini')
+          setAiFallbackReason(null)
+          return
+        }
+
+        const health = await getHealth()
+
         if (isCurrent) {
           setAiMode(health.aiMode)
+          setAiFallbackReason(
+            health.aiMode === 'mock' ? 'configured_mock' : null,
+          )
         }
-      })
-      .catch(() => {
-        if (isCurrent) {
-          setAiMode('offline')
+      } catch (error) {
+        if (!isCurrent) {
+          return
         }
-      })
+
+        if (error instanceof ApiRequestError && error.status === 401) {
+          setAiMode('mock')
+          setAiFallbackReason('unauthenticated')
+          return
+        }
+
+        setAiMode('offline')
+        setAiFallbackReason(null)
+      }
+    }
+
+    void loadAiMode()
 
     return () => {
       isCurrent = false
     }
-  }, [])
+  }, [projectId])
 
   function toggleNeighborNode(nodeId: string) {
     setNeighborSelection((selection) => {
@@ -277,9 +322,11 @@ export function ChatPanel({
     }
 
     if (result.ok) {
+      setAiMode(result.data.aiMode)
+      setAiFallbackReason(result.data.fallbackReason)
       addMessage({
         role: 'ai',
-        content: result.data,
+        content: result.data.message,
         contextNodeId,
         canGenerateNodes: true,
         latencyMs: result.latencyMs,
@@ -342,10 +389,12 @@ export function ChatPanel({
     }
 
     if (result.ok) {
+      setAiMode(result.data.aiMode)
+      setAiFallbackReason(result.data.fallbackReason)
       setPendingSuggestion({
         contextNodeId,
         prompt: sourceContent,
-        suggestion: result.data,
+        suggestion: result.data.suggestion,
         latencyMs: result.latencyMs,
       })
     } else {
@@ -491,6 +540,23 @@ export function ChatPanel({
           </button>
         </div>
       </header>
+
+      {aiMode === 'mock' && aiFallbackReason && (
+        <p
+          role="status"
+          className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs leading-5 text-amber-800"
+        >
+          {aiFallbackReason === 'quota_exceeded'
+            ? 'Gemini 額度不足，本次已改用 Mock。'
+            : aiFallbackReason === 'invalid_key'
+              ? 'Gemini API Key 無效，本次已改用 Mock。'
+              : aiFallbackReason === 'missing_key'
+                ? '尚未設定 Gemini API Key，目前使用 Mock。'
+                : aiFallbackReason === 'unauthenticated'
+                  ? '登入後設定 Gemini API Key，即可使用 Gemini。'
+                  : '系統目前設定為 Mock 模式。'}
+        </p>
+      )}
 
       <details className="group shrink-0 border-b border-border bg-primary/3">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 text-sm text-foreground/70 transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30">

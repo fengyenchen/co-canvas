@@ -44,6 +44,21 @@ class ChatResponse(ApiModel):
     message: str = Field(min_length=1)
 
 
+AiMode = Literal["gemini", "mock"]
+AiFallbackReason = Literal[
+    "configured_mock",
+    "unauthenticated",
+    "missing_key",
+    "invalid_key",
+    "quota_exceeded",
+]
+
+
+class ChatApiResponse(ChatResponse):
+    ai_mode: AiMode
+    fallback_reason: AiFallbackReason | None = None
+
+
 class SuggestedNode(ApiModel):
     temp_id: str
     title: str = Field(min_length=1, max_length=120)
@@ -59,3 +74,8 @@ class SuggestedRelation(ApiModel):
 class GenerateSuggestionResponse(ApiModel):
     nodes: list[SuggestedNode] = Field(min_length=1, max_length=8)
     relations: list[SuggestedRelation] = Field(default_factory=list, max_length=20)
+
+
+class GenerateSuggestionApiResponse(GenerateSuggestionResponse):
+    ai_mode: AiMode
+    fallback_reason: AiFallbackReason | None = None

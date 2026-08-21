@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { AiFallbackReason, AiMode } from '../types/ai'
 import type { AiSuggestion } from '../types/suggestion'
 import { throwApiRequestError } from './errors'
 
@@ -26,14 +27,28 @@ const suggestionSchema = z.object({
     targetTempId: z.string(),
     label: z.string().optional(),
   })),
+  aiMode: z.enum(['gemini', 'mock']),
+  fallbackReason: z.enum([
+    'configured_mock',
+    'unauthenticated',
+    'missing_key',
+    'invalid_key',
+    'quota_exceeded',
+  ]).nullable(),
 })
+
+type GenerateSuggestionResult = {
+  suggestion: AiSuggestion
+  aiMode: AiMode
+  fallbackReason: AiFallbackReason | null
+}
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
 export async function generateSuggestion(
   input: GenerateSuggestionInput,
-): Promise<AiSuggestion> {
+): Promise<GenerateSuggestionResult> {
   const { projectId, ...requestBody } = input
   const requestUrl = new URL(
     `${API_BASE_URL}/api/suggestions/generate`,
@@ -65,5 +80,14 @@ export async function generateSuggestion(
     return throwApiRequestError(response)
   }
 
-  return suggestionSchema.parse(await response.json())
+  const result = suggestionSchema.parse(await response.json())
+
+  return {
+    suggestion: {
+      nodes: result.nodes,
+      relations: result.relations,
+    },
+    aiMode: result.aiMode,
+    fallbackReason: result.fallbackReason,
+  }
 }

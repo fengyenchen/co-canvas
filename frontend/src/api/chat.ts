@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { AiFallbackReason, AiMode } from '../types/ai'
 import type { ChatRole } from '../types/chat'
 import { throwApiRequestError } from './errors'
 
@@ -23,14 +24,28 @@ type ChatInput = {
 
 const chatResponseSchema = z.object({
   message: z.string(),
+  aiMode: z.enum(['gemini', 'mock']),
+  fallbackReason: z.enum([
+    'configured_mock',
+    'unauthenticated',
+    'missing_key',
+    'invalid_key',
+    'quota_exceeded',
+  ]).nullable(),
 })
+
+export type ChatResult = {
+  message: string
+  aiMode: AiMode
+  fallbackReason: AiFallbackReason | null
+}
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
 export async function sendChatMessage(
   input: ChatInput,
-): Promise<string> {
+): Promise<ChatResult> {
   const { projectId, ...requestBody } = input
   const requestUrl = new URL(`${API_BASE_URL}/api/chat`)
   const headers = new Headers({
@@ -57,5 +72,5 @@ export async function sendChatMessage(
     return throwApiRequestError(response)
   }
 
-  return chatResponseSchema.parse(await response.json()).message
+  return chatResponseSchema.parse(await response.json())
 }

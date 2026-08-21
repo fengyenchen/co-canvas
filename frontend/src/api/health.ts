@@ -6,7 +6,7 @@ const healthResponseSchema = z.object({
   geminiConfigured: z.boolean(),
 })
 
-export type AiMode = z.infer<typeof healthResponseSchema>['aiMode']
+export type { AiMode } from '../types/ai'
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
