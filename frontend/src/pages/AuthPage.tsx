@@ -66,7 +66,7 @@ function getSafeReturnTo(value: string | null): string {
     return value
   }
 
-  return '/'
+  return '/projects'
 }
 
 function AuthLink({ href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) {
@@ -98,7 +98,7 @@ export function AuthPage() {
           <span aria-hidden="true" className="mr-2 text-lg">
             ←
           </span>
-          返回專案
+          返回首頁
         </Link>
 
         <header className="mt-8 text-center">

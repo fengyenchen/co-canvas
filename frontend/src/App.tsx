@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 import { EditorPage } from './pages/EditorPage'
 import { HomePage } from './pages/HomePage'
+import { LandingPage } from './pages/LandingPage'
 
 const AuthPage = lazy(() =>
   import('./pages/AuthPage').then((module) => ({
@@ -28,7 +29,8 @@ function AuthPageRoute() {
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/projects" element={<HomePage />} />
       <Route
         path="/auth"
         element={<Navigate to="/auth/sign-in" replace />}

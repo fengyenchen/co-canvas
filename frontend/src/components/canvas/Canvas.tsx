@@ -303,7 +303,7 @@ function CanvasContent({
 
             <div className="absolute left-4 right-4 top-4 z-10 flex items-center justify-between gap-2 sm:right-auto sm:justify-start">
                 <Link
-                    to="/"
+                    to="/projects"
                     aria-label="返回專案列表"
                     title="返回專案列表"
                     className="flex h-11 min-w-11 flex-1 items-center justify-center rounded-lg border border-border bg-background text-xl text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-11 sm:flex-none"

@@ -263,7 +263,7 @@ export function EditorPage() {
             {projectLoadError}
           </p>
           <Link
-            to="/"
+            to="/projects"
             className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-primary px-5 text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
           >
             返回專案列表
