@@ -77,6 +77,7 @@ export function EditorPage() {
   const [loadedProject, setLoadedProject] = useState<Project | null>(null)
   const [activeSettingsDialog, setActiveSettingsDialog] =
     useState<ProjectSettingsDialog>(null)
+  const [aiSettingsRevision, setAiSettingsRevision] = useState(0)
   const [mobileChatHeight, setMobileChatHeight] = useState(
     DEFAULT_CHAT_HEIGHT_PERCENT,
   )
@@ -327,6 +328,7 @@ export function EditorPage() {
         mobileHeightPercent={mobileChatHeight}
         isReadOnly={projectAccessRole === 'viewer'}
         projectId={projectId}
+        aiSettingsRevision={aiSettingsRevision}
       />
 
       {activeContextNodeId && (
@@ -374,10 +376,12 @@ export function EditorPage() {
           projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
         }
         canCopyProjectLink={projectId !== LOCAL_PROJECT_ID}
+        canManageAiSettings={projectId !== LOCAL_PROJECT_ID}
         onRenameProject={() => setActiveSettingsDialog('rename')}
         onManageProjectPermissions={() =>
           setActiveSettingsDialog('permissions')
         }
+        onManageAiSettings={() => setActiveSettingsDialog('ai')}
       />
 
       {loadedProject && activeSettingsDialog && (
@@ -390,6 +394,9 @@ export function EditorPage() {
             setLoadedProject(project)
             setProjectAccessRole(project.accessRole)
           }}
+          onAiCredentialUpdated={() =>
+            setAiSettingsRevision((revision) => revision + 1)
+          }
         />
       )}
 

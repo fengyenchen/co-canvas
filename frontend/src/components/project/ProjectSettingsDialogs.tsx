@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  deleteGeminiCredential,
+  getGeminiCredential,
+  saveGeminiCredential,
+  type AiCredential,
+} from '../../api/aiCredentials'
+import {
   addProjectMember,
   listProjectMembers,
   removeProjectMember,
@@ -15,13 +21,18 @@ import type {
   PublicAccessRole,
 } from '../../types/project'
 
-export type ProjectSettingsDialog = 'rename' | 'permissions' | null
+export type ProjectSettingsDialog =
+  | 'rename'
+  | 'permissions'
+  | 'ai'
+  | null
 
 type ProjectSettingsDialogsProps = {
   project: Project
   activeDialog: Exclude<ProjectSettingsDialog, null>
   onClose: () => void
   onProjectUpdated: (project: Project) => void
+  onAiCredentialUpdated?: () => void
 }
 
 function getErrorMessage(error: unknown) {
@@ -37,9 +48,11 @@ export function ProjectSettingsDialogs({
   activeDialog,
   onClose,
   onProjectUpdated,
+  onAiCredentialUpdated,
 }: ProjectSettingsDialogsProps) {
   const renameDialogRef = useRef<HTMLDialogElement>(null)
   const permissionDialogRef = useRef<HTMLDialogElement>(null)
+  const aiSettingsDialogRef = useRef<HTMLDialogElement>(null)
   const initialVisibilityRef = useRef(project.visibility)
   const [name, setName] = useState(project.name)
   const [visibility, setVisibility] =
@@ -58,10 +71,29 @@ export function ProjectSettingsDialogs({
     null,
   )
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [aiCredential, setAiCredential] = useState<AiCredential | null>(
+    null,
+  )
+  const [apiKey, setApiKey] = useState('')
+  const [isLoadingAiCredential, setIsLoadingAiCredential] =
+    useState(activeDialog === 'ai')
+  const [isSavingAiCredential, setIsSavingAiCredential] = useState(false)
+  const [isRemovingAiCredential, setIsRemovingAiCredential] =
+    useState(false)
 
   useEffect(() => {
     if (activeDialog === 'rename') {
       renameDialogRef.current?.showModal()
+      return
+    }
+
+    if (activeDialog === 'ai') {
+      aiSettingsDialogRef.current?.showModal()
+
+      void getGeminiCredential()
+        .then(setAiCredential)
+        .catch((error: unknown) => setErrorMessage(getErrorMessage(error)))
+        .finally(() => setIsLoadingAiCredential(false))
       return
     }
 
@@ -210,13 +242,196 @@ export function ProjectSettingsDialogs({
     }
   }
 
+  async function handleSaveAiCredential() {
+    const normalizedApiKey = apiKey.trim()
+
+    if (!normalizedApiKey || isSavingAiCredential) {
+      return
+    }
+
+    setIsSavingAiCredential(true)
+    setErrorMessage(null)
+
+    try {
+      setAiCredential(await saveGeminiCredential(normalizedApiKey))
+      setApiKey('')
+      onAiCredentialUpdated?.()
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setIsSavingAiCredential(false)
+    }
+  }
+
+  async function handleRemoveAiCredential() {
+    if (
+      isRemovingAiCredential ||
+      !window.confirm('確定要移除 Gemini API Key 嗎？')
+    ) {
+      return
+    }
+
+    setIsRemovingAiCredential(true)
+    setErrorMessage(null)
+
+    try {
+      await deleteGeminiCredential()
+      setAiCredential({
+        provider: 'gemini',
+        configured: false,
+        keyHint: null,
+        status: null,
+        lastValidatedAt: null,
+        updatedAt: null,
+        validationResult: null,
+      })
+      setApiKey('')
+      onAiCredentialUpdated?.()
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setIsRemovingAiCredential(false)
+    }
+  }
+
   function closeDialog() {
     setErrorMessage(null)
+    setApiKey('')
     onClose()
   }
 
   return (
     <>
+      <dialog
+        ref={aiSettingsDialogRef}
+        aria-labelledby="editor-ai-settings-title"
+        aria-describedby="editor-ai-settings-description"
+        onClose={closeDialog}
+        className="m-auto w-[min(30rem,calc(100%-2rem))] rounded-2xl border border-border bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/20"
+      >
+        <div className="p-5 sm:p-6">
+          <h2
+            id="editor-ai-settings-title"
+            className="text-xl font-semibold"
+          >
+            Gemini API Key
+          </h2>
+          <p
+            id="editor-ai-settings-description"
+            className="mt-2 text-sm leading-6 text-foreground/60"
+          >
+            這是你的帳號共用設定，會套用到所有雲端專案。
+          </p>
+
+          <div className="mt-5 rounded-xl border border-border bg-canvas/70 p-4">
+            {isLoadingAiCredential ? (
+              <p role="status" className="text-sm text-foreground/60">
+                讀取設定中…
+              </p>
+            ) : aiCredential?.configured ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">
+                    已設定 ••••{aiCredential.keyHint}
+                  </p>
+                  <p className="mt-1 text-xs text-foreground/55">
+                    {aiCredential.validationResult === 'quota_exceeded'
+                      ? '額度不足，目前使用 Mock'
+                      : aiCredential.validationResult === 'unavailable'
+                        ? '暫時無法驗證'
+                        : aiCredential.status === 'valid'
+                          ? '已驗證'
+                          : aiCredential.status === 'invalid'
+                            ? '驗證失敗，目前使用 Mock'
+                            : '尚未驗證'}
+                  </p>
+                </div>
+                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  已設定
+                </span>
+              </div>
+            ) : (
+              <p className="text-sm leading-6 text-foreground/60">
+                尚未設定，這個雲端專案目前使用 Mock 模式。
+              </p>
+            )}
+          </div>
+
+          <label
+            htmlFor="editor-gemini-api-key"
+            className="mt-5 block text-sm font-medium"
+          >
+            {aiCredential?.configured ? '替換 API Key' : 'API Key'}
+          </label>
+          <input
+            id="editor-gemini-api-key"
+            type="password"
+            value={apiKey}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={isLoadingAiCredential || isSavingAiCredential}
+            onChange={(event) => setApiKey(event.target.value)}
+            placeholder={
+              aiCredential?.configured
+                ? '輸入新 Key 以替換'
+                : '貼上 Gemini API Key'
+            }
+            className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base outline-none transition placeholder:text-foreground/40 focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-50"
+          />
+          <p className="mt-2 text-xs leading-5 text-foreground/55">
+            Key 會加密儲存在後端，設定後不會顯示完整內容。
+          </p>
+
+          {errorMessage && (
+            <p role="alert" className="mt-3 text-sm text-red-600">
+              {errorMessage}
+            </p>
+          )}
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            {aiCredential?.configured && (
+              <button
+                type="button"
+                disabled={
+                  isSavingAiCredential || isRemovingAiCredential
+                }
+                onClick={() => void handleRemoveAiCredential()}
+                className="min-h-11 cursor-pointer rounded-lg border border-red-200 px-4 text-sm font-medium text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-50 sm:mr-auto"
+              >
+                {isRemovingAiCredential ? '移除中…' : '移除 Key'}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={
+                isSavingAiCredential || isRemovingAiCredential
+              }
+              onClick={() => aiSettingsDialogRef.current?.close()}
+              className="min-h-11 cursor-pointer rounded-lg border border-border px-4 text-sm font-medium transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              關閉
+            </button>
+            <button
+              type="button"
+              disabled={
+                !apiKey.trim() ||
+                isLoadingAiCredential ||
+                isSavingAiCredential ||
+                isRemovingAiCredential
+              }
+              onClick={() => void handleSaveAiCredential()}
+              className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSavingAiCredential
+                ? '驗證中…'
+                : aiCredential?.configured
+                  ? '替換 Key'
+                  : '儲存 Key'}
+            </button>
+          </div>
+        </div>
+      </dialog>
+
       <dialog
         ref={renameDialogRef}
         aria-labelledby="editor-rename-project-title"

@@ -30,8 +30,10 @@ type CanvasProps = {
     canRenameProject?: boolean
     canManageProjectPermissions?: boolean
     canCopyProjectLink?: boolean
+    canManageAiSettings?: boolean
     onRenameProject?: () => void
     onManageProjectPermissions?: () => void
+    onManageAiSettings?: () => void
 }
 
 function CanvasContent({
@@ -39,8 +41,10 @@ function CanvasContent({
     canRenameProject = false,
     canManageProjectPermissions = false,
     canCopyProjectLink = false,
+    canManageAiSettings = false,
     onRenameProject,
     onManageProjectPermissions,
+    onManageAiSettings,
 }: CanvasProps) {
     const nodes = useCanvasStore((state) => state.nodes)
     const nodesInitialized = useNodesInitialized()
@@ -423,9 +427,22 @@ function CanvasContent({
                                       : '複製分享連結'}
                             </button>
                         )}
+                        {canManageAiSettings && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsProjectMenuOpen(false)
+                                    onManageAiSettings?.()
+                                }}
+                                className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                            >
+                                AI 設定
+                            </button>
+                        )}
                         {(canRenameProject ||
                             canManageProjectPermissions ||
-                            canCopyProjectLink) && (
+                            canCopyProjectLink ||
+                            canManageAiSettings) && (
                             <div className="my-1 border-t border-border" />
                         )}
                         <button

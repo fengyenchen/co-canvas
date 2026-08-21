@@ -21,12 +21,14 @@ type ChatPanelProps = {
   mobileHeightPercent: number
   isReadOnly?: boolean
   projectId?: string
+  aiSettingsRevision?: number
 }
 
 export function ChatPanel({
   mobileHeightPercent,
   isReadOnly = false,
   projectId,
+  aiSettingsRevision = 0,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('')
   const [aiMode, setAiMode] = useState<AiMode | 'offline'>('offline')
@@ -188,7 +190,7 @@ export function ChatPanel({
     return () => {
       isCurrent = false
     }
-  }, [projectId])
+  }, [aiSettingsRevision, projectId])
 
   function toggleNeighborNode(nodeId: string) {
     setNeighborSelection((selection) => {
