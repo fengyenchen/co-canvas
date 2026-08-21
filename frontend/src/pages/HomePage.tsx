@@ -11,6 +11,12 @@ import {
   updateProjectMember,
 } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
+import {
+  deleteGeminiCredential,
+  getGeminiCredential,
+  saveGeminiCredential,
+  type AiCredential,
+} from '../api/aiCredentials'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 import type {
   ProjectSummary,
@@ -64,6 +70,7 @@ export function HomePage() {
   const createDialogRef = useRef<HTMLDialogElement>(null)
   const renameDialogRef = useRef<HTMLDialogElement>(null)
   const permissionDialogRef = useRef<HTMLDialogElement>(null)
+  const aiSettingsDialogRef = useRef<HTMLDialogElement>(null)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -120,6 +127,17 @@ export function HomePage() {
   const [authUserEmail, setAuthUserEmail] = useState<string | null>(null)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [aiCredential, setAiCredential] = useState<AiCredential | null>(
+    null,
+  )
+  const [geminiApiKey, setGeminiApiKey] = useState('')
+  const [isLoadingAiSettings, setIsLoadingAiSettings] = useState(false)
+  const [isSavingAiSettings, setIsSavingAiSettings] = useState(false)
+  const [isRemovingAiCredential, setIsRemovingAiCredential] =
+    useState(false)
+  const [aiSettingsError, setAiSettingsError] = useState<string | null>(
+    null,
+  )
 
   useEffect(() => {
     let isCancelled = false
@@ -465,6 +483,74 @@ export function HomePage() {
     }
   }
 
+  async function openAiSettingsDialog() {
+    if (isLoadingAiSettings) {
+      return
+    }
+
+    setGeminiApiKey('')
+    setAiSettingsError(null)
+    setIsLoadingAiSettings(true)
+    aiSettingsDialogRef.current?.showModal()
+
+    try {
+      setAiCredential(await getGeminiCredential())
+    } catch (error) {
+      setAiSettingsError(getLoadErrorMessage(error))
+    } finally {
+      setIsLoadingAiSettings(false)
+    }
+  }
+
+  async function handleSaveAiCredential() {
+    const apiKey = geminiApiKey.trim()
+
+    if (!apiKey || isSavingAiSettings) {
+      return
+    }
+
+    setIsSavingAiSettings(true)
+    setAiSettingsError(null)
+
+    try {
+      setAiCredential(await saveGeminiCredential(apiKey))
+      setGeminiApiKey('')
+    } catch (error) {
+      setAiSettingsError(getLoadErrorMessage(error))
+    } finally {
+      setIsSavingAiSettings(false)
+    }
+  }
+
+  async function handleRemoveAiCredential() {
+    if (
+      isRemovingAiCredential ||
+      !window.confirm('確定要移除 Gemini API Key 嗎？')
+    ) {
+      return
+    }
+
+    setIsRemovingAiCredential(true)
+    setAiSettingsError(null)
+
+    try {
+      await deleteGeminiCredential()
+      setAiCredential({
+        provider: 'gemini',
+        configured: false,
+        keyHint: null,
+        status: null,
+        lastValidatedAt: null,
+        updatedAt: null,
+      })
+      setGeminiApiKey('')
+    } catch (error) {
+      setAiSettingsError(getLoadErrorMessage(error))
+    } finally {
+      setIsRemovingAiCredential(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-canvas px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl">
@@ -509,6 +595,13 @@ export function HomePage() {
                 >
                   <span className="truncate">{authUserEmail}</span>
                 </span>
+                <button
+                  type="button"
+                  onClick={() => void openAiSettingsDialog()}
+                  className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  AI 設定
+                </button>
                 <button
                   type="button"
                   disabled={isSigningOut}
@@ -798,6 +891,134 @@ export function HomePage() {
           )}
         </section>
       </div>
+
+      <dialog
+        ref={aiSettingsDialogRef}
+        aria-labelledby="ai-settings-title"
+        aria-describedby="ai-settings-description"
+        onClose={() => {
+          setGeminiApiKey('')
+          setAiSettingsError(null)
+        }}
+        className="m-auto w-[min(30rem,calc(100%-2rem))] rounded-2xl border border-border bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/20"
+      >
+        <div className="p-5 sm:p-6">
+          <h2
+            id="ai-settings-title"
+            className="text-xl font-semibold text-foreground"
+          >
+            Gemini API Key
+          </h2>
+          <p
+            id="ai-settings-description"
+            className="mt-2 text-sm leading-6 text-foreground/60"
+          >
+            登入後的雲端專案會使用你的 Key；未設定時改用 Mock
+            模式。
+          </p>
+
+          <div className="mt-5 rounded-xl border border-border bg-canvas/70 p-4">
+            {isLoadingAiSettings ? (
+              <p role="status" className="text-sm text-foreground/60">
+                讀取設定中…
+              </p>
+            ) : aiCredential?.configured ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    已設定 ••••{aiCredential.keyHint}
+                  </p>
+                  <p className="mt-1 text-xs text-foreground/55">
+                    {aiCredential.status === 'valid'
+                      ? '已驗證'
+                      : aiCredential.status === 'invalid'
+                        ? '驗證失敗'
+                        : '尚未驗證'}
+                  </p>
+                </div>
+                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  已設定
+                </span>
+              </div>
+            ) : (
+              <p className="text-sm leading-6 text-foreground/60">
+                尚未設定，AI 對話與節點產生會使用 Mock 模式。
+              </p>
+            )}
+          </div>
+
+          <label
+            htmlFor="gemini-api-key"
+            className="mt-5 block text-sm font-medium text-foreground"
+          >
+            {aiCredential?.configured ? '替換 API Key' : 'API Key'}
+          </label>
+          <input
+            id="gemini-api-key"
+            type="password"
+            value={geminiApiKey}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={isLoadingAiSettings || isSavingAiSettings}
+            onChange={(event) => setGeminiApiKey(event.target.value)}
+            className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none transition placeholder:text-foreground/40 focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
+            placeholder={
+              aiCredential?.configured
+                ? '輸入新 Key 以替換'
+                : '貼上 Gemini API Key'
+            }
+          />
+          <p className="mt-2 text-xs leading-5 text-foreground/55">
+            Key 會加密儲存在後端，設定完成後不會再顯示完整內容。
+          </p>
+
+          {aiSettingsError && (
+            <p role="alert" className="mt-3 text-sm text-red-600">
+              {aiSettingsError}
+            </p>
+          )}
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            {aiCredential?.configured && (
+              <button
+                type="button"
+                disabled={
+                  isRemovingAiCredential || isSavingAiSettings
+                }
+                onClick={() => void handleRemoveAiCredential()}
+                className="min-h-11 cursor-pointer rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-50 sm:mr-auto"
+              >
+                {isRemovingAiCredential ? '移除中…' : '移除 Key'}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={isSavingAiSettings || isRemovingAiCredential}
+              onClick={() => aiSettingsDialogRef.current?.close()}
+              className="min-h-11 cursor-pointer rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              關閉
+            </button>
+            <button
+              type="button"
+              disabled={
+                !geminiApiKey.trim() ||
+                isLoadingAiSettings ||
+                isSavingAiSettings ||
+                isRemovingAiCredential
+              }
+              onClick={() => void handleSaveAiCredential()}
+              className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSavingAiSettings
+                ? '儲存中…'
+                : aiCredential?.configured
+                  ? '替換 Key'
+                  : '儲存 Key'}
+            </button>
+          </div>
+        </div>
+      </dialog>
 
       <dialog
         ref={createDialogRef}
