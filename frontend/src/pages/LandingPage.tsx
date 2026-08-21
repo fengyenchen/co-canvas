@@ -1,8 +1,28 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { motion, MotionConfig, type HTMLMotionProps } from 'motion/react'
 import { Link, Navigate } from 'react-router'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 
 type SessionState = 'checking' | 'signed-in' | 'signed-out'
+
+type RevealProps = Omit<HTMLMotionProps<'div'>, 'children'> & {
+  children: ReactNode
+  delay?: number
+}
+
+function Reveal({ children, delay = 0, ...props }: RevealProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.18 }}
+      transition={{ duration: 0.3, delay, ease: 'easeOut' }}
+      {...props}
+    >
+      {children}
+    </motion.div>
+  )
+}
 
 export function LandingPage() {
   const [sessionState, setSessionState] =
@@ -38,7 +58,8 @@ export function LandingPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-canvas text-foreground">
+    <MotionConfig reducedMotion="user">
+      <div className="min-h-dvh bg-canvas text-foreground">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
         <Link
           to="/"
@@ -85,7 +106,7 @@ export function LandingPage() {
 
       <main>
         <section className="mx-auto grid min-h-[calc(100dvh-5.25rem)] w-full max-w-6xl items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.85fr)] lg:py-24">
-          <div className="max-w-2xl">
+          <Reveal className="max-w-2xl">
             <p className="text-sm font-semibold tracking-[0.16em] text-primary">
               對話 × 節點畫布
             </p>
@@ -112,14 +133,17 @@ export function LandingPage() {
               </Link>
             </div>
 
-            {sessionState === 'checking' && (
-              <p role="status" className="mt-4 text-xs text-foreground/45">
-                正在確認登入狀態…
-              </p>
-            )}
-          </div>
+            <div className="mt-4 min-h-4">
+              {sessionState === 'checking' && (
+                <p role="status" className="text-xs leading-4 text-foreground/45">
+                  正在確認登入狀態…
+                </p>
+              )}
+            </div>
+          </Reveal>
 
-          <div
+          <Reveal
+            delay={0.08}
             aria-label="對話與節點畫布示意"
             className="relative mx-auto aspect-4/3 w-full max-w-lg overflow-hidden rounded-3xl border border-border bg-background shadow-xl shadow-foreground/5"
           >
@@ -146,7 +170,7 @@ export function LandingPage() {
               <div className="absolute left-1/2 top-[38%] h-[14%] w-px bg-foreground/25" />
               <div className="absolute left-[28%] top-[45%] h-px w-[44%] bg-foreground/25" />
             </div>
-          </div>
+          </Reveal>
         </section>
 
         <section
@@ -155,7 +179,7 @@ export function LandingPage() {
           className="scroll-mt-6 border-t border-border bg-background"
         >
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
-            <div className="mx-auto max-w-2xl text-center">
+            <Reveal className="mx-auto max-w-2xl text-center">
               <p className="text-sm font-semibold tracking-[0.16em] text-primary">
                 核心功能
               </p>
@@ -168,9 +192,10 @@ export function LandingPage() {
               <p className="mt-4 text-base leading-7 text-foreground/60">
                 AI 負責提出內容與關係，你決定從哪裡開始、哪些建議值得保留。
               </p>
-            </div>
+            </Reveal>
 
-            <ol className="mt-12 grid gap-5 lg:grid-cols-3">
+            <Reveal className="mt-12">
+              <ol className="grid gap-5 lg:grid-cols-3">
               <li className="flex min-w-0 flex-col rounded-2xl border border-border bg-canvas/55 p-5 shadow-sm sm:p-6">
                 <div
                   aria-hidden="true"
@@ -279,7 +304,8 @@ export function LandingPage() {
                   AI 不會直接改動畫布。先檢查建議的節點與連線，再選擇加入、重新生成或取消，保留操作控制權。
                 </p>
               </li>
-            </ol>
+              </ol>
+            </Reveal>
           </div>
         </section>
 
@@ -289,7 +315,7 @@ export function LandingPage() {
           className="scroll-mt-6 border-t border-border bg-canvas/55"
         >
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
-            <div className="max-w-2xl">
+            <Reveal className="max-w-2xl">
               <p className="text-sm font-semibold tracking-[0.16em] text-primary">
                 介面比較
               </p>
@@ -302,10 +328,11 @@ export function LandingPage() {
               <p className="mt-4 text-base leading-7 text-foreground/60">
                 Co-Canvas 讓你用節點指定脈絡、檢查 AI 建議，並持續重組內容，不必在長對話裡反覆尋找資訊。
               </p>
-            </div>
+            </Reveal>
 
-            <div className="mt-10 overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
-              <table className="w-full table-fixed border-collapse text-left">
+            <Reveal className="mt-10">
+              <div className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+                <table className="w-full table-fixed border-collapse text-left">
                 <caption className="sr-only">
                   純聊天介面與 Co-Canvas 的功能比較
                 </caption>
@@ -370,8 +397,9 @@ export function LandingPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+                </table>
+              </div>
+            </Reveal>
 
             <p className="mt-6 text-sm leading-6 text-foreground/55">
               核心差異不是產生更多內容，而是讓你更清楚地決定 AI 要處理什麼，以及哪些結果要留在畫布上。
@@ -385,7 +413,7 @@ export function LandingPage() {
           className="scroll-mt-6 border-t border-border bg-background"
         >
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
-            <div className="mx-auto max-w-2xl text-center">
+            <Reveal className="mx-auto max-w-2xl text-center">
               <p className="text-sm font-semibold tracking-[0.16em] text-primary">
                 適用情境
               </p>
@@ -398,9 +426,10 @@ export function LandingPage() {
               <p className="mt-4 text-base leading-7 text-foreground/60">
                 從發散想法到形成計畫，用同一張畫布保留內容之間的脈絡。
               </p>
-            </div>
+            </Reveal>
 
-            <ul className="mt-12 grid gap-5 md:grid-cols-2">
+            <Reveal className="mt-12">
+              <ul className="grid gap-5 md:grid-cols-2">
               {[
                 {
                   title: '研究計畫拆解',
@@ -463,7 +492,8 @@ export function LandingPage() {
                   </div>
                 </li>
               ))}
-            </ul>
+              </ul>
+            </Reveal>
           </div>
         </section>
 
@@ -472,7 +502,7 @@ export function LandingPage() {
           className="border-t border-border bg-background"
         >
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
-            <div className="overflow-hidden rounded-3xl bg-primary px-6 py-12 text-center text-primary-foreground shadow-xl shadow-foreground/10 sm:px-12 sm:py-16">
+            <Reveal className="overflow-hidden rounded-3xl bg-primary px-6 py-12 text-center text-primary-foreground shadow-xl shadow-foreground/10 sm:px-12 sm:py-16">
               <p className="text-sm font-semibold tracking-[0.16em] text-primary-foreground/70">
                 開始整理你的想法
               </p>
@@ -500,7 +530,7 @@ export function LandingPage() {
                   開啟本機畫布
                 </Link>
               </div>
-            </div>
+            </Reveal>
           </div>
         </section>
       </main>
@@ -526,6 +556,7 @@ export function LandingPage() {
           </p>
         </div>
       </footer>
-    </div>
+      </div>
+    </MotionConfig>
   )
 }
