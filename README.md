@@ -82,6 +82,8 @@ Copy-Item .env.example .env
 
 接著依照範例檔中的註解填入設定。若暫時沒有 Gemini API Key，可將後端 `AI_MODE` 改成 `mock`。請勿提交包含真實連線字串或 API Key 的 `.env`。
 
+前端所有以 `VITE_` 開頭的變數都會包含在瀏覽器程式碼中，因此只能放公開設定；資料庫連線字串、Gemini API Key 與加密金鑰只能放在後端 `.env`。
+
 ## Neon 資料庫設定
 
 1. 在 Neon 建立 Postgres 專案。
@@ -163,6 +165,33 @@ http://localhost:8000/health/database
   "database": "neon-postgres"
 }
 ```
+
+## 正式環境
+
+部署前端時，先將 `frontend/.env` 的 `VITE_API_BASE_URL` 改成正式後端網址，再建立靜態檔案：
+
+```powershell
+cd C:\co-canvas\frontend
+npm run build
+```
+
+建置結果位於 `frontend/dist`。靜態網站服務需支援 SPA fallback，讓未知路徑回傳 `index.html`。
+
+部署後端時，將 `CORS_ALLOWED_ORIGINS` 設為實際前端網址；若有多個網址，以逗號分隔且不要加入路徑：
+
+```dotenv
+CORS_ALLOWED_ORIGINS=https://co-canvas.example.com,https://www.co-canvas.example.com
+```
+
+套用資料庫 migration 後啟動 API：
+
+```powershell
+cd C:\co-canvas\backend
+alembic upgrade head
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+若部署平台提供動態連接埠，請將 `8000` 改成平台提供的 `PORT`。正式環境的 `.env` 應透過部署平台的秘密環境變數設定，不要提交到 Git。
 
 ## 本機與雲端模式
 

@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     database_url: SecretStr | None = None
     database_migration_url: SecretStr | None = None
     neon_auth_jwks_url: AnyHttpUrl | None = None
+    cors_allowed_origins: str = "http://localhost:5173"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [
+            origin.strip().rstrip("/")
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
 
 @lru_cache
