@@ -168,7 +168,7 @@ http://localhost:8000/health/database
 
 ## 正式環境
 
-部署前端時，先將 `frontend/.env` 的 `VITE_API_BASE_URL` 改成正式後端網址，再建立靜態檔案：
+部署前端時，先將 `frontend/.env` 的 `VITE_API_BASE_URL` 改成正式後端網址，並將 `VITE_SITE_URL` 改成正式前端網址，再建立靜態檔案：
 
 ```powershell
 cd C:\co-canvas\frontend
@@ -191,7 +191,7 @@ alembic upgrade head
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-若部署平台提供動態連接埠，請將 `8000` 改成平台提供的 `PORT`。正式環境的 `.env` 應透過部署平台的秘密環境變數設定，不要提交到 Git。
+若部署平台提供動態連接埠，請將 `8000` 改成平台提供的 `PORT`。
 
 ## 本機與雲端模式
 
