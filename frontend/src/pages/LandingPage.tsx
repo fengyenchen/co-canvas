@@ -62,6 +62,12 @@ export function LandingPage() {
           >
             核心功能
           </a>
+          <a
+            href="#comparison"
+            className="hidden min-h-11 cursor-pointer items-center justify-center rounded-lg px-4 text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 md:inline-flex"
+          >
+            介面比較
+          </a>
           <Link
             to="/auth/sign-in?returnTo=%2Fprojects"
             className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
@@ -144,6 +150,9 @@ export function LandingPage() {
         >
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
             <div className="mx-auto max-w-2xl text-center">
+              <p className="text-sm font-semibold tracking-[0.16em] text-primary">
+                核心功能
+              </p>
               <h2
                 id="features-title"
                 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl"
@@ -228,11 +237,11 @@ export function LandingPage() {
               <li className="flex min-w-0 flex-col rounded-2xl border border-border bg-canvas/55 p-5 shadow-sm sm:p-6">
                 <div
                   aria-hidden="true"
-                  className="relative h-44 overflow-hidden rounded-xl border border-border bg-background p-4"
+                  className="h-44 overflow-hidden rounded-xl border border-border bg-background p-4"
                 >
                   <div className="text-xs font-semibold">AI 建議預覽</div>
                   <div className="mt-3 space-y-2">
-                    {['釐清研究目標', '拆解執行步驟', '檢查潛在風險'].map(
+                    {['釐清研究目標', '拆解執行步驟'].map(
                       (label) => (
                         <div
                           key={label}
@@ -244,7 +253,7 @@ export function LandingPage() {
                       ),
                     )}
                   </div>
-                  <div className="absolute bottom-3 right-3 flex gap-2">
+                  <div className="mt-3 flex justify-end gap-2">
                     <div className="rounded-md border border-border px-3 py-1.5 text-[0.65rem] text-foreground/55">
                       取消
                     </div>
@@ -265,6 +274,102 @@ export function LandingPage() {
                 </p>
               </li>
             </ol>
+          </div>
+        </section>
+
+        <section
+          id="comparison"
+          aria-labelledby="comparison-title"
+          className="scroll-mt-6 border-t border-border bg-canvas/55"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold tracking-[0.16em] text-primary">
+                介面比較
+              </p>
+              <h2
+                id="comparison-title"
+                className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl"
+              >
+                不只是把聊天搬到畫布上
+              </h2>
+              <p className="mt-4 text-base leading-7 text-foreground/60">
+                Co-Canvas 讓你用節點指定脈絡、檢查 AI 建議，並持續重組內容，不必在長對話裡反覆尋找資訊。
+              </p>
+            </div>
+
+            <div className="mt-10 overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+              <table className="w-full table-fixed border-collapse text-left">
+                <caption className="sr-only">
+                  純聊天介面與 Co-Canvas 的功能比較
+                </caption>
+                <thead>
+                  <tr className="border-b border-border bg-primary/5">
+                    <th
+                      scope="col"
+                      className="w-[24%] px-3 py-4 text-xs font-semibold text-foreground/55 sm:px-6 sm:text-sm"
+                    >
+                      比較項目
+                    </th>
+                    <th
+                      scope="col"
+                      className="w-[34%] px-3 py-4 text-xs font-semibold sm:px-6 sm:text-sm"
+                    >
+                      純聊天介面
+                    </th>
+                    <th
+                      scope="col"
+                      className="w-[42%] px-3 py-4 text-xs font-semibold text-primary sm:px-6 sm:text-sm"
+                    >
+                      Co-Canvas
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {[
+                    [
+                      '資訊呈現',
+                      '訊息依時間逐則堆疊',
+                      '用節點與連線保留整體結構',
+                    ],
+                    [
+                      '指定上下文',
+                      '重新描述或引用先前訊息',
+                      '直接選取想延伸的節點',
+                    ],
+                    [
+                      '採用 AI 結果',
+                      '回覆直接混入對話紀錄',
+                      '先預覽，再選擇加入或取消',
+                    ],
+                    [
+                      '回顧與修改',
+                      '上下捲動尋找既有內容',
+                      '直接移動、編輯與重組節點',
+                    ],
+                  ].map(([label, chat, canvas]) => (
+                    <tr key={label} className="align-top">
+                      <th
+                        scope="row"
+                        className="px-3 py-5 text-xs font-semibold leading-5 text-foreground/65 sm:px-6 sm:text-sm"
+                      >
+                        {label}
+                      </th>
+                      <td className="px-3 py-5 text-xs leading-5 text-foreground/55 sm:px-6 sm:text-sm sm:leading-6">
+                        {chat}
+                      </td>
+                      <td className="bg-primary/3 px-3 py-5 text-xs font-medium leading-5 sm:px-6 sm:text-sm sm:leading-6">
+                        {canvas}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="mt-6 text-sm leading-6 text-foreground/55">
+              核心差異不是產生更多內容，而是讓你更清楚地決定 AI 要處理什麼，以及哪些結果要留在畫布上。
+            </p>
           </div>
         </section>
       </main>
