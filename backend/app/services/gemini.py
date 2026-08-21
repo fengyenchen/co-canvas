@@ -37,7 +37,7 @@ class GeminiConfigurationError(RuntimeError):
     pass
 
 
-def load_settings():
+def load_settings(api_key: str | None = None):
     try:
         settings = get_settings()
     except ValidationError as error:
@@ -45,23 +45,31 @@ def load_settings():
             "GEMINI_API_KEY is not configured"
         ) from error
 
-    if settings.gemini_api_key is None:
+    resolved_api_key = api_key
+
+    if resolved_api_key is None and settings.gemini_api_key is not None:
+        resolved_api_key = settings.gemini_api_key.get_secret_value()
+
+    if resolved_api_key is None:
         raise GeminiConfigurationError(
             "GEMINI_API_KEY is not configured"
         )
 
-    return settings
+    return settings, resolved_api_key
 
 
-async def chat_with_gemini(request: ChatRequest) -> ChatResponse:
-    settings = load_settings()
+async def chat_with_gemini(
+    request: ChatRequest,
+    api_key: str | None = None,
+) -> ChatResponse:
+    settings, resolved_api_key = load_settings(api_key)
     history = "\n".join(
         f"{'使用者' if message.role == 'user' else 'AI'}：{message.content}"
         for message in request.history
     ) or "（尚無先前對話）"
 
     async with genai.Client(
-        api_key=settings.gemini_api_key.get_secret_value(),
+        api_key=resolved_api_key,
     ).aio as client:
         response = await client.models.generate_content(
             model=settings.gemini_model,
@@ -86,11 +94,12 @@ async def chat_with_gemini(request: ChatRequest) -> ChatResponse:
 
 async def generate_with_gemini(
     request: GenerateSuggestionRequest,
+    api_key: str | None = None,
 ) -> GenerateSuggestionResponse:
-    settings = load_settings()
+    settings, resolved_api_key = load_settings(api_key)
 
     async with genai.Client(
-        api_key=settings.gemini_api_key.get_secret_value(),
+        api_key=resolved_api_key,
     ).aio as client:
         response = await client.models.generate_content(
             model=settings.gemini_model,

@@ -326,6 +326,7 @@ export function EditorPage() {
       <ChatPanel
         mobileHeightPercent={mobileChatHeight}
         isReadOnly={projectAccessRole === 'viewer'}
+        projectId={projectId}
       />
 
       {activeContextNodeId && (

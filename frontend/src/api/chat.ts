@@ -18,6 +18,7 @@ type ChatInput = {
   selectedNode: ContextNode
   neighborNodes: ContextNode[]
   history: ChatHistoryMessage[]
+  projectId?: string
 }
 
 const chatResponseSchema = z.object({
@@ -30,12 +31,26 @@ const API_BASE_URL =
 export async function sendChatMessage(
   input: ChatInput,
 ): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/api/chat`, {
+  const { projectId, ...requestBody } = input
+  const requestUrl = new URL(`${API_BASE_URL}/api/chat`)
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+  })
+
+  if (projectId && projectId !== 'local') {
+    requestUrl.searchParams.set('projectId', projectId)
+    const { getAuthToken } = await import('../lib/auth')
+    const token = await getAuthToken()
+
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
+  }
+
+  const response = await fetch(requestUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(input),
+    headers,
+    body: JSON.stringify(requestBody),
   })
 
   if (!response.ok) {

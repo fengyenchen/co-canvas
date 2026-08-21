@@ -12,6 +12,7 @@ type GenerateSuggestionInput = {
   prompt: string
   selectedNode: ContextNode
   neighborNodes: ContextNode[]
+  projectId?: string
 }
 
 const suggestionSchema = z.object({
@@ -33,14 +34,30 @@ const API_BASE_URL =
 export async function generateSuggestion(
   input: GenerateSuggestionInput,
 ): Promise<AiSuggestion> {
-  const response = await fetch(
+  const { projectId, ...requestBody } = input
+  const requestUrl = new URL(
     `${API_BASE_URL}/api/suggestions/generate`,
+  )
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+  })
+
+  if (projectId && projectId !== 'local') {
+    requestUrl.searchParams.set('projectId', projectId)
+    const { getAuthToken } = await import('../lib/auth')
+    const token = await getAuthToken()
+
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
+  }
+
+  const response = await fetch(
+    requestUrl,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(input),
+      headers,
+      body: JSON.stringify(requestBody),
     },
   )
 

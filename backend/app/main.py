@@ -1,14 +1,18 @@
 import asyncio
 import logging
 from collections.abc import Awaitable
-from typing import TypeVar
+from typing import Annotated, Callable, TypeVar
 
-from fastapi import FastAPI
-from fastapi import HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from google.genai.errors import APIError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import AuthenticatedUser, OptionalCurrentUser
 from app.database import DatabaseConnectionError, check_database_connection
+from app.database import get_database_session
+from app.models import UserAiCredential
 from app.routers.ai_credentials import router as ai_credentials_router
 from app.routers.projects import router as projects_router
 from app.schemas import (
@@ -23,11 +27,21 @@ from app.services.gemini import (
     generate_with_gemini,
 )
 from app.services.mock import chat_with_mock, generate_with_mock
+from app.services.ai_credentials import (
+    AiCredentialConfigurationError,
+    AiCredentialEncryptionError,
+    get_api_key_cipher,
+)
 from app.settings import get_settings
 
 
 logger = logging.getLogger(__name__)
 ResponseT = TypeVar("ResponseT")
+DatabaseSession = Annotated[
+    AsyncSession,
+    Depends(get_database_session),
+]
+ProjectId = Annotated[str | None, Query(alias="projectId")]
 
 app = FastAPI(
     title="Co-Canvas API",
@@ -82,7 +96,10 @@ async def database_health():
     }
 
 
-async def run_gemini(operation: Awaitable[ResponseT]) -> ResponseT:
+async def run_gemini(
+    operation: Awaitable[ResponseT],
+    fallback: Callable[[], ResponseT] | None = None,
+) -> ResponseT:
     try:
         async with asyncio.timeout(30):
             return await operation
@@ -98,6 +115,9 @@ async def run_gemini(operation: Awaitable[ResponseT]) -> ResponseT:
         ) from error
     except APIError as error:
         logger.warning("Gemini API error: %s", error.code)
+
+        if fallback is not None and error.code in (400, 401, 403, 429):
+            return fallback()
 
         if error.code in (400, 401, 403):
             raise HTTPException(
@@ -123,12 +143,75 @@ async def run_gemini(operation: Awaitable[ResponseT]) -> ResponseT:
         ) from error
 
 
+async def get_user_gemini_api_key(
+    session: AsyncSession,
+    user: AuthenticatedUser,
+) -> str | None:
+    credential = await session.scalar(
+        select(UserAiCredential).where(
+            UserAiCredential.user_id == user.id,
+            UserAiCredential.provider == "gemini",
+        ),
+    )
+
+    if credential is None:
+        return None
+
+    try:
+        return get_api_key_cipher().decrypt(
+            credential.encrypted_api_key,
+        )
+    except (
+        AiCredentialConfigurationError,
+        AiCredentialEncryptionError,
+    ):
+        logger.exception("Unable to decrypt user Gemini API key")
+        return None
+
+
+async def resolve_ai_api_key(
+    project_id: str | None,
+    user: AuthenticatedUser | None,
+    session: AsyncSession,
+) -> tuple[bool, str | None]:
+    settings = get_settings()
+
+    if settings.ai_mode == "mock":
+        return True, None
+
+    if project_id is None or project_id == "local":
+        if settings.gemini_api_key is None:
+            return True, None
+
+        return False, settings.gemini_api_key.get_secret_value()
+
+    if user is None:
+        return True, None
+
+    api_key = await get_user_gemini_api_key(session, user)
+    return api_key is None, api_key
+
+
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
-    if get_settings().ai_mode == "mock":
+async def chat(
+    request: ChatRequest,
+    session: DatabaseSession,
+    user: OptionalCurrentUser,
+    project_id: ProjectId = None,
+) -> ChatResponse:
+    use_mock, api_key = await resolve_ai_api_key(
+        project_id,
+        user,
+        session,
+    )
+
+    if use_mock:
         return chat_with_mock(request)
 
-    return await run_gemini(chat_with_gemini(request))
+    return await run_gemini(
+        chat_with_gemini(request, api_key),
+        fallback=lambda: chat_with_mock(request),
+    )
 
 
 @app.post(
@@ -138,8 +221,20 @@ async def chat(request: ChatRequest) -> ChatResponse:
 )
 async def generate_suggestion(
     request: GenerateSuggestionRequest,
+    session: DatabaseSession,
+    user: OptionalCurrentUser,
+    project_id: ProjectId = None,
 ) -> GenerateSuggestionResponse:
-    if get_settings().ai_mode == "mock":
+    use_mock, api_key = await resolve_ai_api_key(
+        project_id,
+        user,
+        session,
+    )
+
+    if use_mock:
         return generate_with_mock(request)
 
-    return await run_gemini(generate_with_gemini(request))
+    return await run_gemini(
+        generate_with_gemini(request, api_key),
+        fallback=lambda: generate_with_mock(request),
+    )

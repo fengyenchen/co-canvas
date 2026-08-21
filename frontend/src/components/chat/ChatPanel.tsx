@@ -17,11 +17,13 @@ import { SuggestionPreview } from './SuggestionPreview'
 type ChatPanelProps = {
   mobileHeightPercent: number
   isReadOnly?: boolean
+  projectId?: string
 }
 
 export function ChatPanel({
   mobileHeightPercent,
   isReadOnly = false,
+  projectId,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('')
   const [aiMode, setAiMode] = useState<AiMode | 'offline'>('offline')
@@ -242,6 +244,7 @@ export function ChatPanel({
 
     const result = await measureRequest(() =>
       sendChatMessage({
+        projectId,
         prompt: content,
         selectedNode: {
           id: contextNode.id,
@@ -313,6 +316,7 @@ export function ChatPanel({
 
     const result = await measureRequest(() =>
       generateSuggestion({
+        projectId,
         prompt: `請將以下內容整理成適合畫布的節點：\n\n${sourceContent}`,
         selectedNode: {
           id: contextNode.id,
