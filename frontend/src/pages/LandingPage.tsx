@@ -68,6 +68,12 @@ export function LandingPage() {
           >
             介面比較
           </a>
+          <a
+            href="#use-cases"
+            className="hidden min-h-11 cursor-pointer items-center justify-center rounded-lg px-4 text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:inline-flex"
+          >
+            適用情境
+          </a>
           <Link
             to="/auth/sign-in?returnTo=%2Fprojects"
             className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
@@ -376,7 +382,7 @@ export function LandingPage() {
         <section
           id="use-cases"
           aria-labelledby="use-cases-title"
-          className="border-t border-border bg-background"
+          className="scroll-mt-6 border-t border-border bg-background"
         >
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
             <div className="mx-auto max-w-2xl text-center">
@@ -460,7 +466,66 @@ export function LandingPage() {
             </ul>
           </div>
         </section>
+
+        <section
+          aria-labelledby="cta-title"
+          className="border-t border-border bg-background"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="overflow-hidden rounded-3xl bg-primary px-6 py-12 text-center text-primary-foreground shadow-xl shadow-foreground/10 sm:px-12 sm:py-16">
+              <p className="text-sm font-semibold tracking-[0.16em] text-primary-foreground/70">
+                開始整理你的想法
+              </p>
+              <h2
+                id="cta-title"
+                className="mx-auto mt-4 max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl"
+              >
+                選一個節點，讓對話從脈絡開始
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-primary-foreground/70 sm:text-base">
+                可以先使用本機畫布，不需登入；需要跨裝置保存時，再建立帳號與雲端專案。
+              </p>
+
+              <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+                <Link
+                  to="/auth/sign-up?returnTo=%2Fprojects"
+                  className="inline-flex min-h-12 cursor-pointer items-center justify-center rounded-xl bg-background px-6 text-sm font-semibold text-foreground shadow-sm transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/70"
+                >
+                  建立雲端專案
+                </Link>
+                <Link
+                  to="/projects/local"
+                  className="inline-flex min-h-12 cursor-pointer items-center justify-center rounded-xl border border-primary-foreground/30 px-6 text-sm font-semibold text-primary-foreground transition hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/60"
+                >
+                  開啟本機畫布
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
+
+      <footer className="border-t border-border bg-canvas/55">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <Link
+            to="/"
+            aria-label="回到 Co-Canvas 首頁"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-3 self-start rounded-lg pr-3 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          >
+            <img
+              src={coCanvasMark}
+              alt=""
+              aria-hidden="true"
+              className="size-9 object-contain"
+            />
+            <span>Co-Canvas</span>
+          </Link>
+
+          <p className="text-sm leading-6 text-foreground/50">
+            對話與節點畫布的人機協作系統
+          </p>
+        </div>
+      </footer>
     </div>
   )
 }
