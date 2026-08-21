@@ -372,6 +372,94 @@ export function LandingPage() {
             </p>
           </div>
         </section>
+
+        <section
+          id="use-cases"
+          aria-labelledby="use-cases-title"
+          className="border-t border-border bg-background"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="text-sm font-semibold tracking-[0.16em] text-primary">
+                適用情境
+              </p>
+              <h2
+                id="use-cases-title"
+                className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl"
+              >
+                把複雜任務整理成下一步
+              </h2>
+              <p className="mt-4 text-base leading-7 text-foreground/60">
+                從發散想法到形成計畫，用同一張畫布保留內容之間的脈絡。
+              </p>
+            </div>
+
+            <ul className="mt-12 grid gap-5 md:grid-cols-2">
+              {[
+                {
+                  title: '研究計畫拆解',
+                  description:
+                    '將研究問題、方法、時程與風險整理成可追蹤的結構。',
+                  labels: ['研究問題', '研究方法', '評估方式'],
+                },
+                {
+                  title: '專案任務規劃',
+                  description:
+                    '把目標拆成階段、執行事項與下一步，減少規劃遺漏。',
+                  labels: ['專案目標', '執行階段', '下一步'],
+                },
+                {
+                  title: '文章大綱整理',
+                  description:
+                    '重新排列論點、段落與佐證，快速看出內容是否連貫。',
+                  labels: ['核心論點', '段落結構', '佐證資料'],
+                },
+                {
+                  title: '概念比較與腦力激盪',
+                  description:
+                    '先延伸多個方向，再集中比較差異、關聯與可行性。',
+                  labels: ['想法 A', '比較', '想法 B'],
+                },
+              ].map((item, index) => (
+                <li
+                  key={item.title}
+                  className="rounded-2xl border border-border bg-canvas/45 p-5 shadow-sm sm:p-6"
+                >
+                  <div className="flex items-start gap-4">
+                    <span
+                      aria-hidden="true"
+                      className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-semibold text-primary"
+                    >
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-semibold">{item.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-foreground/60">
+                        {item.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    aria-hidden="true"
+                    className="mt-6 flex min-w-0 items-center gap-2 overflow-hidden"
+                  >
+                    {item.labels.map((label, labelIndex) => (
+                      <div key={label} className="contents">
+                        {labelIndex > 0 && (
+                          <span className="h-px min-w-3 flex-1 bg-foreground/20" />
+                        )}
+                        <span className="max-w-[8rem] shrink-0 truncate rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground/65 shadow-sm">
+                          {label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
       </main>
     </div>
   )
