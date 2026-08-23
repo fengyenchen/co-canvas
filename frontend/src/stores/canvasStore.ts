@@ -232,6 +232,11 @@ type CanvasState = {
     isNodeDragging: boolean
     canUndo: boolean
     canRedo: boolean
+    videoSeekRequest: {
+        videoNodeId: string
+        timeMs: number
+        requestId: string
+    } | null
 
     addNode: () => void
     addVideoNode: () => string
@@ -250,6 +255,7 @@ type CanvasState = {
         nodeId: string,
         timeRange: Pick<ConceptNodeData, 'startTimeMs' | 'endTimeMs'>,
     ) => void
+    requestVideoSeek: (videoNodeId: string, timeMs: number) => void
     deleteNode: (nodeId: string) => void
     deleteBranch: (nodeId: string) => void
     updateEdgeLabel: (edgeId: string, label: string) => void
@@ -273,6 +279,7 @@ export const useCanvasStore = create<CanvasState>()(
     isNodeDragging: false,
     canUndo: false,
     canRedo: false,
+    videoSeekRequest: null,
 
     addNode: () =>
         set((state) => {
@@ -417,6 +424,20 @@ export const useCanvasStore = create<CanvasState>()(
                 canRedo: false,
             }
         }),
+
+    requestVideoSeek: (videoNodeId, timeMs) =>
+        set((state) => ({
+            nodes: state.nodes.map((node) => ({
+                ...node,
+                selected: node.id === videoNodeId,
+            })),
+            edges: state.edges.map((edge) => ({ ...edge, selected: false })),
+            videoSeekRequest: {
+                videoNodeId,
+                timeMs,
+                requestId: crypto.randomUUID(),
+            },
+        })),
 
     deleteNode: (nodeId) =>
         set((state) => {

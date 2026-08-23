@@ -1,5 +1,5 @@
 import { Link, Video } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SyntheticEvent } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
@@ -44,6 +44,9 @@ function VideoNodeEditor({
   const updateVideoNode = useCanvasStore((state) => state.updateVideoNode)
   const deleteNode = useCanvasStore((state) => state.deleteNode)
   const deleteBranch = useCanvasStore((state) => state.deleteBranch)
+  const videoSeekRequest = useCanvasStore(
+    (state) => state.videoSeekRequest,
+  )
   const activeContextNodeId = useChatStore((state) => state.activeContextNodeId)
   const setActiveContextNodeId = useChatStore(
     (state) => state.setActiveContextNodeId,
@@ -51,6 +54,16 @@ function VideoNodeEditor({
   const [draftUrl, setDraftUrl] = useState(node.data.source)
   const [formError, setFormError] = useState<string | null>(null)
   const [failedSource, setFailedSource] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const requestedTimeMs =
+    videoSeekRequest?.videoNodeId === node.id
+      ? videoSeekRequest.timeMs
+      : null
+
+  useEffect(() => {
+    if (requestedTimeMs === null || !videoRef.current) return
+    videoRef.current.currentTime = requestedTimeMs / 1000
+  }, [requestedTimeMs, videoSeekRequest?.requestId])
 
   function clearMissingActiveContext() {
     if (
@@ -89,6 +102,10 @@ function VideoNodeEditor({
       durationMs !== node.data.durationMs
     ) {
       updateVideoNode(node.id, { durationMs })
+    }
+
+    if (requestedTimeMs !== null) {
+      event.currentTarget.currentTime = requestedTimeMs / 1000
     }
   }
 
@@ -196,6 +213,7 @@ function VideoNodeEditor({
       {node.data.source && (
         <div className="mt-4 overflow-hidden rounded-lg bg-black">
           <video
+            ref={videoRef}
             key={node.data.source}
             controls
             preload="metadata"
