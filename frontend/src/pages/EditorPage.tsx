@@ -16,6 +16,7 @@ import {
 } from '../components/project/ProjectSettingsDialogs'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useChatStore } from '../stores/chatStore'
+import { useMediaStore } from '../stores/mediaStore'
 import {
   backupLocalProject,
   getActiveProjectId,
@@ -93,9 +94,17 @@ export function EditorPage() {
     (state) => state.activeContextNodeId,
   )
   const messages = useChatStore((state) => state.messages)
+  const media = useMediaStore((state) => state.media)
+  const setMedia = useMediaStore((state) => state.setMedia)
   const projectDocument = useMemo(
-    () => createProjectDocument(nodes, edges, messages),
-    [edges, messages, nodes],
+    () =>
+      createProjectDocument(
+        nodes,
+        edges,
+        messages,
+        media ?? undefined,
+      ),
+    [edges, media, messages, nodes],
   )
   const projectDocumentSignature = useMemo(
     () => JSON.stringify(projectDocument),
@@ -127,7 +136,11 @@ export function EditorPage() {
           previousProjectId &&
           previousProjectId !== LOCAL_PROJECT_ID
         ) {
-          restoreLocalProject()
+          const restoredLocalProject = restoreLocalProject()
+
+          if (!restoredLocalProject) {
+            setMedia(null)
+          }
         }
 
         setActiveProjectId(LOCAL_PROJECT_ID)
@@ -154,6 +167,7 @@ export function EditorPage() {
           project.document.edges,
         )
         replaceProjectMessages(project.document.messages)
+        setMedia(project.document.media ?? null)
         setProjectAccessRole(project.accessRole)
         setLoadedProject(project)
         savedDocumentSignatureRef.current = JSON.stringify(
@@ -192,6 +206,7 @@ export function EditorPage() {
     projectId,
     replaceProject,
     replaceProjectMessages,
+    setMedia,
   ])
 
   useEffect(() => {

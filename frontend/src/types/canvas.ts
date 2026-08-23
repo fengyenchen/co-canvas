@@ -6,6 +6,8 @@ export type CanvasNodeData = {
     title: string
     content: string
     origin: ContentOrigin
+    startTimeMs?: number
+    endTimeMs?: number
 }
 
 export type CanvasEdgeData = {

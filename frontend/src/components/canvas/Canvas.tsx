@@ -11,6 +11,7 @@ import type { NodeTypes } from '@xyflow/react'
 import { Link } from 'react-router'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
+import { useMediaStore } from '../../stores/mediaStore'
 import { renderCanvasPng } from '../../utils/exportCanvasImage'
 import {
     createProjectFile,
@@ -72,6 +73,8 @@ function CanvasContent({
         (state) => state.replaceProject,
     )
     const messages = useChatStore((state) => state.messages)
+    const media = useMediaStore((state) => state.media)
+    const setMedia = useMediaStore((state) => state.setMedia)
     const replaceProjectMessages = useChatStore(
         (state) => state.replaceProjectMessages,
     )
@@ -165,7 +168,12 @@ function CanvasContent({
     }
 
     function handleExportJson() {
-        const project = createProjectFile(nodes, edges, messages)
+        const project = createProjectFile(
+            nodes,
+            edges,
+            messages,
+            media ?? undefined,
+        )
         const date = new Date().toISOString().slice(0, 10)
 
         downloadFile(
@@ -191,6 +199,7 @@ function CanvasContent({
 
             replaceProject(project.nodes, project.edges)
             replaceProjectMessages(project.messages)
+            setMedia(project.media ?? null)
 
             window.requestAnimationFrame(() => {
                 void fitView({

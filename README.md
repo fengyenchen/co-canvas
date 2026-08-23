@@ -19,7 +19,7 @@ Co-Canvas 是一套結合 AI 對話與視覺化節點畫布的人機協作系統
 - 後端：FastAPI、Pydantic、SQLAlchemy、Alembic
 - AI：Google Gemini（`google-genai`）或內建 Mock 模式
 - 資料庫與驗證：Neon Postgres、Neon Auth
-- 測試：Vitest
+- 測試：Vitest、pytest
 
 ## 環境需求
 
@@ -44,40 +44,47 @@ co-canvas/
 │  ├─ app/
 │  ├─ .env.example
 │  ├─ alembic.ini
-│  └─ requirements.txt
+│  ├─ requirements.txt
+│  └─ requirements-dev.txt
 └─ README.md
 ```
 
 ## 首次安裝
 
-以下指令以 Windows PowerShell 為例。
+以下指令以 Windows CMD 為例。
 
 ### 1. 安裝前端套件
 
-```powershell
-cd C:\co-canvas\frontend
+```bat
+cd frontend
 npm install
 ```
 
 ### 2. 建立後端虛擬環境
 
-```powershell
-cd C:\co-canvas\backend
+```bat
+cd backend
 py -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.\.venv\Scripts\activate.bat
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+```
+
+啟用成功後，命令提示字元前方會出現 `(.venv)`。也可以用以下指令確認目前使用的是專案虛擬環境中的 Python：
+
+```bat
+where python
 ```
 
 ## 環境變數
 
 分別複製前後端的 `.env.example`，建立自己的 `.env`：
 
-```powershell
-cd C:\co-canvas\backend
-Copy-Item .env.example .env
-cd C:\co-canvas\frontend
-Copy-Item .env.example .env
+```bat
+cd backend
+copy .env.example .env
+cd frontend
+copy .env.example .env
 ```
 
 接著依照範例檔中的註解填入設定。若暫時沒有 Gemini API Key，可將後端 `AI_MODE` 改成 `mock`。請勿提交包含真實連線字串或 API Key 的 `.env`。
@@ -92,34 +99,34 @@ Copy-Item .env.example .env
 4. 在 Neon 啟用 Auth，並設定前後端需要的 Auth URL 與 JWKS URL。
 5. 套用現有 migrations：
 
-```powershell
-cd C:\co-canvas\backend
-.\.venv\Scripts\Activate.ps1
+```bat
+cd backend
+.\.venv\Scripts\activate.bat
 alembic upgrade head
 ```
 
 查看目前 migration 版本：
 
-```powershell
+```bat
 alembic current
 ```
 
 ## 啟動專案
 
-前端與後端需要分別在兩個 PowerShell 視窗啟動。
+前端與後端需要分別在兩個 CMD 視窗啟動。
 
 ### Terminal 1：啟動後端
 
-```powershell
-cd C:\co-canvas\backend
-.\.venv\Scripts\Activate.ps1
+```bat
+cd backend
+.\.venv\Scripts\activate.bat
 uvicorn app.main:app --reload --port 8000
 ```
 
 ### Terminal 2：啟動前端
 
-```powershell
-cd C:\co-canvas\frontend
+```bat
+cd frontend
 npm run dev
 ```
 
@@ -170,8 +177,8 @@ http://localhost:8000/health/database
 
 部署前端時，先將 `frontend/.env` 的 `VITE_API_BASE_URL` 改成正式後端網址，再建立靜態檔案：
 
-```powershell
-cd C:\co-canvas\frontend
+```bat
+cd frontend
 npm run build
 ```
 
@@ -185,8 +192,8 @@ CORS_ALLOWED_ORIGINS=https://co-canvas.example.com,https://www.co-canvas.example
 
 套用資料庫 migration 後啟動 API：
 
-```powershell
-cd C:\co-canvas\backend
+```bat
+cd backend
 alembic upgrade head
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
@@ -219,8 +226,16 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 在 `frontend` 目錄執行：
 
-```powershell
+```bat
 npm run lint
 npm test -- --run
 npm run build
 ```
+
+在 `backend` 目錄執行：
+
+```bat
+python -m pytest
+```
+
+若使用 PowerShell，虛擬環境啟用指令才是 `.\.venv\Scripts\Activate.ps1`。

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CanvasEdge, CanvasNode } from '../types/canvas'
 import type { ChatMessage } from '../types/chat'
+import type { ProjectMedia } from '../types/project'
 import {
   createProjectFile,
   parseProjectFile,
@@ -60,14 +61,86 @@ const messages: ChatMessage[] = [
   },
 ]
 
+const media: ProjectMedia = {
+  type: 'video',
+  sourceType: 'url',
+  source: 'https://example.com/video.mp4',
+  title: '研究影片',
+  durationMs: 60_000,
+}
+
 describe('projectFile', () => {
   it('匯出時排除孤兒對話', () => {
     const project = createProjectFile(nodes, edges, messages)
 
-    expect(project.version).toBe(1)
+    expect(project.version).toBe(2)
     expect(project.messages.map((message) => message.id)).toEqual([
       'message-1',
     ])
+  })
+
+  it('保留影片與節點時間區間', () => {
+    const timedNodes: CanvasNode[] = [
+      {
+        ...nodes[0]!,
+        data: {
+          ...nodes[0]!.data,
+          startTimeMs: 1_000,
+          endTimeMs: 5_000,
+        },
+      },
+    ]
+
+    const project = createProjectFile(timedNodes, [], [], media)
+    const importedProject = parseProjectFile(project)
+
+    expect(importedProject.media).toEqual(media)
+    expect(importedProject.nodes[0]?.data.startTimeMs).toBe(1_000)
+    expect(importedProject.nodes[0]?.data.endTimeMs).toBe(5_000)
+  })
+
+  it('自動將 version 1 舊專案升級為 version 2', () => {
+    const legacyProject = {
+      ...createProjectFile(nodes, edges, messages),
+      version: 1,
+    }
+
+    const importedProject = parseProjectFile(legacyProject)
+
+    expect(importedProject.version).toBe(2)
+    expect(importedProject.media).toBeUndefined()
+  })
+
+  it('拒絕不完整或超出影片長度的節點時間', () => {
+    const nodeWithOnlyStartTime = {
+      ...nodes[0]!,
+      data: {
+        ...nodes[0]!.data,
+        startTimeMs: 1_000,
+      },
+    }
+    const nodePastVideoDuration = {
+      ...nodes[0]!,
+      data: {
+        ...nodes[0]!.data,
+        startTimeMs: 59_000,
+        endTimeMs: 61_000,
+      },
+    }
+
+    expect(() =>
+      createProjectFile([nodeWithOnlyStartTime], [], [], media),
+    ).not.toThrow()
+    expect(() =>
+      parseProjectFile(
+        createProjectFile([nodeWithOnlyStartTime], [], [], media),
+      ),
+    ).toThrow('開始與結束時間必須同時設定')
+    expect(() =>
+      parseProjectFile(
+        createProjectFile([nodePastVideoDuration], [], [], media),
+      ),
+    ).toThrow('節點時間不得超出影片長度')
   })
 
   it('匯出的資料可以再次匯入', () => {
