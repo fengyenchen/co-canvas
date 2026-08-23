@@ -47,6 +47,9 @@ function VideoNodeEditor({
   const videoSeekRequest = useCanvasStore(
     (state) => state.videoSeekRequest,
   )
+  const updateVideoPlayback = useCanvasStore(
+    (state) => state.updateVideoPlayback,
+  )
   const activeContextNodeId = useChatStore((state) => state.activeContextNodeId)
   const setActiveContextNodeId = useChatStore(
     (state) => state.setActiveContextNodeId,
@@ -219,6 +222,34 @@ function VideoNodeEditor({
             preload="metadata"
             src={node.data.source}
             onLoadedMetadata={handleLoadedMetadata}
+            onPlay={(event) =>
+              updateVideoPlayback(
+                node.id,
+                Math.round(event.currentTarget.currentTime * 1000),
+                true,
+              )
+            }
+            onTimeUpdate={(event) =>
+              updateVideoPlayback(
+                node.id,
+                Math.round(event.currentTarget.currentTime * 1000),
+                !event.currentTarget.paused,
+              )
+            }
+            onPause={(event) =>
+              updateVideoPlayback(
+                node.id,
+                Math.round(event.currentTarget.currentTime * 1000),
+                false,
+              )
+            }
+            onEnded={(event) =>
+              updateVideoPlayback(
+                node.id,
+                Math.round(event.currentTarget.currentTime * 1000),
+                false,
+              )
+            }
             onError={() => setFailedSource(node.data.source)}
             className="block aspect-video max-h-[35dvh] w-full object-contain"
           >

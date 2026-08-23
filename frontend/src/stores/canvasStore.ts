@@ -237,6 +237,11 @@ type CanvasState = {
         timeMs: number
         requestId: string
     } | null
+    videoPlayback: {
+        videoNodeId: string
+        currentTimeMs: number
+        isPlaying: boolean
+    } | null
 
     addNode: () => void
     addVideoNode: () => string
@@ -256,6 +261,11 @@ type CanvasState = {
         timeRange: Pick<ConceptNodeData, 'startTimeMs' | 'endTimeMs'>,
     ) => void
     requestVideoSeek: (videoNodeId: string, timeMs: number) => void
+    updateVideoPlayback: (
+        videoNodeId: string,
+        currentTimeMs: number,
+        isPlaying: boolean,
+    ) => void
     deleteNode: (nodeId: string) => void
     deleteBranch: (nodeId: string) => void
     updateEdgeLabel: (edgeId: string, label: string) => void
@@ -280,6 +290,7 @@ export const useCanvasStore = create<CanvasState>()(
     canUndo: false,
     canRedo: false,
     videoSeekRequest: null,
+    videoPlayback: null,
 
     addNode: () =>
         set((state) => {
@@ -438,6 +449,11 @@ export const useCanvasStore = create<CanvasState>()(
                 requestId: crypto.randomUUID(),
             },
         })),
+
+    updateVideoPlayback: (videoNodeId, currentTimeMs, isPlaying) =>
+        set({
+            videoPlayback: { videoNodeId, currentTimeMs, isPlaying },
+        }),
 
     deleteNode: (nodeId) =>
         set((state) => {
