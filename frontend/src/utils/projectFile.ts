@@ -32,7 +32,6 @@ const commonNodeDataShape = {
 const conceptNodeDataSchema = z
   .object({
     ...commonNodeDataShape,
-    mediaNodeId: optionalStringSchema,
     startTimeMs: optionalNonnegativeIntegerSchema,
     endTimeMs: optionalNonnegativeIntegerSchema,
   })
@@ -145,13 +144,13 @@ const chatMessageSchema = z.object({
 })
 
 const projectDocumentShape = {
-  version: z.literal(3),
+  version: z.literal(4),
   nodes: z.array(canvasNodeSchema),
   edges: z.array(canvasEdgeSchema),
   messages: z.array(chatMessageSchema),
 }
 
-const projectDocumentV3Schema = z.object(projectDocumentShape)
+const projectDocumentV4Schema = z.object(projectDocumentShape)
 
 function createLegacyVideoNodeId(nodes: unknown[]): string {
   const nodeIds = new Set(
@@ -179,7 +178,58 @@ function upgradeLegacyProject(value: unknown): unknown {
   }
 
   if (value.version === 1) {
-    return { ...value, version: 3 }
+    return { ...value, version: 4 }
+  }
+
+  if (value.version === 3) {
+    const legacy = value as Record<string, unknown>
+    const nodes = Array.isArray(legacy.nodes) ? legacy.nodes : []
+    const edges = Array.isArray(legacy.edges) ? [...legacy.edges] : []
+    const edgeIds = new Set(
+      edges.flatMap((edge) =>
+        typeof edge === 'object' && edge !== null && 'id' in edge &&
+        typeof edge.id === 'string' ? [edge.id] : [],
+      ),
+    )
+    const migratedNodes = nodes.map((node) => {
+      if (typeof node !== 'object' || node === null) return node
+      const record = node as Record<string, unknown>
+      if (record.type !== 'concept' || typeof record.data !== 'object' || record.data === null) {
+        return node
+      }
+      const data = record.data as Record<string, unknown>
+      const mediaNodeId = data.mediaNodeId ?? data.media_node_id
+      const { mediaNodeId: _camel, media_node_id: _snake, ...nextData } = data
+      void _camel
+      void _snake
+
+      if (typeof mediaNodeId === 'string') {
+        const alreadyLinked = edges.some(
+          (edge) => typeof edge === 'object' && edge !== null &&
+            'source' in edge && edge.source === mediaNodeId &&
+            'target' in edge && edge.target === record.id,
+        )
+        if (!alreadyLinked) {
+          let edgeId = `migrated-video-link-${String(record.id)}`
+          let suffix = 1
+          while (edgeIds.has(edgeId)) {
+            suffix += 1
+            edgeId = `migrated-video-link-${String(record.id)}-${suffix}`
+          }
+          edgeIds.add(edgeId)
+          edges.push({
+            id: edgeId,
+            source: mediaNodeId,
+            target: record.id,
+            data: { origin: 'user' },
+          })
+        }
+      }
+
+      return { ...record, data: nextData }
+    })
+
+    return { ...legacy, version: 4, nodes: migratedNodes, edges }
   }
 
   if (value.version !== 2) {
@@ -193,7 +243,7 @@ function upgradeLegacyProject(value: unknown): unknown {
   if (typeof media !== 'object' || media === null) {
     const document = { ...legacy }
     delete document.media
-    return { ...document, version: 3 }
+    return { ...document, version: 4 }
   }
 
   const mediaRecord = media as Record<string, unknown>
@@ -208,26 +258,30 @@ function upgradeLegacyProject(value: unknown): unknown {
     }
     return minimum
   }, 100)
-  const migratedNodes = nodes.map((node) => {
-    if (typeof node !== 'object' || node === null) return node
+  const migratedEdges = Array.isArray(legacy.edges) ? [...legacy.edges] : []
+  for (const node of nodes) {
+    if (typeof node !== 'object' || node === null) continue
     const record = node as Record<string, unknown>
-    if (record.type !== 'concept' || typeof record.data !== 'object' || record.data === null) {
-      return node
-    }
+    if (record.type !== 'concept' || typeof record.data !== 'object' || record.data === null) continue
     const data = record.data as Record<string, unknown>
     const hasTime = data.startTimeMs !== undefined || data.endTimeMs !== undefined
-    return hasTime && data.mediaNodeId === undefined
-      ? { ...record, data: { ...data, mediaNodeId: videoNodeId } }
-      : node
-  })
+    if (hasTime && typeof record.id === 'string') {
+      migratedEdges.push({
+        id: `migrated-video-link-${record.id}`,
+        source: videoNodeId,
+        target: record.id,
+        data: { origin: 'user' },
+      })
+    }
+  }
   const document = { ...legacy }
   delete document.media
 
   return {
     ...document,
-    version: 3,
+    version: 4,
     nodes: [
-      ...migratedNodes,
+      ...nodes,
       {
         id: videoNodeId,
         type: 'video',
@@ -247,11 +301,12 @@ function upgradeLegacyProject(value: unknown): unknown {
         },
       },
     ],
+    edges: migratedEdges,
   }
 }
 
 function validateProjectRelations(
-  project: z.infer<typeof projectDocumentV3Schema>,
+  project: z.infer<typeof projectDocumentV4Schema>,
   context: z.core.$RefinementCtx,
 ) {
   const nodeIds = new Set(project.nodes.map((node) => node.id))
@@ -273,29 +328,35 @@ function validateProjectRelations(
 
   project.nodes.forEach((node, index) => {
     if (node.type !== 'concept') return
-    const { mediaNodeId, startTimeMs, endTimeMs } = node.data
-
-    if (mediaNodeId !== undefined && !videoNodes.has(mediaNodeId)) {
-      context.addIssue({
-        code: 'custom',
-        path: ['nodes', index, 'data', 'mediaNodeId'],
-        message: '節點引用了不存在的影片節點',
-      })
-      return
-    }
+    const { startTimeMs, endTimeMs } = node.data
 
     if (startTimeMs === undefined || endTimeMs === undefined) return
 
-    if (!mediaNodeId) {
+    const linkedVideoIds = [...new Set(
+      project.edges
+        .filter((edge) => edge.target === node.id && videoNodes.has(edge.source))
+        .map((edge) => edge.source),
+    )]
+
+    if (linkedVideoIds.length === 0) {
       context.addIssue({
         code: 'custom',
-        path: ['nodes', index, 'data', 'mediaNodeId'],
-        message: '設定節點時間前必須指定影片節點',
+        path: ['nodes', index, 'data', 'startTimeMs'],
+        message: '設定節點時間前必須先連接影片節點',
       })
       return
     }
 
-    const durationMs = videoNodes.get(mediaNodeId)?.data.durationMs
+    if (linkedVideoIds.length > 1) {
+      context.addIssue({
+        code: 'custom',
+        path: ['nodes', index, 'data', 'startTimeMs'],
+        message: '設定時間區間的文字節點只能連接一個影片節點',
+      })
+      return
+    }
+
+    const durationMs = videoNodes.get(linkedVideoIds[0])?.data.durationMs
     if (durationMs !== undefined && endTimeMs > durationMs) {
       context.addIssue({
         code: 'custom',
@@ -308,7 +369,7 @@ function validateProjectRelations(
 
 export const projectDocumentSchema = z.preprocess(
   upgradeLegacyProject,
-  projectDocumentV3Schema.superRefine(validateProjectRelations),
+  projectDocumentV4Schema.superRefine(validateProjectRelations),
 )
 
 export const projectFileSchema = z.preprocess(
@@ -340,7 +401,7 @@ export function createProjectDocument(
   const nodeIds = new Set(nodes.map((node) => node.id))
 
   return {
-    version: 3,
+    version: 4,
     nodes: nodes.map((node) => ({
       id: node.id,
       type: node.type,

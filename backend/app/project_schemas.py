@@ -23,7 +23,6 @@ class ProjectConceptNodeData(ApiModel):
     title: str = Field(max_length=120)
     content: str = Field(default="", max_length=2000)
     origin: Literal["user", "ai"]
-    media_node_id: str | None = Field(default=None, min_length=1)
     start_time_ms: int | None = Field(default=None, ge=0)
     end_time_ms: int | None = Field(default=None, ge=0)
 
@@ -110,7 +109,7 @@ class ProjectMessage(ApiModel):
 
 
 class ProjectDocument(ApiModel):
-    version: Literal[3] = 3
+    version: Literal[4] = 4
     nodes: list[ProjectNode] = Field(default_factory=list, max_length=500)
     edges: list[ProjectEdge] = Field(default_factory=list, max_length=1000)
     messages: list[ProjectMessage] = Field(
@@ -125,7 +124,58 @@ class ProjectDocument(ApiModel):
             return value
 
         if value.get("version") == 1:
-            return {**value, "version": 3}
+            return {**value, "version": 4}
+
+        if value.get("version") == 3:
+            nodes = list(value.get("nodes", []))
+            edges = list(value.get("edges", []))
+            edge_ids = {
+                edge.get("id")
+                for edge in edges
+                if isinstance(edge, dict) and isinstance(edge.get("id"), str)
+            }
+            migrated_nodes: list[object] = []
+
+            for node in nodes:
+                if not isinstance(node, dict) or node.get("type") != "concept":
+                    migrated_nodes.append(node)
+                    continue
+                data = node.get("data")
+                if not isinstance(data, dict):
+                    migrated_nodes.append(node)
+                    continue
+
+                media_node_id = data.get("mediaNodeId", data.get("media_node_id"))
+                next_data = {
+                    key: item
+                    for key, item in data.items()
+                    if key not in {"mediaNodeId", "media_node_id"}
+                }
+                if isinstance(media_node_id, str):
+                    already_linked = any(
+                        isinstance(edge, dict)
+                        and edge.get("source") == media_node_id
+                        and edge.get("target") == node.get("id")
+                        for edge in edges
+                    )
+                    if not already_linked:
+                        edge_id = f"migrated-video-link-{node.get('id')}"
+                        suffix = 1
+                        while edge_id in edge_ids:
+                            suffix += 1
+                            edge_id = f"migrated-video-link-{node.get('id')}-{suffix}"
+                        edge_ids.add(edge_id)
+                        edges.append(
+                            {
+                                "id": edge_id,
+                                "source": media_node_id,
+                                "target": node.get("id"),
+                                "data": {"origin": "user"},
+                            }
+                        )
+                migrated_nodes.append({**node, "data": next_data})
+
+            return {**value, "version": 4, "nodes": migrated_nodes, "edges": edges}
 
         if value.get("version") != 2:
             return value
@@ -135,7 +185,7 @@ class ProjectDocument(ApiModel):
 
         if not isinstance(media, dict):
             document = {key: item for key, item in value.items() if key != "media"}
-            return {**document, "version": 3}
+            return {**document, "version": 4}
 
         node_ids = {
             node.get("id")
@@ -155,15 +205,13 @@ class ProjectDocument(ApiModel):
             and isinstance(node.get("position"), dict)
             and isinstance(node["position"].get("y"), (int, float))
         ]
-        migrated_nodes: list[object] = []
+        migrated_edges = list(value.get("edges", []))
         for node in nodes:
             if not isinstance(node, dict) or node.get("type") != "concept":
-                migrated_nodes.append(node)
                 continue
 
             data = node.get("data")
             if not isinstance(data, dict):
-                migrated_nodes.append(node)
                 continue
 
             has_time = (
@@ -172,12 +220,15 @@ class ProjectDocument(ApiModel):
                 or "start_time_ms" in data
                 or "end_time_ms" in data
             )
-            if has_time and "mediaNodeId" not in data and "media_node_id" not in data:
-                migrated_nodes.append(
-                    {**node, "data": {**data, "mediaNodeId": video_node_id}}
+            if has_time and isinstance(node.get("id"), str):
+                migrated_edges.append(
+                    {
+                        "id": f"migrated-video-link-{node['id']}",
+                        "source": video_node_id,
+                        "target": node["id"],
+                        "data": {"origin": "user"},
+                    }
                 )
-            else:
-                migrated_nodes.append(node)
 
         title = media.get("title")
         duration_ms = media.get("durationMs", media.get("duration_ms"))
@@ -194,9 +245,9 @@ class ProjectDocument(ApiModel):
         document = {key: item for key, item in value.items() if key != "media"}
         return {
             **document,
-            "version": 3,
+            "version": 4,
             "nodes": [
-                *migrated_nodes,
+                *nodes,
                 {
                     "id": video_node_id,
                     "type": "video",
@@ -207,6 +258,7 @@ class ProjectDocument(ApiModel):
                     "data": video_data,
                 },
             ],
+            "edges": migrated_edges,
         }
 
     @model_validator(mode="after")
@@ -224,19 +276,20 @@ class ProjectDocument(ApiModel):
             start_time_ms = node.data.start_time_ms
             end_time_ms = node.data.end_time_ms
 
-            if (
-                node.data.media_node_id is not None
-                and node.data.media_node_id not in video_nodes
-            ):
-                raise ValueError("節點引用了不存在的影片節點")
-
             if start_time_ms is None or end_time_ms is None:
                 continue
 
-            if node.data.media_node_id is None:
-                raise ValueError("設定節點時間前必須指定影片節點")
+            linked_video_ids = list(dict.fromkeys(
+                edge.source
+                for edge in self.edges
+                if edge.target == node.id and edge.source in video_nodes
+            ))
+            if not linked_video_ids:
+                raise ValueError("設定節點時間前必須先連接影片節點")
+            if len(linked_video_ids) > 1:
+                raise ValueError("設定時間區間的文字節點只能連接一個影片節點")
 
-            video_node = video_nodes[node.data.media_node_id]
+            video_node = video_nodes[linked_video_ids[0]]
 
             if (
                 video_node.data.duration_ms is not None

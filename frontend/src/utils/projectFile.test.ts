@@ -90,7 +90,7 @@ describe('projectFile', () => {
   it('匯出時排除孤兒對話', () => {
     const project = createProjectFile(nodes, edges, messages)
 
-    expect(project.version).toBe(3)
+    expect(project.version).toBe(4)
     expect(project.messages.map((message) => message.id)).toEqual(['message-1'])
   })
 
@@ -107,22 +107,27 @@ describe('projectFile', () => {
       ...nodes[0]!,
       data: {
         ...nodes[0]!.data,
-        mediaNodeId: 'video-2',
         startTimeMs: 1_000,
         endTimeMs: 5_000,
       },
     }
 
     const imported = parseProjectFile(
-      createProjectFile([videoNode, secondVideo, timedNode], [], []),
+      createProjectFile(
+        [videoNode, secondVideo, timedNode],
+        [{ id: 'video-link', source: 'video-2', target: timedNode.id, data: { origin: 'user' } }],
+        [],
+      ),
     )
 
     expect(imported.nodes.filter((node) => node.type === 'video')).toHaveLength(2)
     expect(imported.nodes[2]?.data).toMatchObject({
-      mediaNodeId: 'video-2',
       startTimeMs: 1_000,
       endTimeMs: 5_000,
     })
+    expect(imported.edges).toContainEqual(
+      expect.objectContaining({ source: 'video-2', target: timedNode.id }),
+    )
   })
 
   it('自動將 version 2 單一影片升級為影片節點', () => {
@@ -153,28 +158,27 @@ describe('projectFile', () => {
     const imported = parseProjectFile(legacyProject)
     const migratedVideo = imported.nodes.find((node) => node.type === 'video')
 
-    expect(imported.version).toBe(3)
+    expect(imported.version).toBe(4)
     expect(migratedVideo?.data.title).toBe('舊影片')
-    expect(imported.nodes[0]?.data).toMatchObject({
-      mediaNodeId: migratedVideo?.id,
-    })
+    expect(imported.edges).toContainEqual(
+      expect.objectContaining({ source: migratedVideo?.id, target: 'node-1' }),
+    )
   })
 
-  it('自動將 version 1 舊專案升級為 version 3', () => {
+  it('自動將 version 1 舊專案升級為 version 4', () => {
     const imported = parseProjectFile({
       ...createProjectFile(nodes, edges, messages),
       version: 1,
     })
 
-    expect(imported.version).toBe(3)
+    expect(imported.version).toBe(4)
   })
 
-  it('拒絕不存在的影片節點與超出影片長度的區間', () => {
+  it('拒絕未連接影片與超出影片長度的區間', () => {
     const missingVideoNode: ConceptCanvasNode = {
       ...nodes[0]!,
       data: {
         ...nodes[0]!.data,
-        mediaNodeId: 'missing',
         startTimeMs: 1_000,
         endTimeMs: 2_000,
       },
@@ -183,7 +187,6 @@ describe('projectFile', () => {
       ...nodes[0]!,
       data: {
         ...nodes[0]!.data,
-        mediaNodeId: 'video-1',
         startTimeMs: 59_000,
         endTimeMs: 61_000,
       },
@@ -191,10 +194,36 @@ describe('projectFile', () => {
 
     expect(() =>
       parseProjectFile(createProjectFile([missingVideoNode], [], [])),
-    ).toThrow('節點引用了不存在的影片節點')
+    ).toThrow('設定節點時間前必須先連接影片節點')
     expect(() =>
-      parseProjectFile(createProjectFile([videoNode, nodePastDuration], [], [])),
+      parseProjectFile(createProjectFile(
+        [videoNode, nodePastDuration],
+        [{ id: 'video-link', source: videoNode.id, target: nodePastDuration.id, data: { origin: 'user' } }],
+        [],
+      )),
     ).toThrow('節點時間不得超出影片長度')
+  })
+
+  it('自動將 version 3 的影片欄位轉換為連線', () => {
+    const imported = parseProjectFile({
+      version: 3,
+      nodes: [
+        videoNode,
+        {
+          ...nodes[0],
+          data: { ...nodes[0].data, mediaNodeId: videoNode.id, startTimeMs: 1_000, endTimeMs: 2_000 },
+        },
+      ],
+      edges: [],
+      messages: [],
+      exportedAt: '2026-08-14T00:00:00.000Z',
+    })
+
+    expect(imported.version).toBe(4)
+    expect(imported.nodes[1]?.data).not.toHaveProperty('mediaNodeId')
+    expect(imported.edges).toContainEqual(
+      expect.objectContaining({ source: videoNode.id, target: 'node-1' }),
+    )
   })
 
   it('匯出的資料可以再次匯入', () => {

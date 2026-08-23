@@ -42,7 +42,7 @@ def test_upgrades_version_one_document() -> None:
         {"version": 1, "nodes": [], "edges": [], "messages": []}
     )
 
-    assert document.version == 3
+    assert document.version == 4
     assert document.nodes == []
 
 
@@ -51,7 +51,7 @@ def test_accepts_video_node_before_source_is_configured() -> None:
     video_node["data"] = {**video_node["data"], "source": ""}
 
     document = ProjectDocument.model_validate(
-        {"version": 3, "nodes": [video_node], "edges": [], "messages": []}
+        {"version": 4, "nodes": [video_node], "edges": [], "messages": []}
     )
 
     assert isinstance(document.nodes[0], ProjectVideoNode)
@@ -78,16 +78,17 @@ def test_upgrades_version_two_media_to_video_node() -> None:
         }
     )
 
-    assert document.version == 3
+    assert document.version == 4
     assert len(document.nodes) == 2
-    assert document.nodes[0].data.media_node_id == "legacy-video"
     assert isinstance(document.nodes[1], ProjectVideoNode)
+    assert document.edges[0].source == "legacy-video"
+    assert document.edges[0].target == "node-1"
 
 
 def test_accepts_multiple_video_nodes_and_segment_binding() -> None:
     document = ProjectDocument.model_validate(
         {
-            "version": 3,
+            "version": 4,
             "nodes": [
                 create_video_node(),
                 {
@@ -100,31 +101,37 @@ def test_accepts_multiple_video_nodes_and_segment_binding() -> None:
                 },
                 create_concept_node(
                     {
-                        "mediaNodeId": "video-2",
                         "startTimeMs": 1_000,
                         "endTimeMs": 5_000,
                     }
                 ),
             ],
-            "edges": [],
+            "edges": [
+                {
+                    "id": "video-link",
+                    "source": "video-2",
+                    "target": "node-1",
+                    "data": {"origin": "user"},
+                }
+            ],
             "messages": [],
         }
     )
 
-    assert document.nodes[2].data.media_node_id == "video-2"
+    assert document.edges[0].source == "video-2"
 
 
 @pytest.mark.parametrize(
     ("node_data", "error_message"),
     [
-        ({"mediaNodeId": "video-1", "startTimeMs": 1_000}, "開始與結束時間必須同時設定"),
+        ({"startTimeMs": 1_000}, "開始與結束時間必須同時設定"),
         (
-            {"mediaNodeId": "video-1", "startTimeMs": 5_000, "endTimeMs": 5_000},
+            {"startTimeMs": 5_000, "endTimeMs": 5_000},
             "結束時間必須晚於開始時間",
         ),
         (
-            {"mediaNodeId": "missing", "startTimeMs": 1_000, "endTimeMs": 2_000},
-            "節點引用了不存在的影片節點",
+            {"startTimeMs": 1_000, "endTimeMs": 2_000},
+            "設定節點時間前必須先連接影片節點",
         ),
     ],
 )
@@ -135,7 +142,7 @@ def test_rejects_invalid_video_segment(
     with pytest.raises(ValidationError, match=error_message):
         ProjectDocument.model_validate(
             {
-                "version": 3,
+                "version": 4,
                 "nodes": [create_video_node(), create_concept_node(node_data)],
                 "edges": [],
                 "messages": [],
@@ -147,18 +154,24 @@ def test_rejects_segment_past_bound_video_duration() -> None:
     with pytest.raises(ValidationError, match="節點時間不得超出影片長度"):
         ProjectDocument.model_validate(
             {
-                "version": 3,
+                "version": 4,
                 "nodes": [
                     create_video_node(10_000),
                     create_concept_node(
                         {
-                            "mediaNodeId": "video-1",
                             "startTimeMs": 9_000,
                             "endTimeMs": 11_000,
                         }
                     ),
                 ],
-                "edges": [],
+                "edges": [
+                    {
+                        "id": "video-link",
+                        "source": "video-1",
+                        "target": "node-1",
+                        "data": {"origin": "user"},
+                    }
+                ],
                 "messages": [],
             }
         )

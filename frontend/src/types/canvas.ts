@@ -9,7 +9,6 @@ export type CommonCanvasNodeData = {
 }
 
 export type ConceptNodeData = CommonCanvasNodeData & {
-    mediaNodeId?: string
     startTimeMs?: number
     endTimeMs?: number
 }

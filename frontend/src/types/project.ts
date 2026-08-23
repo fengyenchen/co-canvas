@@ -2,7 +2,7 @@ import type { CanvasEdge, CanvasNode } from './canvas'
 import type { ChatMessage } from './chat'
 
 export type ProjectDocument = {
-  version: 3
+  version: 4
   nodes: CanvasNode[]
   edges: CanvasEdge[]
   messages: ChatMessage[]

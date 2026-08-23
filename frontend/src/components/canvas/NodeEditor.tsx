@@ -1,98 +1,344 @@
+import { useState } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
+import type { ConceptCanvasNode, VideoCanvasNode } from '../../types/canvas'
 
-export function NodeEditor() {
-    const selectedNode = useCanvasStore(
-        (state) =>
-            state.nodes.find((node) => node.selected) ?? null,
-    )
-    const updateNode = useCanvasStore(
-        (state) => state.updateNode,
-    )
-    const deleteNode = useCanvasStore(
-        (state) => state.deleteNode,
-    )
-    const deleteBranch = useCanvasStore(
-        (state) => state.deleteBranch,
-    )
+function millisecondsToSeconds(value?: number): string {
+    return value === undefined ? '' : String(value / 1000)
+}
 
+function formatDuration(durationMs?: number): string | null {
+    if (durationMs === undefined) return null
+    const totalSeconds = Math.round(durationMs / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+function ConceptNodeEditor({
+    selectedNode,
+    linkedVideoNodes,
+}: {
+    selectedNode: ConceptCanvasNode
+    linkedVideoNodes: VideoCanvasNode[]
+}) {
+    const updateNode = useCanvasStore((state) => state.updateNode)
+    const updateConceptTimeRange = useCanvasStore(
+        (state) => state.updateConceptTimeRange,
+    )
+    const deleteNode = useCanvasStore((state) => state.deleteNode)
+    const deleteBranch = useCanvasStore((state) => state.deleteBranch)
     const activeContextNodeId = useChatStore(
         (state) => state.activeContextNodeId,
     )
-
     const setActiveContextNodeId = useChatStore(
         (state) => state.setActiveContextNodeId,
     )
+    const [draftStartSeconds, setDraftStartSeconds] = useState(
+        millisecondsToSeconds(selectedNode.data.startTimeMs),
+    )
+    const [draftEndSeconds, setDraftEndSeconds] = useState(
+        millisecondsToSeconds(selectedNode.data.endTimeMs),
+    )
+    const [bindingError, setBindingError] = useState<string | null>(null)
+    const [isPropertyMenuOpen, setIsPropertyMenuOpen] = useState(false)
+    const [isVideoBindingEditorOpen, setIsVideoBindingEditorOpen] =
+        useState(false)
+    const isActiveContext = activeContextNodeId === selectedNode.id
+    const selectedVideo = linkedVideoNodes.length === 1
+        ? linkedVideoNodes[0]
+        : undefined
+    const selectedVideoDuration = formatDuration(
+        selectedVideo?.data.durationMs,
+    )
+    const hasTimeRange =
+        selectedNode.data.startTimeMs !== undefined &&
+        selectedNode.data.endTimeMs !== undefined
 
-    const isActiveContext =
-        activeContextNodeId === selectedNode?.id
+    function clearMissingActiveContext() {
+        if (
+            activeContextNodeId &&
+            !useCanvasStore
+                .getState()
+                .nodes.some((node) => node.id === activeContextNodeId)
+        ) {
+            setActiveContextNodeId(null)
+        }
+    }
 
-    if (!selectedNode || selectedNode.type !== 'concept') {
-        return null
+    function applyVideoBinding() {
+        if (linkedVideoNodes.length === 0) {
+            setBindingError('請先從影片節點連線到此文字節點。')
+            return
+        }
+
+        if (linkedVideoNodes.length > 1) {
+            setBindingError('設定時間區間的文字節點只能連接一個影片節點。')
+            return
+        }
+
+        if (!draftStartSeconds.trim() || !draftEndSeconds.trim()) {
+            setBindingError('開始與結束時間都必須填寫。')
+            return
+        }
+
+        const startSeconds = Number(draftStartSeconds)
+        const endSeconds = Number(draftEndSeconds)
+
+        if (
+            !Number.isFinite(startSeconds) ||
+            !Number.isFinite(endSeconds) ||
+            startSeconds < 0 ||
+            endSeconds < 0
+        ) {
+            setBindingError('時間必須是大於或等於 0 的數字。')
+            return
+        }
+
+        if (endSeconds <= startSeconds) {
+            setBindingError('結束時間必須晚於開始時間。')
+            return
+        }
+
+        const startTimeMs = Math.round(startSeconds * 1000)
+        const endTimeMs = Math.round(endSeconds * 1000)
+
+        if (
+            selectedVideo?.data.durationMs !== undefined &&
+            endTimeMs > selectedVideo.data.durationMs
+        ) {
+            setBindingError('結束時間不得超出影片長度。')
+            return
+        }
+
+        updateConceptTimeRange(selectedNode.id, {
+            startTimeMs,
+            endTimeMs,
+        })
+        setBindingError(null)
+        setIsVideoBindingEditorOpen(false)
+    }
+
+    function clearVideoBinding() {
+        updateConceptTimeRange(selectedNode.id, {
+            startTimeMs: undefined,
+            endTimeMs: undefined,
+        })
+        setDraftStartSeconds('')
+        setDraftEndSeconds('')
+        setBindingError(null)
+        setIsVideoBindingEditorOpen(false)
+    }
+
+    function closeVideoBindingEditor() {
+        setDraftStartSeconds(
+            millisecondsToSeconds(selectedNode.data.startTimeMs),
+        )
+        setDraftEndSeconds(
+            millisecondsToSeconds(selectedNode.data.endTimeMs),
+        )
+        setBindingError(null)
+        setIsVideoBindingEditorOpen(false)
     }
 
     return (
         <aside className="absolute right-4 top-18 z-20 max-h-[calc(100%-5.5rem)] w-50 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-background p-4 shadow-sm md:top-4 md:max-h-[calc(100%-2rem)] md:w-70 lg:w-80">
             <button
                 type="button"
-                onClick={() =>
-                    setActiveContextNodeId(selectedNode.id)
-                }
+                onClick={() => setActiveContextNodeId(selectedNode.id)}
                 className="mb-6 min-h-11 w-full cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground transition hover:border-primary/30"
             >
-                {isActiveContext
-                    ? '已設為對話上下文'
-                    : '前往對話'}
+                {isActiveContext ? '已設為對話上下文' : '前往對話'}
             </button>
 
             <label className="block">
-                <span className="mb-1 block text-sm text-foreground/70">
-                    標題
-                </span>
-
+                <span className="mb-1 block text-sm text-foreground/70">標題</span>
                 <input
                     type="text"
                     value={selectedNode.data.title}
                     onChange={(event) =>
-                        updateNode(selectedNode.id, {
-                            title: event.target.value,
-                        })
+                        updateNode(selectedNode.id, { title: event.target.value })
                     }
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                 />
             </label>
 
             <label className="mt-4 block">
-                <span className="mb-1 block text-sm text-foreground/70">
-                    內容
-                </span>
-
+                <span className="mb-1 block text-sm text-foreground/70">內容</span>
                 <textarea
                     value={selectedNode.data.content}
                     onChange={(event) =>
-                        updateNode(selectedNode.id, {
-                            content: event.target.value,
-                        })
+                        updateNode(selectedNode.id, { content: event.target.value })
                     }
                     rows={5}
                     className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                 />
             </label>
 
+            <div className="mt-6 border-t border-border pt-4">
+                <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-foreground">
+                        屬性
+                    </h3>
+                    {!hasTimeRange &&
+                        !isVideoBindingEditorOpen && (
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    aria-expanded={isPropertyMenuOpen}
+                                    onClick={() =>
+                                        setIsPropertyMenuOpen(
+                                            (isOpen) => !isOpen,
+                                        )
+                                    }
+                                    className="min-h-9 cursor-pointer rounded-lg border border-border px-3 text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                >
+                                    ＋ 新增屬性
+                                </button>
+                                {isPropertyMenuOpen && (
+                                    <div className="absolute right-0 top-full z-10 mt-2 w-44 rounded-lg border border-border bg-background p-1 shadow-md">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsPropertyMenuOpen(false)
+                                                setIsVideoBindingEditorOpen(true)
+                                            }}
+                                            className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                        >
+                                            影片時間區間
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                </div>
+
+                {hasTimeRange &&
+                    !isVideoBindingEditorOpen && (
+                        <button
+                            type="button"
+                            onClick={() => setIsVideoBindingEditorOpen(true)}
+                            className="mt-3 w-full cursor-pointer rounded-lg border border-border px-3 py-3 text-left transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                        >
+                            <span className="block text-sm font-medium text-foreground">
+                                影片時間區間
+                            </span>
+                            <span className="mt-1 block text-xs text-foreground/55">
+                                {selectedVideo?.data.title ?? '尚未連接影片'} ·{' '}
+                                {(selectedNode.data.startTimeMs ?? 0) / 1000}–
+                                {(selectedNode.data.endTimeMs ?? 0) / 1000} 秒
+                            </span>
+                        </button>
+                    )}
+
+                {isVideoBindingEditorOpen && (
+                    <div className="mt-3 rounded-lg border border-border p-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <h4 className="text-sm font-medium text-foreground">
+                                影片時間區間
+                            </h4>
+                            <button
+                                type="button"
+                                onClick={closeVideoBindingEditor}
+                                className="min-h-9 cursor-pointer rounded-md px-2 text-xs text-foreground/60 transition hover:bg-primary/5 hover:text-foreground"
+                            >
+                                收起
+                            </button>
+                        </div>
+
+                        {linkedVideoNodes.length === 0 ? (
+                            <p className="mt-2 text-sm text-foreground/55">
+                                先從影片節點連線到此文字節點，才能設定時間區間。
+                            </p>
+                        ) : linkedVideoNodes.length > 1 ? (
+                            <p className="mt-2 text-sm text-red-600">
+                                此文字節點連接了多個影片節點，請只保留一個影片來源。
+                            </p>
+                        ) : (
+                            <>
+                        <p className="mt-3 rounded-lg bg-primary/5 px-3 py-2 text-sm text-foreground/70">
+                            影片來源：{selectedVideo?.data.title}
+                        </p>
+
+                        {selectedVideoDuration && (
+                            <p className="mt-2 text-xs text-foreground/55">
+                                影片長度：{selectedVideoDuration}
+                            </p>
+                        )}
+
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                            <label>
+                                <span className="mb-1 block text-xs text-foreground/70">
+                                    開始（秒）
+                                </span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.1"
+                                    inputMode="decimal"
+                                    value={draftStartSeconds}
+                                    onChange={(event) => {
+                                        setDraftStartSeconds(event.target.value)
+                                        setBindingError(null)
+                                    }}
+                                    className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                                />
+                            </label>
+                            <label>
+                                <span className="mb-1 block text-xs text-foreground/70">
+                                    結束（秒）
+                                </span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.1"
+                                    inputMode="decimal"
+                                    value={draftEndSeconds}
+                                    onChange={(event) => {
+                                        setDraftEndSeconds(event.target.value)
+                                        setBindingError(null)
+                                    }}
+                                    className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                                />
+                            </label>
+                        </div>
+
+                        {bindingError && (
+                            <p role="alert" className="mt-2 text-xs text-red-600">
+                                {bindingError}
+                            </p>
+                        )}
+
+                        <div className="mt-3 flex gap-2">
+                            {hasTimeRange && (
+                                <button
+                                    type="button"
+                                    onClick={clearVideoBinding}
+                                    className="min-h-11 flex-1 cursor-pointer rounded-lg border border-border px-3 text-sm text-foreground transition hover:bg-primary/5"
+                                >
+                                    刪除屬性
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={applyVideoBinding}
+                                className="min-h-11 flex-1 cursor-pointer rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                            >
+                                套用
+                            </button>
+                        </div>
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
+
             <div className="mt-6 space-y-2 border-t border-border pt-4">
                 <button
                     type="button"
                     onClick={() => {
                         deleteNode(selectedNode.id)
-
-                        if (
-                            activeContextNodeId &&
-                            !useCanvasStore.getState().nodes.some(
-                                (node) => node.id === activeContextNodeId,
-                            )
-                        ) {
-                            setActiveContextNodeId(null)
-                        }
+                        clearMissingActiveContext()
                     }}
                     className="min-h-11 w-full cursor-pointer rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-red-200 hover:text-red-600"
                 >
@@ -103,15 +349,7 @@ export function NodeEditor() {
                     type="button"
                     onClick={() => {
                         deleteBranch(selectedNode.id)
-
-                        if (
-                            activeContextNodeId &&
-                            !useCanvasStore.getState().nodes.some(
-                                (node) => node.id === activeContextNodeId,
-                            )
-                        ) {
-                            setActiveContextNodeId(null)
-                        }
+                        clearMissingActiveContext()
                     }}
                     className="min-h-11 w-full cursor-pointer rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition hover:bg-red-50"
                 >
@@ -119,5 +357,33 @@ export function NodeEditor() {
                 </button>
             </div>
         </aside>
+    )
+}
+
+export function NodeEditor() {
+    const nodes = useCanvasStore((state) => state.nodes)
+    const edges = useCanvasStore((state) => state.edges)
+    const selectedNode = nodes.find(
+        (node): node is ConceptCanvasNode =>
+            Boolean(node.selected && node.type === 'concept'),
+    )
+    if (!selectedNode) return null
+
+    const linkedVideoNodeIds = new Set(
+        edges
+            .filter((edge) => edge.target === selectedNode.id)
+            .map((edge) => edge.source),
+    )
+    const linkedVideoNodes = nodes.filter(
+        (node): node is VideoCanvasNode =>
+            node.type === 'video' && linkedVideoNodeIds.has(node.id),
+    )
+
+    return (
+        <ConceptNodeEditor
+            key={selectedNode.id}
+            selectedNode={selectedNode}
+            linkedVideoNodes={linkedVideoNodes}
+        />
     )
 }

@@ -11,7 +11,7 @@ from app.database import Base
 
 def create_empty_document() -> dict[str, Any]:
     return {
-        "version": 3,
+        "version": 4,
         "nodes": [],
         "edges": [],
         "messages": [],

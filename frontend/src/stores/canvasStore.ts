@@ -14,6 +14,7 @@ import type {
     CanvasEdge,
     CanvasNode,
     CommonCanvasNodeData,
+    ConceptNodeData,
     VideoNodeData,
 } from '../types/canvas'
 import type { SuggestionPreview } from '../types/suggestion'
@@ -72,23 +73,29 @@ function getBranchNodeIds(
     return nodeIds
 }
 
-function clearRemovedVideoReferences(
+function clearOrphanedTimeRanges(
     nodes: CanvasNode[],
-    removedVideoNodeIds: Set<string>,
+    edges: CanvasEdge[],
 ): CanvasNode[] {
-    if (removedVideoNodeIds.size === 0) return nodes
+    const videoNodeIds = new Set(
+        nodes.filter((node) => node.type === 'video').map((node) => node.id),
+    )
+    const linkedConceptNodeIds = new Set(
+        edges
+            .filter((edge) => videoNodeIds.has(edge.source))
+            .map((edge) => edge.target),
+    )
 
     return nodes.map((node) => {
         if (
             node.type !== 'concept' ||
-            !node.data.mediaNodeId ||
-            !removedVideoNodeIds.has(node.data.mediaNodeId)
+            linkedConceptNodeIds.has(node.id) ||
+            (node.data.startTimeMs === undefined && node.data.endTimeMs === undefined)
         ) {
             return node
         }
 
-        const { mediaNodeId, startTimeMs, endTimeMs, ...data } = node.data
-        void mediaNodeId
+        const { startTimeMs, endTimeMs, ...data } = node.data
         void startTimeMs
         void endTimeMs
         return { ...node, data }
@@ -239,6 +246,10 @@ type CanvasState = {
         updates: Partial<Pick<VideoNodeData, 'source' | 'durationMs'>> &
             Partial<Pick<CommonCanvasNodeData, 'title' | 'content'>>,
     ) => void
+    updateConceptTimeRange: (
+        nodeId: string,
+        timeRange: Pick<ConceptNodeData, 'startTimeMs' | 'endTimeMs'>,
+    ) => void
     deleteNode: (nodeId: string) => void
     deleteBranch: (nodeId: string) => void
     updateEdgeLabel: (edgeId: string, label: string) => void
@@ -383,6 +394,30 @@ export const useCanvasStore = create<CanvasState>()(
             }
         }),
 
+    updateConceptTimeRange: (nodeId, timeRange) =>
+        set((state) => {
+            const node = state.nodes.find(
+                (candidate) => candidate.id === nodeId,
+            )
+
+            if (!node || node.type !== 'concept') return state
+
+            return {
+                nodes: state.nodes.map((candidate) =>
+                    candidate.id === nodeId && candidate.type === 'concept'
+                        ? {
+                            ...candidate,
+                            data: { ...candidate.data, ...timeRange },
+                        }
+                        : candidate,
+                ),
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
     deleteNode: (nodeId) =>
         set((state) => {
             const hasNode = state.nodes.some(
@@ -395,19 +430,14 @@ export const useCanvasStore = create<CanvasState>()(
 
             useChatStore.getState().removeContexts([nodeId])
 
-            const removedNode = state.nodes.find((node) => node.id === nodeId)
             const remainingNodes = state.nodes.filter((node) => node.id !== nodeId)
+            const remainingEdges = state.edges.filter(
+                (edge) => edge.source !== nodeId && edge.target !== nodeId,
+            )
 
             return {
-                nodes: clearRemovedVideoReferences(
-                    remainingNodes,
-                    new Set(removedNode?.type === 'video' ? [nodeId] : []),
-                ),
-                edges: state.edges.filter(
-                    (edge) =>
-                        edge.source !== nodeId &&
-                        edge.target !== nodeId,
-                ),
+                nodes: clearOrphanedTimeRanges(remainingNodes, remainingEdges),
+                edges: remainingEdges,
                 past: addToHistory(
                     state.past,
                     createSnapshot(state),
@@ -437,27 +467,18 @@ export const useCanvasStore = create<CanvasState>()(
                 .getState()
                 .removeContexts([...branchNodeIds])
 
-            const removedVideoNodeIds = new Set(
-                state.nodes
-                    .filter(
-                        (node) => node.type === 'video' && branchNodeIds.has(node.id),
-                    )
-                    .map((node) => node.id),
-            )
             const remainingNodes = state.nodes.filter(
                 (node) => !branchNodeIds.has(node.id),
             )
+            const remainingEdges = state.edges.filter(
+                (edge) =>
+                    !branchNodeIds.has(edge.source) &&
+                    !branchNodeIds.has(edge.target),
+            )
 
             return {
-                nodes: clearRemovedVideoReferences(
-                    remainingNodes,
-                    removedVideoNodeIds,
-                ),
-                edges: state.edges.filter(
-                    (edge) =>
-                        !branchNodeIds.has(edge.source) &&
-                        !branchNodeIds.has(edge.target),
-                ),
+                nodes: clearOrphanedTimeRanges(remainingNodes, remainingEdges),
+                edges: remainingEdges,
                 past: addToHistory(
                     state.past,
                     createSnapshot(state),
@@ -513,10 +534,13 @@ export const useCanvasStore = create<CanvasState>()(
                 return state
             }
 
+            const remainingEdges = state.edges.filter(
+                (edge) => edge.id !== edgeId,
+            )
+
             return {
-                edges: state.edges.filter(
-                    (edge) => edge.id !== edgeId,
-                ),
+                nodes: clearOrphanedTimeRanges(state.nodes, remainingEdges),
+                edges: remainingEdges,
                 past: addToHistory(
                     state.past,
                     createSnapshot(state),
@@ -684,21 +708,15 @@ export const useCanvasStore = create<CanvasState>()(
             )
             const shouldSaveHistory = startsDragging || removesNode
 
-            const removedVideoNodeIds = new Set(
-                state.nodes
-                    .filter(
-                        (node) =>
-                            node.type === 'video' && removedNodeIds.includes(node.id),
-                    )
-                    .map((node) => node.id),
-            )
             const changedNodes = applyNodeChanges(changes, state.nodes)
+            const changedNodeIds = new Set(changedNodes.map((node) => node.id))
+            const remainingEdges = state.edges.filter(
+                (edge) => changedNodeIds.has(edge.source) && changedNodeIds.has(edge.target),
+            )
 
             return {
-                nodes: clearRemovedVideoReferences(
-                    changedNodes,
-                    removedVideoNodeIds,
-                ),
+                nodes: clearOrphanedTimeRanges(changedNodes, remainingEdges),
+                edges: remainingEdges,
                 isNodeDragging: stopsDragging
                     ? false
                     : state.isNodeDragging || startsDragging,
@@ -722,8 +740,13 @@ export const useCanvasStore = create<CanvasState>()(
                 (change) => change.type === 'remove',
             )
 
+            const changedEdges = applyEdgeChanges(changes, state.edges)
+
             return {
-                edges: applyEdgeChanges(changes, state.edges),
+                nodes: removesEdge
+                    ? clearOrphanedTimeRanges(state.nodes, changedEdges)
+                    : state.nodes,
+                edges: changedEdges,
                 ...(removesEdge
                     ? {
                         past: addToHistory(
