@@ -10,7 +10,12 @@ import dagre from '@dagrejs/dagre'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-import type { CanvasEdge, CanvasNode, CanvasNodeData } from '../types/canvas'
+import type {
+    CanvasEdge,
+    CanvasNode,
+    CommonCanvasNodeData,
+    VideoNodeData,
+} from '../types/canvas'
 import type { SuggestionPreview } from '../types/suggestion'
 import { useChatStore } from './chatStore'
 
@@ -65,6 +70,29 @@ function getBranchNodeIds(
     }
 
     return nodeIds
+}
+
+function clearRemovedVideoReferences(
+    nodes: CanvasNode[],
+    removedVideoNodeIds: Set<string>,
+): CanvasNode[] {
+    if (removedVideoNodeIds.size === 0) return nodes
+
+    return nodes.map((node) => {
+        if (
+            node.type !== 'concept' ||
+            !node.data.mediaNodeId ||
+            !removedVideoNodeIds.has(node.data.mediaNodeId)
+        ) {
+            return node
+        }
+
+        const { mediaNodeId, startTimeMs, endTimeMs, ...data } = node.data
+        void mediaNodeId
+        void startTimeMs
+        void endTimeMs
+        return { ...node, data }
+    })
 }
 
 function layoutNodes(
@@ -199,11 +227,17 @@ type CanvasState = {
     canRedo: boolean
 
     addNode: () => void
+    addVideoNode: () => string
     updateNode: (
         nodeId: string,
         updates: Partial<
-            Pick<CanvasNodeData, 'title' | 'content'>
+            Pick<CommonCanvasNodeData, 'title' | 'content'>
         >,
+    ) => void
+    updateVideoNode: (
+        nodeId: string,
+        updates: Partial<Pick<VideoNodeData, 'source' | 'durationMs'>> &
+            Partial<Pick<CommonCanvasNodeData, 'title' | 'content'>>,
     ) => void
     deleteNode: (nodeId: string) => void
     deleteBranch: (nodeId: string) => void
@@ -257,19 +291,68 @@ export const useCanvasStore = create<CanvasState>()(
             }
         }),
 
+    addVideoNode: () => {
+        const nodeId = crypto.randomUUID()
+
+        set((state) => {
+            const videoCount = state.nodes.filter(
+                (node) => node.type === 'video',
+            ).length
+            const newNode: CanvasNode = {
+                id: nodeId,
+                type: 'video',
+                position: {
+                    x: 100 + videoCount * 320,
+                    y: 100,
+                },
+                selected: true,
+                data: {
+                    title: `新影片 ${videoCount + 1}`,
+                    content: '',
+                    origin: 'user',
+                    sourceType: 'url',
+                    source: '',
+                },
+            }
+
+            return {
+                nodes: [
+                    ...state.nodes.map((node) => ({
+                        ...node,
+                        selected: false,
+                    })),
+                    newNode,
+                ],
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        })
+
+        return nodeId
+    },
+
     updateNode: (nodeId, updates) =>
         set((state) => ({
-            nodes: state.nodes.map((node) =>
-                node.id === nodeId ?
-                    {
+            nodes: state.nodes.map((node) => {
+                if (node.id !== nodeId) return node
+
+                if (node.type === 'concept') {
+                    return {
                         ...node,
                         data: {
                             ...node.data,
                             ...updates,
                         },
                     }
-                    : node,
-            ),
+                }
+
+                return {
+                    ...node,
+                    data: { ...node.data, ...updates },
+                }
+            }),
             past: addToHistory(
                 state.past,
                 createSnapshot(state),
@@ -278,6 +361,27 @@ export const useCanvasStore = create<CanvasState>()(
             canUndo: true,
             canRedo: false,
         })),
+
+    updateVideoNode: (nodeId, updates) =>
+        set((state) => {
+            const node = state.nodes.find(
+                (candidate) => candidate.id === nodeId,
+            )
+
+            if (!node || node.type !== 'video') return state
+
+            return {
+                nodes: state.nodes.map((candidate) =>
+                    candidate.id === nodeId && candidate.type === 'video'
+                        ? { ...candidate, data: { ...candidate.data, ...updates } }
+                        : candidate,
+                ),
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
 
     deleteNode: (nodeId) =>
         set((state) => {
@@ -291,9 +395,13 @@ export const useCanvasStore = create<CanvasState>()(
 
             useChatStore.getState().removeContexts([nodeId])
 
+            const removedNode = state.nodes.find((node) => node.id === nodeId)
+            const remainingNodes = state.nodes.filter((node) => node.id !== nodeId)
+
             return {
-                nodes: state.nodes.filter(
-                    (node) => node.id !== nodeId,
+                nodes: clearRemovedVideoReferences(
+                    remainingNodes,
+                    new Set(removedNode?.type === 'video' ? [nodeId] : []),
                 ),
                 edges: state.edges.filter(
                     (edge) =>
@@ -329,9 +437,21 @@ export const useCanvasStore = create<CanvasState>()(
                 .getState()
                 .removeContexts([...branchNodeIds])
 
+            const removedVideoNodeIds = new Set(
+                state.nodes
+                    .filter(
+                        (node) => node.type === 'video' && branchNodeIds.has(node.id),
+                    )
+                    .map((node) => node.id),
+            )
+            const remainingNodes = state.nodes.filter(
+                (node) => !branchNodeIds.has(node.id),
+            )
+
             return {
-                nodes: state.nodes.filter(
-                    (node) => !branchNodeIds.has(node.id),
+                nodes: clearRemovedVideoReferences(
+                    remainingNodes,
+                    removedVideoNodeIds,
                 ),
                 edges: state.edges.filter(
                     (edge) =>
@@ -564,8 +684,21 @@ export const useCanvasStore = create<CanvasState>()(
             )
             const shouldSaveHistory = startsDragging || removesNode
 
+            const removedVideoNodeIds = new Set(
+                state.nodes
+                    .filter(
+                        (node) =>
+                            node.type === 'video' && removedNodeIds.includes(node.id),
+                    )
+                    .map((node) => node.id),
+            )
+            const changedNodes = applyNodeChanges(changes, state.nodes)
+
             return {
-                nodes: applyNodeChanges(changes, state.nodes),
+                nodes: clearRemovedVideoReferences(
+                    changedNodes,
+                    removedVideoNodeIds,
+                ),
                 isNodeDragging: stopsDragging
                     ? false
                     : state.isNodeDragging || startsDragging,

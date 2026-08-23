@@ -16,7 +16,6 @@ import {
 } from '../components/project/ProjectSettingsDialogs'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useChatStore } from '../stores/chatStore'
-import { useMediaStore } from '../stores/mediaStore'
 import {
   backupLocalProject,
   getActiveProjectId,
@@ -94,17 +93,14 @@ export function EditorPage() {
     (state) => state.activeContextNodeId,
   )
   const messages = useChatStore((state) => state.messages)
-  const media = useMediaStore((state) => state.media)
-  const setMedia = useMediaStore((state) => state.setMedia)
   const projectDocument = useMemo(
     () =>
       createProjectDocument(
         nodes,
         edges,
         messages,
-        media ?? undefined,
       ),
-    [edges, media, messages, nodes],
+    [edges, messages, nodes],
   )
   const projectDocumentSignature = useMemo(
     () => JSON.stringify(projectDocument),
@@ -139,7 +135,8 @@ export function EditorPage() {
           const restoredLocalProject = restoreLocalProject()
 
           if (!restoredLocalProject) {
-            setMedia(null)
+            replaceProject([], [])
+            replaceProjectMessages([])
           }
         }
 
@@ -167,7 +164,6 @@ export function EditorPage() {
           project.document.edges,
         )
         replaceProjectMessages(project.document.messages)
-        setMedia(project.document.media ?? null)
         setProjectAccessRole(project.accessRole)
         setLoadedProject(project)
         savedDocumentSignatureRef.current = JSON.stringify(
@@ -206,7 +202,6 @@ export function EditorPage() {
     projectId,
     replaceProject,
     replaceProjectMessages,
-    setMedia,
   ])
 
   useEffect(() => {
@@ -382,22 +377,24 @@ export function EditorPage() {
         </div>
       )}
 
-      <Canvas
-        isReadOnly={projectAccessRole === 'viewer'}
-        canRenameProject={
-          projectId !== LOCAL_PROJECT_ID && projectAccessRole !== 'viewer'
-        }
-        canManageProjectPermissions={
-          projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
-        }
-        canCopyProjectLink={projectId !== LOCAL_PROJECT_ID}
-        canManageAiSettings={projectId !== LOCAL_PROJECT_ID}
-        onRenameProject={() => setActiveSettingsDialog('rename')}
-        onManageProjectPermissions={() =>
-          setActiveSettingsDialog('permissions')
-        }
-        onManageAiSettings={() => setActiveSettingsDialog('ai')}
-      />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <Canvas
+          isReadOnly={projectAccessRole === 'viewer'}
+          canRenameProject={
+            projectId !== LOCAL_PROJECT_ID && projectAccessRole !== 'viewer'
+          }
+          canManageProjectPermissions={
+            projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
+          }
+          canCopyProjectLink={projectId !== LOCAL_PROJECT_ID}
+          canManageAiSettings={projectId !== LOCAL_PROJECT_ID}
+          onRenameProject={() => setActiveSettingsDialog('rename')}
+          onManageProjectPermissions={() =>
+            setActiveSettingsDialog('permissions')
+          }
+          onManageAiSettings={() => setActiveSettingsDialog('ai')}
+        />
+      </div>
 
       {loadedProject && activeSettingsDialog && (
         <ProjectSettingsDialogs

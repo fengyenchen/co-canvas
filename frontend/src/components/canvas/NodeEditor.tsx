@@ -27,7 +27,7 @@ export function NodeEditor() {
     const isActiveContext =
         activeContextNodeId === selectedNode?.id
 
-    if (!selectedNode) {
+    if (!selectedNode || selectedNode.type !== 'concept') {
         return null
     }
 

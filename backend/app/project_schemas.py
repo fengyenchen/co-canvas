@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
 from typing import Literal
+from urllib.parse import urlparse
 
-from pydantic import AnyHttpUrl, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.schemas import ApiModel
 
@@ -18,15 +19,16 @@ class ProjectPosition(ApiModel):
     y: float
 
 
-class ProjectNodeData(ApiModel):
+class ProjectConceptNodeData(ApiModel):
     title: str = Field(max_length=120)
     content: str = Field(default="", max_length=2000)
     origin: Literal["user", "ai"]
+    media_node_id: str | None = Field(default=None, min_length=1)
     start_time_ms: int | None = Field(default=None, ge=0)
     end_time_ms: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
-    def validate_time_range(self) -> "ProjectNodeData":
+    def validate_time_range(self) -> "ProjectConceptNodeData":
         has_start_time = self.start_time_ms is not None
         has_end_time = self.end_time_ms is not None
 
@@ -43,11 +45,42 @@ class ProjectNodeData(ApiModel):
         return self
 
 
-class ProjectNode(ApiModel):
+class ProjectVideoNodeData(ApiModel):
+    title: str = Field(max_length=120)
+    content: str = Field(default="", max_length=2000)
+    origin: Literal["user", "ai"]
+    source_type: Literal["url"] = "url"
+    source: str = Field(default="", max_length=2048)
+    duration_ms: int | None = Field(default=None, gt=0)
+
+    @field_validator("source")
+    @classmethod
+    def validate_source(cls, value: str) -> str:
+        if not value:
+            return value
+
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("影片網址必須為空白或使用 http、https")
+
+        return value
+
+
+class ProjectConceptNode(ApiModel):
     id: str = Field(min_length=1)
     type: Literal["concept"] = "concept"
     position: ProjectPosition
-    data: ProjectNodeData
+    data: ProjectConceptNodeData
+
+
+class ProjectVideoNode(ApiModel):
+    id: str = Field(min_length=1)
+    type: Literal["video"] = "video"
+    position: ProjectPosition
+    data: ProjectVideoNodeData
+
+
+ProjectNode = ProjectConceptNode | ProjectVideoNode
 
 
 class ProjectEdgeData(ApiModel):
@@ -76,17 +109,8 @@ class ProjectMessage(ApiModel):
     retry_content: str | None = Field(default=None, max_length=4000)
 
 
-class ProjectMedia(ApiModel):
-    type: Literal["video"] = "video"
-    source_type: Literal["url"] = "url"
-    source: AnyHttpUrl
-    title: str | None = Field(default=None, max_length=200)
-    duration_ms: int | None = Field(default=None, gt=0)
-
-
 class ProjectDocument(ApiModel):
-    version: Literal[2] = 2
-    media: ProjectMedia | None = None
+    version: Literal[3] = 3
     nodes: list[ProjectNode] = Field(default_factory=list, max_length=500)
     edges: list[ProjectEdge] = Field(default_factory=list, max_length=1000)
     messages: list[ProjectMessage] = Field(
@@ -97,29 +121,126 @@ class ProjectDocument(ApiModel):
     @model_validator(mode="before")
     @classmethod
     def upgrade_legacy_document(cls, value: object) -> object:
-        if isinstance(value, dict) and value.get("version") == 1:
-            return {
-                **value,
-                "version": 2,
-            }
+        if not isinstance(value, dict):
+            return value
 
-        return value
+        if value.get("version") == 1:
+            return {**value, "version": 3}
+
+        if value.get("version") != 2:
+            return value
+
+        nodes = list(value.get("nodes", []))
+        media = value.get("media")
+
+        if not isinstance(media, dict):
+            document = {key: item for key, item in value.items() if key != "media"}
+            return {**document, "version": 3}
+
+        node_ids = {
+            node.get("id")
+            for node in nodes
+            if isinstance(node, dict) and isinstance(node.get("id"), str)
+        }
+        video_node_id = "legacy-video"
+        suffix = 1
+        while video_node_id in node_ids:
+            suffix += 1
+            video_node_id = f"legacy-video-{suffix}"
+
+        y_positions = [
+            node["position"]["y"]
+            for node in nodes
+            if isinstance(node, dict)
+            and isinstance(node.get("position"), dict)
+            and isinstance(node["position"].get("y"), (int, float))
+        ]
+        migrated_nodes: list[object] = []
+        for node in nodes:
+            if not isinstance(node, dict) or node.get("type") != "concept":
+                migrated_nodes.append(node)
+                continue
+
+            data = node.get("data")
+            if not isinstance(data, dict):
+                migrated_nodes.append(node)
+                continue
+
+            has_time = (
+                "startTimeMs" in data
+                or "endTimeMs" in data
+                or "start_time_ms" in data
+                or "end_time_ms" in data
+            )
+            if has_time and "mediaNodeId" not in data and "media_node_id" not in data:
+                migrated_nodes.append(
+                    {**node, "data": {**data, "mediaNodeId": video_node_id}}
+                )
+            else:
+                migrated_nodes.append(node)
+
+        title = media.get("title")
+        duration_ms = media.get("durationMs", media.get("duration_ms"))
+        video_data = {
+            "title": title if isinstance(title, str) and title else "影片",
+            "content": "",
+            "origin": "user",
+            "sourceType": media.get("sourceType", media.get("source_type", "url")),
+            "source": media.get("source"),
+        }
+        if duration_ms is not None:
+            video_data["durationMs"] = duration_ms
+
+        document = {key: item for key, item in value.items() if key != "media"}
+        return {
+            **document,
+            "version": 3,
+            "nodes": [
+                *migrated_nodes,
+                {
+                    "id": video_node_id,
+                    "type": "video",
+                    "position": {
+                        "x": 0,
+                        "y": min(y_positions, default=100) - 220,
+                    },
+                    "data": video_data,
+                },
+            ],
+        }
 
     @model_validator(mode="after")
     def validate_node_time_ranges(self) -> "ProjectDocument":
+        video_nodes = {
+            node.id: node
+            for node in self.nodes
+            if isinstance(node, ProjectVideoNode)
+        }
+
         for node in self.nodes:
+            if not isinstance(node, ProjectConceptNode):
+                continue
+
             start_time_ms = node.data.start_time_ms
             end_time_ms = node.data.end_time_ms
+
+            if (
+                node.data.media_node_id is not None
+                and node.data.media_node_id not in video_nodes
+            ):
+                raise ValueError("節點引用了不存在的影片節點")
 
             if start_time_ms is None or end_time_ms is None:
                 continue
 
-            if self.media is None:
-                raise ValueError("設定節點時間前必須先設定影片")
+            if node.data.media_node_id is None:
+                raise ValueError("設定節點時間前必須指定影片節點")
+
+            video_node = video_nodes[node.data.media_node_id]
 
             if (
-                self.media.duration_ms is not None
-                and end_time_ms > self.media.duration_ms
+                video_node.data.duration_ms is not None
+                and end_time_ms > video_node.data.duration_ms
             ):
                 raise ValueError("節點時間不得超出影片長度")
 

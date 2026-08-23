@@ -1,6 +1,6 @@
 import { Handle, Position } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
-import type { CanvasNode } from '../../types/canvas'
+import type { ConceptCanvasNode } from '../../types/canvas'
 
 const handleClassName =
     'h-2.5! w-2.5! border-2! border-background! bg-primary!'
@@ -8,7 +8,7 @@ const handleClassName =
 export function ConceptNode({
     data,
     selected,
-}: NodeProps<CanvasNode>) {
+}: NodeProps<ConceptCanvasNode>) {
     return (
         <div
             className={`w-64 rounded-xl border bg-background px-4 py-3 shadow-sm

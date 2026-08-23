@@ -11,7 +11,6 @@ import type { NodeTypes } from '@xyflow/react'
 import { Link } from 'react-router'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
-import { useMediaStore } from '../../stores/mediaStore'
 import { renderCanvasPng } from '../../utils/exportCanvasImage'
 import {
     createProjectFile,
@@ -19,11 +18,14 @@ import {
     parseProjectFile,
 } from '../../utils/projectFile'
 import { ConceptNode } from './ConceptNode'
+import { VideoNode } from './VideoNode'
 import { EdgeEditor } from './EdgeEditor'
 import { NodeEditor } from './NodeEditor'
+import { VideoPanel } from '../video/VideoPanel'
 
 const nodeTypes: NodeTypes = {
     concept: ConceptNode,
+    video: VideoNode,
 }
 
 type CanvasProps = {
@@ -55,12 +57,14 @@ function CanvasContent({
     const [isSearchOpen, setIsSearchOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false)
+    const [isAddNodeMenuOpen, setIsAddNodeMenuOpen] = useState(false)
     const [copyLinkState, setCopyLinkState] = useState<
         'idle' | 'copied' | 'error'
     >('idle')
 
     const edges = useCanvasStore((state) => state.edges)
     const addNode = useCanvasStore((state) => state.addNode)
+    const addVideoNode = useCanvasStore((state) => state.addVideoNode)
     const onNodesChange = useCanvasStore((state) => state.onNodesChange)
     const onEdgesChange = useCanvasStore((state) => state.onEdgesChange)
     const onConnect = useCanvasStore((state) => state.onConnect)
@@ -73,8 +77,6 @@ function CanvasContent({
         (state) => state.replaceProject,
     )
     const messages = useChatStore((state) => state.messages)
-    const media = useMediaStore((state) => state.media)
-    const setMedia = useMediaStore((state) => state.setMedia)
     const replaceProjectMessages = useChatStore(
         (state) => state.replaceProjectMessages,
     )
@@ -146,7 +148,9 @@ function CanvasContent({
                 duration: 300,
             },
         )
-        setActiveContextNodeId(nodeId)
+        if (node.type === 'concept') {
+            setActiveContextNodeId(nodeId)
+        }
         setIsSearchOpen(false)
         setSearchQuery('')
     }
@@ -172,7 +176,6 @@ function CanvasContent({
             nodes,
             edges,
             messages,
-            media ?? undefined,
         )
         const date = new Date().toISOString().slice(0, 10)
 
@@ -199,7 +202,6 @@ function CanvasContent({
 
             replaceProject(project.nodes, project.edges)
             replaceProjectMessages(project.messages)
-            setMedia(project.media ?? null)
 
             window.requestAnimationFrame(() => {
                 void fitView({
@@ -304,12 +306,21 @@ function CanvasContent({
     }, [isReadOnly, redo, undo])
 
     return (
-        <section className="relative h-full min-w-0 flex-1 bg-canvas">
+        <section className="relative min-h-0 min-w-0 flex-1 bg-canvas">
             {isProjectMenuOpen && (
                 <button
                     type="button"
                     aria-label="關閉專案選單"
                     onClick={() => setIsProjectMenuOpen(false)}
+                    className="fixed inset-0 z-[9] cursor-default bg-transparent"
+                />
+            )}
+
+            {isAddNodeMenuOpen && (
+                <button
+                    type="button"
+                    aria-label="關閉新增節點選單"
+                    onClick={() => setIsAddNodeMenuOpen(false)}
                     className="fixed inset-0 z-[9] cursor-default bg-transparent"
                 />
             )}
@@ -333,14 +344,51 @@ function CanvasContent({
                     </span>
                 ) : (
                     <>
-                        <button
-                            type="button"
-                            onClick={addNode}
-                            className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg bg-primary px-2 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-none sm:px-4"
+                        <div
+                            className="relative min-w-0 flex-1 sm:flex-none"
+                            onKeyDown={(event) => {
+                                if (event.key === 'Escape') {
+                                    setIsAddNodeMenuOpen(false)
+                                }
+                            }}
                         >
-                            <span className="sm:hidden">新增</span>
-                            <span className="hidden sm:inline">新增節點</span>
-                        </button>
+                            <button
+                                type="button"
+                                aria-expanded={isAddNodeMenuOpen}
+                                onClick={() =>
+                                    setIsAddNodeMenuOpen((isOpen) => !isOpen)
+                                }
+                                className="min-h-11 w-full cursor-pointer rounded-lg bg-primary px-2 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-4"
+                            >
+                                <span className="sm:hidden">新增</span>
+                                <span className="hidden sm:inline">新增節點</span>
+                            </button>
+
+                            {isAddNodeMenuOpen && (
+                                <div className="absolute left-0 top-full z-10 mt-2 w-40 overflow-hidden rounded-lg border border-border bg-background p-1 shadow-md">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsAddNodeMenuOpen(false)
+                                            addNode()
+                                        }}
+                                        className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                    >
+                                        文字節點
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsAddNodeMenuOpen(false)
+                                            addVideoNode()
+                                        }}
+                                        className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                    >
+                                        影片節點
+                                    </button>
+                                </div>
+                            )}
+                        </div>
 
                         <button
                             type="button"
@@ -600,6 +648,7 @@ function CanvasContent({
             </div>
 
             {!isReadOnly && <NodeEditor />}
+            <VideoPanel isReadOnly={isReadOnly} />
             {!isReadOnly && <EdgeEditor />}
 
             <ReactFlow
@@ -609,9 +658,11 @@ function CanvasContent({
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={isReadOnly ? undefined : onConnect}
-                onNodeDoubleClick={(_, node) =>
-                    setActiveContextNodeId(node.id)
-                }
+                onNodeDoubleClick={(_, node) => {
+                    if (node.type === 'concept') {
+                        setActiveContextNodeId(node.id)
+                    }
+                }}
                 nodesDraggable={!isReadOnly}
                 nodesConnectable={!isReadOnly}
                 edgesReconnectable={!isReadOnly}

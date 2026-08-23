@@ -1,17 +1,8 @@
 import type { CanvasEdge, CanvasNode } from './canvas'
 import type { ChatMessage } from './chat'
 
-export type ProjectMedia = {
-  type: 'video'
-  sourceType: 'url'
-  source: string
-  title?: string
-  durationMs?: number
-}
-
 export type ProjectDocument = {
-  version: 2
-  media?: ProjectMedia
+  version: 3
   nodes: CanvasNode[]
   edges: CanvasEdge[]
   messages: ChatMessage[]

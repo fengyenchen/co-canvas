@@ -1,6 +1,5 @@
 import { useCanvasStore } from '../stores/canvasStore'
 import { useChatStore } from '../stores/chatStore'
-import { useMediaStore } from '../stores/mediaStore'
 import type { ProjectDocument } from '../types/project'
 import {
   createProjectDocument,
@@ -25,13 +24,7 @@ export function backupLocalProject(): boolean {
   try {
     const { nodes, edges } = useCanvasStore.getState()
     const { messages } = useChatStore.getState()
-    const { media } = useMediaStore.getState()
-    const project = createProjectFile(
-      nodes,
-      edges,
-      messages,
-      media ?? undefined,
-    )
+    const project = createProjectFile(nodes, edges, messages)
 
     localStorage.setItem(
       LOCAL_PROJECT_BACKUP_KEY,
@@ -50,14 +43,7 @@ export function getLocalProjectDocument(): ProjectDocument | null {
     if (!activeProjectId || activeProjectId === LOCAL_PROJECT_ID) {
       const { nodes, edges } = useCanvasStore.getState()
       const { messages } = useChatStore.getState()
-      const { media } = useMediaStore.getState()
-
-      return createProjectDocument(
-        nodes,
-        edges,
-        messages,
-        media ?? undefined,
-      )
+      return createProjectDocument(nodes, edges, messages)
     }
 
     const rawProject = localStorage.getItem(LOCAL_PROJECT_BACKUP_KEY)
@@ -72,7 +58,6 @@ export function getLocalProjectDocument(): ProjectDocument | null {
       project.nodes,
       project.edges,
       project.messages,
-      project.media,
     )
   } catch {
     return null
@@ -95,7 +80,6 @@ export function restoreLocalProject(): boolean {
     useChatStore
       .getState()
       .replaceProjectMessages(project.messages)
-    useMediaStore.getState().setMedia(project.media ?? null)
     return true
   } catch {
     return false
