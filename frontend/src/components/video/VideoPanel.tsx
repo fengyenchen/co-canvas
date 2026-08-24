@@ -4,6 +4,7 @@ import type { SyntheticEvent } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import type { CanvasNode, VideoCanvasNode } from '../../types/canvas'
+import { getDropboxVideoUrl } from './dropbox'
 import { VimeoPlayer } from './VimeoPlayer'
 import { getVimeoVideoUrl } from './vimeo'
 import { YouTubePlayer } from './YouTubePlayer'
@@ -32,6 +33,10 @@ function validateVideoUrl(value: string): string | null {
     }
 
     const hostname = url.hostname.toLowerCase().replace(/^www\./, '')
+    if (hostname === 'dropbox.com' && !getDropboxVideoUrl(value)) {
+      return '請貼上 Dropbox 影片檔案的分享連結，資料夾連結無法播放。'
+    }
+
     if (
       (hostname === 'vimeo.com' || hostname === 'player.vimeo.com') &&
       !getVimeoVideoUrl(value)
@@ -73,6 +78,8 @@ function VideoNodeEditor({
       : null
   const youtubeVideoId = getYouTubeVideoId(node.data.source)
   const vimeoVideoUrl = getVimeoVideoUrl(node.data.source)
+  const directVideoUrl =
+    getDropboxVideoUrl(node.data.source) ?? node.data.source
 
   const handleEmbeddedDuration = useCallback((durationMs: number) => {
     updateVideoNode(node.id, { durationMs })
@@ -256,7 +263,7 @@ function VideoNodeEditor({
             key={node.data.source}
             controls
             preload="metadata"
-            src={node.data.source}
+            src={directVideoUrl}
             onLoadedMetadata={handleLoadedMetadata}
             onError={() => setFailedSource(node.data.source)}
             className="block aspect-video max-h-[35dvh] w-full object-contain"
