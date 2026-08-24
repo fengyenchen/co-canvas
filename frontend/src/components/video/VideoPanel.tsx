@@ -1,9 +1,11 @@
 import { Link, Video } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SyntheticEvent } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import type { CanvasNode, VideoCanvasNode } from '../../types/canvas'
+import { YouTubePlayer } from './YouTubePlayer'
+import { getYouTubeVideoId } from './youtube'
 
 type VideoPanelProps = {
   isReadOnly?: boolean
@@ -62,6 +64,15 @@ function VideoNodeEditor({
     videoSeekRequest?.videoNodeId === node.id
       ? videoSeekRequest.timeMs
       : null
+  const youtubeVideoId = getYouTubeVideoId(node.data.source)
+
+  const handleYouTubeDuration = useCallback((durationMs: number) => {
+    updateVideoNode(node.id, { durationMs })
+  }, [node.id, updateVideoNode])
+
+  const handleYouTubeError = useCallback(() => {
+    setFailedSource(node.data.source)
+  }, [node.data.source])
 
   useEffect(() => {
     if (requestedTimeMs === null || !videoRef.current) return
@@ -215,7 +226,17 @@ function VideoNodeEditor({
 
       {node.data.source && (
         <div className="mt-4 overflow-hidden rounded-lg bg-black">
-          <video
+          {youtubeVideoId ? (
+            <YouTubePlayer
+              nodeId={node.id}
+              videoId={youtubeVideoId}
+              requestedTimeMs={requestedTimeMs}
+              requestId={videoSeekRequest?.requestId}
+              onDuration={handleYouTubeDuration}
+              onError={handleYouTubeError}
+            />
+          ) : (
+            <video
             ref={videoRef}
             key={node.data.source}
             controls
@@ -255,6 +276,7 @@ function VideoNodeEditor({
           >
             你的瀏覽器不支援影片播放。
           </video>
+          )}
           {failedSource === node.data.source && (
             <p
               role="alert"
