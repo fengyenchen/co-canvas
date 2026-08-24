@@ -4,7 +4,6 @@ import {
     Controls,
     ReactFlow,
     ReactFlowProvider,
-    useNodesInitialized,
     useReactFlow,
 } from '@xyflow/react'
 import type { NodeTypes } from '@xyflow/react'
@@ -50,9 +49,8 @@ function CanvasContent({
     onManageAiSettings,
 }: CanvasProps) {
     const nodes = useCanvasStore((state) => state.nodes)
-    const nodesInitialized = useNodesInitialized()
-    const { fitView, getNode, setCenter } = useReactFlow()
-    const previousNodeCount = useRef(nodes.length)
+    const { fitView, getNode, screenToFlowPosition, setCenter } = useReactFlow()
+    const canvasSectionRef = useRef<HTMLElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [isSearchOpen, setIsSearchOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
@@ -109,6 +107,19 @@ function CanvasContent({
             .slice(0, 20)
     }, [nodes, searchQuery])
 
+    function getNewNodePosition() {
+        const bounds = canvasSectionRef.current?.getBoundingClientRect()
+        const center = screenToFlowPosition({
+            x: bounds ? bounds.left + bounds.width / 2 : window.innerWidth / 2,
+            y: bounds ? bounds.top + bounds.height / 2 : window.innerHeight / 2,
+        })
+
+        return {
+            x: center.x - 128,
+            y: center.y - 60,
+        }
+    }
+
     async function handleCopyProjectLink() {
         try {
             const projectUrl = new URL(
@@ -161,14 +172,6 @@ function CanvasContent({
         }
 
         autoLayout()
-
-        window.requestAnimationFrame(() => {
-            void fitView({
-                padding: 0.2,
-                duration: 300,
-                maxZoom: 1.2,
-            })
-        })
     }
 
     function handleExportJson() {
@@ -240,25 +243,6 @@ function CanvasContent({
     }
 
     useEffect(() => {
-        if (!nodesInitialized) {
-            return
-        }
-
-        const previousCount = previousNodeCount.current
-        previousNodeCount.current = nodes.length
-
-        if (nodes.length <= previousCount) {
-            return
-        }
-
-        void fitView({
-            padding: 0.2,
-            duration: 300,
-            maxZoom: 1.2,
-        })
-    }, [fitView, nodes.length, nodesInitialized])
-
-    useEffect(() => {
         function handleKeyDown(event: KeyboardEvent) {
             if (isReadOnly) {
                 return
@@ -306,7 +290,10 @@ function CanvasContent({
     }, [isReadOnly, redo, undo])
 
     return (
-        <section className="relative min-h-0 min-w-0 flex-1 bg-canvas">
+        <section
+            ref={canvasSectionRef}
+            className="relative min-h-0 min-w-0 flex-1 bg-canvas"
+        >
             {isProjectMenuOpen && (
                 <button
                     type="button"
@@ -370,7 +357,7 @@ function CanvasContent({
                                         type="button"
                                         onClick={() => {
                                             setIsAddNodeMenuOpen(false)
-                                            addNode()
+                                            addNode(getNewNodePosition())
                                         }}
                                         className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                                     >
@@ -380,7 +367,7 @@ function CanvasContent({
                                         type="button"
                                         onClick={() => {
                                             setIsAddNodeMenuOpen(false)
-                                            addVideoNode()
+                                            addVideoNode(getNewNodePosition())
                                         }}
                                         className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                                     >

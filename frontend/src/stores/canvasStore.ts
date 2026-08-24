@@ -5,6 +5,7 @@ import {
     type Connection,
     type EdgeChange,
     type NodeChange,
+    type XYPosition,
 } from '@xyflow/react'
 import dagre from '@dagrejs/dagre'
 import { create } from 'zustand'
@@ -224,6 +225,35 @@ function findAvailableStartX(
     return baseX + (maxAttempts + 1) * COLUMN_STEP
 }
 
+function findAvailableNodePosition(
+    nodes: CanvasNode[],
+    preferredPosition: XYPosition,
+): XYPosition {
+    const occupiedRects = nodes.map(getNodeRect)
+    const candidates: XYPosition[] = [preferredPosition]
+
+    for (let radius = 1; radius <= nodes.length + 2; radius += 1) {
+        candidates.push(
+            { x: preferredPosition.x + COLUMN_STEP * radius, y: preferredPosition.y },
+            { x: preferredPosition.x - COLUMN_STEP * radius, y: preferredPosition.y },
+            { x: preferredPosition.x, y: preferredPosition.y + VERTICAL_STEP * radius },
+            { x: preferredPosition.x, y: preferredPosition.y - VERTICAL_STEP * radius },
+        )
+    }
+
+    return candidates.find((candidate) => {
+        const candidateRect: NodeRect = {
+            left: candidate.x,
+            top: candidate.y,
+            right: candidate.x + SUGGESTED_NODE_WIDTH,
+            bottom: candidate.y + SUGGESTED_NODE_HEIGHT,
+        }
+        return !occupiedRects.some((occupiedRect) =>
+            rectsOverlap(candidateRect, occupiedRect),
+        )
+    }) ?? preferredPosition
+}
+
 type CanvasState = {
     nodes: CanvasNode[]
     edges: CanvasEdge[]
@@ -243,8 +273,8 @@ type CanvasState = {
         isPlaying: boolean
     } | null
 
-    addNode: () => void
-    addVideoNode: () => string
+    addNode: (position?: XYPosition) => void
+    addVideoNode: (position?: XYPosition) => string
     updateNode: (
         nodeId: string,
         updates: Partial<
@@ -292,15 +322,17 @@ export const useCanvasStore = create<CanvasState>()(
     videoSeekRequest: null,
     videoPlayback: null,
 
-    addNode: () =>
+    addNode: (position) =>
         set((state) => {
+            const nextPosition = findAvailableNodePosition(
+                state.nodes,
+                position ?? { x: 100, y: 100 },
+            )
             const newNode: CanvasNode = {
                 id: crypto.randomUUID(),
                 type: 'concept',
-                position: {
-                    x: 100 + state.nodes.length * 40,
-                    y: 100 + state.nodes.length * 40,
-                },
+                position: nextPosition,
+                selected: true,
                 data: {
                     title: `新節點 ${state.nodes.length + 1}`,
                     content: '',
@@ -309,7 +341,10 @@ export const useCanvasStore = create<CanvasState>()(
             }
 
             return {
-                nodes: [...state.nodes, newNode],
+                nodes: [
+                    ...state.nodes.map((node) => ({ ...node, selected: false })),
+                    newNode,
+                ],
                 past: addToHistory(
                     state.past,
                     createSnapshot(state),
@@ -320,20 +355,21 @@ export const useCanvasStore = create<CanvasState>()(
             }
         }),
 
-    addVideoNode: () => {
+    addVideoNode: (position) => {
         const nodeId = crypto.randomUUID()
 
         set((state) => {
             const videoCount = state.nodes.filter(
                 (node) => node.type === 'video',
             ).length
+            const nextPosition = findAvailableNodePosition(
+                state.nodes,
+                position ?? { x: 100, y: 100 },
+            )
             const newNode: CanvasNode = {
                 id: nodeId,
                 type: 'video',
-                position: {
-                    x: 100 + videoCount * 320,
-                    y: 100,
-                },
+                position: nextPosition,
                 selected: true,
                 data: {
                     title: `新影片 ${videoCount + 1}`,
