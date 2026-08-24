@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { motion, MotionConfig, type HTMLMotionProps } from 'motion/react'
+import { Film, Link2, Play } from 'lucide-react'
 import { Link, Navigate } from 'react-router'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 
@@ -84,16 +85,16 @@ export function LandingPage() {
             核心功能
           </a>
           <a
-            href="#comparison"
+            href="#video-context"
             className="hidden min-h-11 cursor-pointer items-center justify-center rounded-lg px-4 text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 md:inline-flex"
           >
-            介面比較
+            影片脈絡
           </a>
           <a
-            href="#use-cases"
+            href="#comparison"
             className="hidden min-h-11 cursor-pointer items-center justify-center rounded-lg px-4 text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:inline-flex"
           >
-            適用情境
+            介面比較
           </a>
           <Link
             to="/auth/sign-in?returnTo=%2Fprojects"
@@ -310,9 +311,140 @@ export function LandingPage() {
         </section>
 
         <section
+          id="video-context"
+          aria-labelledby="video-context-title"
+          className="scroll-mt-6 border-t border-border bg-canvas/55"
+        >
+          <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-[minmax(0,0.82fr)_minmax(28rem,1.18fr)]">
+            <Reveal className="max-w-xl">
+              <p className="text-sm font-semibold tracking-[0.16em] text-primary">
+                影片脈絡
+              </p>
+              <h2
+                id="video-context-title"
+                className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl"
+              >
+                讓影片成為畫布的一部分
+              </h2>
+              <p className="mt-5 text-base leading-8 text-foreground/60">
+                影片不是固定在頁面上方的附件，而是能移動、連線與整理的節點。把重要片段連到文字節點，讓觀看過程留下可回顧的結構。
+              </p>
+
+              <ul className="mt-8 space-y-5">
+                <li className="flex gap-4">
+                  <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Film aria-hidden="true" className="size-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-semibold">一張畫布，多個影片節點</h3>
+                    <p className="mt-1 text-sm leading-6 text-foreground/60">
+                      每支影片都能各自命名、補充內容，並和相關概念建立連線。
+                    </p>
+                  </div>
+                </li>
+                <li className="flex gap-4">
+                  <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Link2 aria-hidden="true" className="size-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-semibold">用時間區間標記片段</h3>
+                    <p className="mt-1 text-sm leading-6 text-foreground/60">
+                      支援時間定位的影片來源，可以將開始與結束時間附加到文字節點，點一下就回到對應片段。
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </Reveal>
+
+            <Reveal
+              delay={0.08}
+              aria-label="影片節點連接片段筆記的示意圖"
+              className="rounded-3xl border border-border bg-background p-5 shadow-xl shadow-foreground/5 sm:p-7"
+            >
+              <div className="rounded-2xl border border-border bg-canvas/55 p-4 sm:p-5">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Film aria-hidden="true" className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">研究訪談紀錄</p>
+                    <p className="mt-0.5 text-xs text-foreground/50">影片節點</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-hidden rounded-xl bg-foreground px-4 py-5 text-background">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex size-10 items-center justify-center rounded-full bg-background text-foreground">
+                      <Play aria-hidden="true" className="ml-0.5 size-4 fill-current" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-background/25">
+                        <div className="h-full w-[38%] rounded-full bg-background" />
+                      </div>
+                      <div className="mt-2 flex justify-between text-[0.65rem] text-background/65">
+                        <span>03:12</span>
+                        <span>12:40</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div aria-hidden="true" className="mx-auto h-8 w-px bg-foreground/20" />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  ['研究動機', '03:12–04:05'],
+                  ['關鍵發現', '07:28–08:16'],
+                ].map(([title, time]) => (
+                  <div
+                    key={title}
+                    className="rounded-2xl border border-border bg-background p-4 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold">{title}</p>
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-[0.65rem] font-medium text-primary">
+                        {time}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-foreground/55">
+                      將片段重點整理成可以延伸與連接的文字節點。
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 border-t border-border pt-5">
+                <p className="text-xs font-medium text-foreground/50">
+                  支援的影片來源
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[
+                    'YouTube',
+                    'Vimeo',
+                    'Bilibili',
+                    'Dropbox',
+                  ].map((provider) => (
+                    <span
+                      key={provider}
+                      className="rounded-full border border-border bg-canvas/55 px-3 py-1.5 text-xs text-foreground/65"
+                    >
+                      {provider}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs leading-5 text-foreground/45">
+                  播放與時間定位能力依各平台官方播放器而異。
+                </p>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        <section
           id="comparison"
           aria-labelledby="comparison-title"
-          className="scroll-mt-6 border-t border-border bg-canvas/55"
+          className="scroll-mt-6 border-t border-border bg-background"
         >
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
             <Reveal className="max-w-2xl">
