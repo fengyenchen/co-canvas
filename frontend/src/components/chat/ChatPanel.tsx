@@ -14,6 +14,7 @@ import type { AiFallbackReason } from '../../types/ai'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import { formatLatency } from '../../utils/formatLatency'
+import { createAiContextNode } from '../../utils/aiContext'
 import { measureRequest } from '../../utils/measureRequest'
 import { SuggestionPreview } from './SuggestionPreview'
 
@@ -293,17 +294,9 @@ export function ChatPanel({
       sendChatMessage({
         projectId,
         prompt: content,
-        selectedNode: {
-          id: contextNode.id,
-          title: contextNode.data.title,
-          content: contextNode.data.content,
-        },
+        selectedNode: createAiContextNode(contextNode, nodes, edges),
         neighborNodes: selectedContextNeighborNodes
-          .map((node) => ({
-            id: node.id,
-            title: node.data.title,
-            content: node.data.content,
-          })),
+          .map((node) => createAiContextNode(node, nodes, edges)),
         history: visibleMessages
           .filter((message) => !excludedMessageIds.includes(message.id))
           .slice(-30)
@@ -367,17 +360,9 @@ export function ChatPanel({
       generateSuggestion({
         projectId,
         prompt: `請將以下內容整理成適合畫布的節點：\n\n${sourceContent}`,
-        selectedNode: {
-          id: contextNode.id,
-          title: contextNode.data.title,
-          content: contextNode.data.content,
-        },
+        selectedNode: createAiContextNode(contextNode, nodes, edges),
         neighborNodes: selectedContextNeighborNodes
-          .map((node) => ({
-            id: node.id,
-            title: node.data.title,
-            content: node.data.content,
-          })),
+          .map((node) => createAiContextNode(node, nodes, edges)),
       }),
     )
 

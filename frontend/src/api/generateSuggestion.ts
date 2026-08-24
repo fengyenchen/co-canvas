@@ -1,18 +1,13 @@
 import { z } from 'zod'
 import type { AiFallbackReason, AiMode } from '../types/ai'
+import type { AiContextNode } from '../types/aiContext'
 import type { AiSuggestion } from '../types/suggestion'
 import { throwApiRequestError } from './errors'
 
-type ContextNode = {
-  id: string
-  title: string
-  content: string
-}
-
 type GenerateSuggestionInput = {
   prompt: string
-  selectedNode: ContextNode
-  neighborNodes: ContextNode[]
+  selectedNode: AiContextNode
+  neighborNodes: AiContextNode[]
   projectId?: string
 }
 

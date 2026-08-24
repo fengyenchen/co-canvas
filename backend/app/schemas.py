@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 def to_camel(value: str) -> str:
@@ -16,10 +16,34 @@ class ApiModel(BaseModel):
     )
 
 
+class LinkedVideoContext(ApiModel):
+    id: str
+    title: str = Field(min_length=1, max_length=120)
+    provider: str = Field(min_length=1, max_length=40)
+    duration_ms: int | None = Field(default=None, ge=0)
+
+
 class ContextNode(ApiModel):
     id: str
     title: str = Field(min_length=1, max_length=120)
     content: str = Field(default="", max_length=2000)
+    node_type: Literal["concept", "video"] = "concept"
+    start_time_ms: int | None = Field(default=None, ge=0)
+    end_time_ms: int | None = Field(default=None, ge=0)
+    video_provider: str | None = Field(default=None, max_length=40)
+    video_duration_ms: int | None = Field(default=None, ge=0)
+    linked_video: LinkedVideoContext | None = None
+
+    @model_validator(mode="after")
+    def validate_time_range(self):
+        has_start = self.start_time_ms is not None
+        has_end = self.end_time_ms is not None
+
+        if has_start != has_end:
+            raise ValueError("startTimeMs and endTimeMs must be set together")
+        if has_start and self.end_time_ms <= self.start_time_ms:
+            raise ValueError("endTimeMs must be greater than startTimeMs")
+        return self
 
 
 class GenerateSuggestionRequest(ApiModel):

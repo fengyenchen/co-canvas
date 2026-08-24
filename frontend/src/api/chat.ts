@@ -1,13 +1,8 @@
 import { z } from 'zod'
 import type { AiFallbackReason, AiMode } from '../types/ai'
+import type { AiContextNode } from '../types/aiContext'
 import type { ChatRole } from '../types/chat'
 import { throwApiRequestError } from './errors'
-
-type ContextNode = {
-  id: string
-  title: string
-  content: string
-}
 
 type ChatHistoryMessage = {
   role: ChatRole
@@ -16,8 +11,8 @@ type ChatHistoryMessage = {
 
 type ChatInput = {
   prompt: string
-  selectedNode: ContextNode
-  neighborNodes: ContextNode[]
+  selectedNode: AiContextNode
+  neighborNodes: AiContextNode[]
   history: ChatHistoryMessage[]
   projectId?: string
 }

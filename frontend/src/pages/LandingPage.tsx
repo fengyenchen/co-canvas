@@ -424,6 +424,7 @@ export function LandingPage() {
                     'Vimeo',
                     'Bilibili',
                     'Dropbox',
+                    'MP4 直接連結',
                   ].map((provider) => (
                     <span
                       key={provider}
