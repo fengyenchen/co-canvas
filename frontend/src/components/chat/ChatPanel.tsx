@@ -30,6 +30,19 @@ function formatClipTime(timeMs: number): string {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`
 }
 
+function canGeminiReadVideoSource(provider: string, source: string): boolean {
+  if (provider === 'YouTube') return true
+
+  try {
+    const url = new URL(source)
+    const pathname = url.pathname.toLowerCase()
+    return (pathname.endsWith('.mp4') || pathname.endsWith('.mov')) &&
+      (provider === 'Dropbox' || provider === '直接影片網址')
+  } catch {
+    return false
+  }
+}
+
 export function ChatPanel({
   mobileHeightPercent,
   isReadOnly = false,
@@ -601,9 +614,12 @@ export function ChatPanel({
                 {formatClipTime(attachedVideoClip.startTimeMs)}–
                 {formatClipTime(attachedVideoClip.endTimeMs)}
               </div>
-              {attachedVideoClip.video.provider !== 'YouTube' && (
+              {!canGeminiReadVideoSource(
+                attachedVideoClip.video.provider,
+                attachedVideoClip.video.source,
+              ) && (
                 <div className="mt-1 text-xs leading-5 text-foreground/55">
-                  目前只有 YouTube 片段能直接提供給 Gemini 觀看。
+                  目前只有 YouTube、Dropbox MP4／MOV 與公開 MP4／MOV 片段能提供給 Gemini 觀看。
                 </div>
               )}
             </div>

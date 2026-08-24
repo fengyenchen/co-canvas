@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { motion, MotionConfig, type HTMLMotionProps } from 'motion/react'
-import { Film, Link2, MessageSquareText, Play } from 'lucide-react'
+import { CloudUpload, Film, Link2, MessageSquareText, Play } from 'lucide-react'
 import { Link, Navigate } from 'react-router'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 
@@ -360,7 +360,18 @@ export function LandingPage() {
                   <div>
                     <h3 className="font-semibold">直接和選取片段對話</h3>
                     <p className="mt-1 text-sm leading-6 text-foreground/60">
-                      從片段文字節點進入對話，Gemini 會讀取所選的 YouTube 時間區間，依實際影音內容回答。
+                      從片段文字節點進入對話，Gemini 會讀取所選的 YouTube、Dropbox MP4／MOV 或公開 MP4／MOV 時間區間，依實際影音內容回答。
+                    </p>
+                  </div>
+                </li>
+                <li className="flex gap-4">
+                  <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <CloudUpload aria-hidden="true" className="size-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-semibold">安全處理大型影片</h3>
+                    <p className="mt-1 text-sm leading-6 text-foreground/60">
+                      Dropbox 與公開 MP4／MOV 最高支援 450 MB；暫存影片上傳後立即刪除，Gemini 檔案也會在回覆完成後移除。
                     </p>
                   </div>
                 </li>
@@ -426,27 +437,42 @@ export function LandingPage() {
               </div>
 
               <div className="mt-6 border-t border-border pt-5">
-                <p className="text-xs font-medium text-foreground/50">
-                  支援的影片來源
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {[
-                    'YouTube',
-                    'Vimeo',
-                    'Bilibili',
-                    'Dropbox',
-                    'MP4 直接連結',
-                  ].map((provider) => (
-                    <span
-                      key={provider}
-                      className="rounded-full border border-border bg-canvas/55 px-3 py-1.5 text-xs text-foreground/65"
-                    >
-                      {provider}
-                    </span>
-                  ))}
+                <div>
+                  <p className="text-xs font-medium text-foreground/50">
+                    AI 可分析
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {[
+                      'YouTube',
+                      'Dropbox MP4／MOV',
+                      '公開 MP4／MOV',
+                    ].map((provider) => (
+                      <span
+                        key={provider}
+                        className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs text-primary"
+                      >
+                        {provider}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-xs font-medium text-foreground/50">
+                    播放與片段定位
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {['Vimeo', 'Bilibili'].map((provider) => (
+                      <span
+                        key={provider}
+                        className="rounded-full border border-border bg-canvas/55 px-3 py-1.5 text-xs text-foreground/65"
+                      >
+                        {provider}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 <p className="mt-3 text-xs leading-5 text-foreground/45">
-                  播放與時間定位能力依各平台官方播放器而異。
+                  大型影片首次分析可能需要數分鐘；播放與時間定位能力依各平台官方播放器而異。
                 </p>
               </div>
             </Reveal>

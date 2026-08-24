@@ -1,3 +1,5 @@
+import asyncio
+
 from google import genai
 from google.genai import types
 from pydantic import ValidationError
@@ -9,6 +11,14 @@ from app.schemas import (
     GenerateSuggestionResponse,
 )
 from app.settings import get_settings
+from app.services.video_source import (
+    VideoSourceError,
+    download_video_file,
+    get_supported_video_mime_type,
+    get_video_source_error,
+    normalize_downloadable_video_url,
+    remove_temporary_video,
+)
 
 
 SYSTEM_INSTRUCTION = """
@@ -76,7 +86,11 @@ def load_settings(api_key: str | None = None):
     return settings, resolved_api_key
 
 
-def build_chat_parts(request: ChatRequest, history: str) -> list[types.Part]:
+def build_chat_parts(
+    request: ChatRequest,
+    history: str,
+    uploaded_video_part: types.Part | None = None,
+) -> list[types.Part]:
     selected_node = request.selected_node
     linked_video = selected_node.linked_video if selected_node else None
     has_video_clip = bool(
@@ -92,7 +106,9 @@ def build_chat_parts(request: ChatRequest, history: str) -> list[types.Part]:
     )
     parts: list[types.Part] = []
 
-    if has_video_clip and selected_node and linked_video:
+    if uploaded_video_part is not None:
+        parts.append(uploaded_video_part)
+    elif has_video_clip and selected_node and linked_video:
         parts.append(
             types.Part(
                 file_data=types.FileData(file_uri=linked_video.source),
@@ -118,6 +134,86 @@ def build_chat_parts(request: ChatRequest, history: str) -> list[types.Part]:
     return parts
 
 
+async def upload_chat_video_clip(
+    client,
+    request: ChatRequest,
+) -> tuple[types.Part | None, str | None]:
+    selected_node = request.selected_node
+    linked_video = selected_node.linked_video if selected_node else None
+
+    if (
+        not selected_node
+        or selected_node.start_time_ms is None
+        or selected_node.end_time_ms is None
+        or not linked_video
+        or not linked_video.source
+    ):
+        return None, None
+
+    downloadable_url = normalize_downloadable_video_url(linked_video.source)
+    if downloadable_url is None:
+        source_error = get_video_source_error(
+            linked_video.source,
+            linked_video.provider,
+        )
+        if source_error:
+            raise VideoSourceError(source_error)
+        return None, None
+
+    temporary_path = await download_video_file(linked_video.source)
+    uploaded_file = None
+    video_mime_type = (
+        get_supported_video_mime_type(linked_video.source) or "video/mp4"
+    )
+
+    try:
+        uploaded_file = await client.files.upload(
+            file=temporary_path,
+            config=types.UploadFileConfig(
+                mime_type=video_mime_type,
+                display_name=linked_video.title,
+            ),
+        )
+    finally:
+        remove_temporary_video(temporary_path)
+
+    try:
+        if not uploaded_file.name:
+            raise VideoSourceError("Gemini 未回傳影片檔案識別碼")
+
+        for _ in range(60):
+            state_name = uploaded_file.state.name if uploaded_file.state else None
+            if state_name == "ACTIVE":
+                break
+            if state_name == "FAILED":
+                raise VideoSourceError("Gemini 無法處理這個影片檔案")
+            await asyncio.sleep(2)
+            uploaded_file = await client.files.get(name=uploaded_file.name)
+        else:
+            raise VideoSourceError("等待 Gemini 處理影片逾時")
+
+        if not uploaded_file.uri:
+            raise VideoSourceError("Gemini 未回傳影片檔案網址")
+
+        return (
+            types.Part(
+                file_data=types.FileData(
+                    file_uri=uploaded_file.uri,
+                    mime_type=uploaded_file.mime_type or video_mime_type,
+                ),
+                video_metadata=types.VideoMetadata(
+                    start_offset=f"{selected_node.start_time_ms / 1000}s",
+                    end_offset=f"{selected_node.end_time_ms / 1000}s",
+                ),
+            ),
+            uploaded_file.name,
+        )
+    except Exception:
+        if uploaded_file and uploaded_file.name:
+            await client.files.delete(name=uploaded_file.name)
+        raise
+
+
 async def chat_with_gemini(
     request: ChatRequest,
     api_key: str | None = None,
@@ -128,16 +224,35 @@ async def chat_with_gemini(
         for message in request.history
     ) or "（尚無先前對話）"
 
+    uploaded_file_name: str | None = None
+
     async with genai.Client(
         api_key=resolved_api_key,
     ).aio as client:
-        response = await client.models.generate_content(
-            model=settings.gemini_model,
-            contents=types.Content(parts=build_chat_parts(request, history)),
-            config=types.GenerateContentConfig(
-                system_instruction=CHAT_SYSTEM_INSTRUCTION,
-            ),
-        )
+        try:
+            uploaded_video_part, uploaded_file_name = await upload_chat_video_clip(
+                client,
+                request,
+            )
+            response = await client.models.generate_content(
+                model=settings.gemini_model,
+                contents=types.Content(
+                    parts=build_chat_parts(
+                        request,
+                        history,
+                        uploaded_video_part,
+                    )
+                ),
+                config=types.GenerateContentConfig(
+                    system_instruction=CHAT_SYSTEM_INSTRUCTION,
+                ),
+            )
+        finally:
+            if uploaded_file_name:
+                try:
+                    await client.files.delete(name=uploaded_file_name)
+                except Exception:
+                    pass
 
     if not response.text:
         raise RuntimeError("Gemini did not return a chat response")

@@ -35,6 +35,7 @@ from app.services.ai_credentials import (
     AiCredentialEncryptionError,
     get_api_key_cipher,
 )
+from app.services.video_source import VideoSourceError, supports_chat_video_source
 from app.settings import get_settings
 
 
@@ -127,6 +128,11 @@ async def run_gemini(
         raise HTTPException(
             status_code=504,
             detail="Gemini 回應逾時",
+        ) from error
+    except VideoSourceError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=str(error),
         ) from error
     except APIError as error:
         logger.warning("Gemini API error: %s", error.code)
@@ -279,16 +285,13 @@ async def chat(
         chat_with_gemini(request, runtime.api_key),
         fallback=lambda: chat_with_mock(request),
         timeout_seconds=(
-            90
+            280
             if request.selected_node
             and request.selected_node.start_time_ms is not None
             and request.selected_node.linked_video
             and request.selected_node.linked_video.source
-            and (
-                "youtube.com/"
-                in request.selected_node.linked_video.source.lower()
-                or "youtu.be/"
-                in request.selected_node.linked_video.source.lower()
+            and supports_chat_video_source(
+                request.selected_node.linked_video.source
             )
             else 30
         ),
