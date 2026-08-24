@@ -3,6 +3,7 @@ import type { NodeProps } from '@xyflow/react'
 import { Play } from 'lucide-react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import type { ConceptCanvasNode } from '../../types/canvas'
+import { formatMediaTime } from '../../utils/mediaTime'
 
 const handleClassName =
     'h-2.5! w-2.5! border-2! border-background! bg-primary!'
@@ -55,7 +56,7 @@ export function ConceptNode({
             {hasTimeRange && linkedVideoNodeId && (
                 <button
                     type="button"
-                    aria-label={`從 ${data.startTimeMs! / 1000} 秒播放影片`}
+                    aria-label={`從 ${formatMediaTime(data.startTimeMs!)}播放影片`}
                     onClick={(event) => {
                         event.stopPropagation()
                         requestVideoSeek(linkedVideoNodeId, data.startTimeMs!)
@@ -63,7 +64,8 @@ export function ConceptNode({
                     className="nodrag nopan mt-3 flex min-h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary/8 px-3 text-xs font-medium text-primary transition hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 >
                     <Play aria-hidden="true" className="size-3.5 fill-current" />
-                    {data.startTimeMs! / 1000}–{data.endTimeMs! / 1000} 秒
+                    {formatMediaTime(data.startTimeMs!, data.endTimeMs)}–
+                    {formatMediaTime(data.endTimeMs!, data.endTimeMs)}
                 </button>
             )}
 

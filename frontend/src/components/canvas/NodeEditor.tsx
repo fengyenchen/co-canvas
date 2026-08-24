@@ -2,18 +2,13 @@ import { useState } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import type { ConceptCanvasNode, VideoCanvasNode } from '../../types/canvas'
-
-function millisecondsToSeconds(value?: number): string {
-    return value === undefined ? '' : String(value / 1000)
-}
-
-function formatDuration(durationMs?: number): string | null {
-    if (durationMs === undefined) return null
-    const totalSeconds = Math.round(durationMs / 1000)
-    const minutes = Math.floor(totalSeconds / 60)
-    const seconds = totalSeconds % 60
-    return `${minutes}:${String(seconds).padStart(2, '0')}`
-}
+import {
+    formatMediaTime,
+    formatMediaTimeInput,
+    getMediaTimeInputLabel,
+    getMediaTimePlaceholder,
+    parseMediaTimeInput,
+} from '../../utils/mediaTime'
 
 function ConceptNodeEditor({
     selectedNode,
@@ -34,23 +29,38 @@ function ConceptNodeEditor({
     const setActiveContextNodeId = useChatStore(
         (state) => state.setActiveContextNodeId,
     )
+    const selectedVideo = linkedVideoNodes.length === 1
+        ? linkedVideoNodes[0]
+        : undefined
+    const selectedVideoDuration = selectedVideo?.data.durationMs
+    const storedWholeVideoRange =
+        selectedVideoDuration !== undefined &&
+        selectedNode.data.startTimeMs === 0 &&
+        selectedNode.data.endTimeMs === selectedVideoDuration
     const [draftStartSeconds, setDraftStartSeconds] = useState(
-        millisecondsToSeconds(selectedNode.data.startTimeMs),
+        formatMediaTimeInput(
+            selectedNode.data.startTimeMs,
+            linkedVideoNodes.length === 1
+                ? linkedVideoNodes[0].data.durationMs
+                : undefined,
+        ),
     )
     const [draftEndSeconds, setDraftEndSeconds] = useState(
-        millisecondsToSeconds(selectedNode.data.endTimeMs),
+        formatMediaTimeInput(
+            selectedNode.data.endTimeMs,
+            linkedVideoNodes.length === 1
+                ? linkedVideoNodes[0].data.durationMs
+                : undefined,
+        ),
     )
     const [bindingError, setBindingError] = useState<string | null>(null)
     const [isPropertyMenuOpen, setIsPropertyMenuOpen] = useState(false)
     const [isVideoBindingEditorOpen, setIsVideoBindingEditorOpen] =
         useState(false)
-    const isActiveContext = activeContextNodeId === selectedNode.id
-    const selectedVideo = linkedVideoNodes.length === 1
-        ? linkedVideoNodes[0]
-        : undefined
-    const selectedVideoDuration = formatDuration(
-        selectedVideo?.data.durationMs,
+    const [timeRangeMode, setTimeRangeMode] = useState<'all' | 'custom'>(
+        storedWholeVideoRange ? 'all' : 'custom',
     )
+    const isActiveContext = activeContextNodeId === selectedNode.id
     const hasTimeRange =
         selectedNode.data.startTimeMs !== undefined &&
         selectedNode.data.endTimeMs !== undefined
@@ -82,16 +92,14 @@ function ConceptNodeEditor({
             return
         }
 
-        const startSeconds = Number(draftStartSeconds)
-        const endSeconds = Number(draftEndSeconds)
+        const startSeconds = parseMediaTimeInput(draftStartSeconds)
+        const endSeconds = parseMediaTimeInput(draftEndSeconds)
 
         if (
-            !Number.isFinite(startSeconds) ||
-            !Number.isFinite(endSeconds) ||
-            startSeconds < 0 ||
-            endSeconds < 0
+            startSeconds === null ||
+            endSeconds === null
         ) {
-            setBindingError('時間必須是大於或等於 0 的數字。')
+            setBindingError('請依欄位提示輸入有效的時間。')
             return
         }
 
@@ -116,6 +124,7 @@ function ConceptNodeEditor({
             endTimeMs,
         })
         setBindingError(null)
+        setTimeRangeMode('custom')
         setIsVideoBindingEditorOpen(false)
     }
 
@@ -127,15 +136,22 @@ function ConceptNodeEditor({
         setDraftStartSeconds('')
         setDraftEndSeconds('')
         setBindingError(null)
+        setTimeRangeMode(storedWholeVideoRange ? 'all' : 'custom')
         setIsVideoBindingEditorOpen(false)
     }
 
     function closeVideoBindingEditor() {
         setDraftStartSeconds(
-            millisecondsToSeconds(selectedNode.data.startTimeMs),
+            formatMediaTimeInput(
+                selectedNode.data.startTimeMs,
+                selectedVideo?.data.durationMs,
+            ),
         )
         setDraftEndSeconds(
-            millisecondsToSeconds(selectedNode.data.endTimeMs),
+            formatMediaTimeInput(
+                selectedNode.data.endTimeMs,
+                selectedVideo?.data.durationMs,
+            ),
         )
         setBindingError(null)
         setIsVideoBindingEditorOpen(false)
@@ -225,8 +241,18 @@ function ConceptNodeEditor({
                             </span>
                             <span className="mt-1 block text-xs text-foreground/55">
                                 {selectedVideo?.data.title ?? '尚未連接影片'} ·{' '}
-                                {(selectedNode.data.startTimeMs ?? 0) / 1000}–
-                                {(selectedNode.data.endTimeMs ?? 0) / 1000} 秒
+                                {storedWholeVideoRange
+                                    ? '全部影片'
+                                    : <>
+                                        {formatMediaTime(
+                                            selectedNode.data.startTimeMs ?? 0,
+                                            selectedVideo?.data.durationMs,
+                                        )}–
+                                        {formatMediaTime(
+                                            selectedNode.data.endTimeMs ?? 0,
+                                            selectedVideo?.data.durationMs,
+                                        )}
+                                    </>}
                             </span>
                         </button>
                     )}
@@ -262,23 +288,62 @@ function ConceptNodeEditor({
 
                         {selectedVideoDuration && (
                             <p className="mt-2 text-xs text-foreground/55">
-                                影片長度：{selectedVideoDuration}
+                                影片長度：{formatMediaTime(
+                                    selectedVideoDuration,
+                                    selectedVideoDuration,
+                                )}
+                            </p>
+                        )}
+
+                        <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="影片時間範圍">
+                            <button
+                                type="button"
+                                disabled={!selectedVideoDuration}
+                                onClick={() => {
+                                    setDraftStartSeconds(formatMediaTimeInput(0, selectedVideoDuration))
+                                    setDraftEndSeconds(formatMediaTimeInput(selectedVideoDuration, selectedVideoDuration))
+                                    setTimeRangeMode('all')
+                                    setBindingError(null)
+                                }}
+                                className={`min-h-11 cursor-pointer rounded-lg border px-3 text-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${timeRangeMode === 'all'
+                                    ? 'border-primary/25 bg-primary/5 text-primary'
+                                    : 'border-border text-foreground hover:border-primary/30 hover:bg-primary/5'}`}
+                            >
+                                全部
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setTimeRangeMode('custom')
+                                    setBindingError(null)
+                                }}
+                                className={`min-h-11 cursor-pointer rounded-lg border px-3 text-sm transition ${timeRangeMode === 'custom'
+                                    ? 'border-primary/25 bg-primary/5 text-primary'
+                                    : 'border-border text-foreground hover:border-primary/30 hover:bg-primary/5'}`}
+                            >
+                                自訂區間
+                            </button>
+                        </div>
+
+                        {!selectedVideoDuration && (
+                            <p className="mt-2 text-xs leading-5 text-foreground/50">
+                                播放器取得影片總長度後，即可選擇全部影片。
                             </p>
                         )}
 
                         <div className="mt-3 grid grid-cols-2 gap-2">
                             <label>
                                 <span className="mb-1 block text-xs text-foreground/70">
-                                    開始（秒）
+                                    {getMediaTimeInputLabel('開始', selectedVideoDuration)}
                                 </span>
                                 <input
-                                    type="number"
-                                    min="0"
-                                    step="0.1"
+                                    type="text"
                                     inputMode="decimal"
+                                    placeholder={getMediaTimePlaceholder(selectedVideoDuration)}
                                     value={draftStartSeconds}
                                     onChange={(event) => {
                                         setDraftStartSeconds(event.target.value)
+                                        setTimeRangeMode('custom')
                                         setBindingError(null)
                                     }}
                                     className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
@@ -286,16 +351,16 @@ function ConceptNodeEditor({
                             </label>
                             <label>
                                 <span className="mb-1 block text-xs text-foreground/70">
-                                    結束（秒）
+                                    {getMediaTimeInputLabel('結束', selectedVideoDuration)}
                                 </span>
                                 <input
-                                    type="number"
-                                    min="0"
-                                    step="0.1"
+                                    type="text"
                                     inputMode="decimal"
+                                    placeholder={getMediaTimePlaceholder(selectedVideoDuration)}
                                     value={draftEndSeconds}
                                     onChange={(event) => {
                                         setDraftEndSeconds(event.target.value)
+                                        setTimeRangeMode('custom')
                                         setBindingError(null)
                                     }}
                                     className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"

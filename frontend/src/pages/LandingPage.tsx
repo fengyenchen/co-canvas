@@ -349,7 +349,7 @@ export function LandingPage() {
                   <div>
                     <h3 className="font-semibold">用時間區間標記片段</h3>
                     <p className="mt-1 text-sm leading-6 text-foreground/60">
-                      支援時間定位的影片來源，可以將開始與結束時間附加到文字節點，點一下就回到對應片段。
+                      可選擇全部影片或自訂開始與結束時間；欄位會依片長切換秒、分:秒或時:分:秒，點一下即可回到對應片段。
                     </p>
                   </div>
                 </li>
@@ -371,7 +371,7 @@ export function LandingPage() {
                   <div>
                     <h3 className="font-semibold">安全處理大型影片</h3>
                     <p className="mt-1 text-sm leading-6 text-foreground/60">
-                      Dropbox 與公開 MP4／MOV 最高支援 450 MB；暫存影片上傳後立即刪除，Gemini 檔案也會在回覆完成後移除。
+                      Dropbox 與公開 MP4／MOV 最高支援 450 MB；後端下載檔上傳後立即刪除，Gemini 檔案會安全快取約 47 小時供後續對話重用。
                     </p>
                   </div>
                 </li>
@@ -472,7 +472,7 @@ export function LandingPage() {
                   </div>
                 </div>
                 <p className="mt-3 text-xs leading-5 text-foreground/45">
-                  大型影片首次分析可能需要數分鐘；播放與時間定位能力依各平台官方播放器而異。
+                  大型影片只有首次分析需要下載與上傳，後續對話會重用有效快取；播放與時間定位能力依各平台官方播放器而異。
                 </p>
               </div>
             </Reveal>

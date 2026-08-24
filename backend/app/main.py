@@ -282,7 +282,7 @@ async def chat(
         )
 
     response, fallback_reason = await run_gemini(
-        chat_with_gemini(request, runtime.api_key),
+        chat_with_gemini(request, runtime.api_key, session),
         fallback=lambda: chat_with_mock(request),
         timeout_seconds=(
             280

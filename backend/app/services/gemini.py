@@ -2,7 +2,9 @@ import asyncio
 
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas import (
     ChatRequest,
@@ -11,6 +13,11 @@ from app.schemas import (
     GenerateSuggestionResponse,
 )
 from app.settings import get_settings
+from app.services.video_cache import (
+    get_cached_video,
+    remove_cached_video,
+    store_cached_video,
+)
 from app.services.video_source import (
     VideoSourceError,
     download_video_file,
@@ -137,7 +144,9 @@ def build_chat_parts(
 async def upload_chat_video_clip(
     client,
     request: ChatRequest,
-) -> tuple[types.Part | None, str | None]:
+    api_key: str,
+    session: AsyncSession,
+) -> types.Part | None:
     selected_node = request.selected_node
     linked_video = selected_node.linked_video if selected_node else None
 
@@ -148,7 +157,7 @@ async def upload_chat_video_clip(
         or not linked_video
         or not linked_video.source
     ):
-        return None, None
+        return None
 
     downloadable_url = normalize_downloadable_video_url(linked_video.source)
     if downloadable_url is None:
@@ -158,7 +167,36 @@ async def upload_chat_video_clip(
         )
         if source_error:
             raise VideoSourceError(source_error)
-        return None, None
+        return None
+
+    cached_video = await get_cached_video(
+        session,
+        api_key,
+        linked_video.source,
+    )
+    if cached_video is not None:
+        try:
+            cached_file = await client.files.get(name=cached_video.file_name)
+        except APIError as error:
+            if error.code != 404:
+                raise
+            await remove_cached_video(session, cached_video)
+        else:
+            state_name = cached_file.state.name if cached_file.state else None
+            if state_name == "ACTIVE" and (cached_file.uri or cached_video.file_uri):
+                return types.Part(
+                    file_data=types.FileData(
+                        file_uri=cached_file.uri or cached_video.file_uri,
+                        mime_type=(
+                            cached_file.mime_type or cached_video.mime_type
+                        ),
+                    ),
+                    video_metadata=types.VideoMetadata(
+                        start_offset=f"{selected_node.start_time_ms / 1000}s",
+                        end_offset=f"{selected_node.end_time_ms / 1000}s",
+                    ),
+                )
+            await remove_cached_video(session, cached_video)
 
     temporary_path = await download_video_file(linked_video.source)
     uploaded_file = None
@@ -195,18 +233,25 @@ async def upload_chat_video_clip(
         if not uploaded_file.uri:
             raise VideoSourceError("Gemini 未回傳影片檔案網址")
 
-        return (
-            types.Part(
-                file_data=types.FileData(
-                    file_uri=uploaded_file.uri,
-                    mime_type=uploaded_file.mime_type or video_mime_type,
-                ),
-                video_metadata=types.VideoMetadata(
-                    start_offset=f"{selected_node.start_time_ms / 1000}s",
-                    end_offset=f"{selected_node.end_time_ms / 1000}s",
-                ),
-            ),
+        uploaded_mime_type = uploaded_file.mime_type or video_mime_type
+        await store_cached_video(
+            session,
+            api_key,
+            linked_video.source,
             uploaded_file.name,
+            uploaded_file.uri,
+            uploaded_mime_type,
+        )
+
+        return types.Part(
+            file_data=types.FileData(
+                file_uri=uploaded_file.uri,
+                mime_type=uploaded_mime_type,
+            ),
+            video_metadata=types.VideoMetadata(
+                start_offset=f"{selected_node.start_time_ms / 1000}s",
+                end_offset=f"{selected_node.end_time_ms / 1000}s",
+            ),
         )
     except Exception:
         if uploaded_file and uploaded_file.name:
@@ -217,42 +262,38 @@ async def upload_chat_video_clip(
 async def chat_with_gemini(
     request: ChatRequest,
     api_key: str | None = None,
+    session: AsyncSession | None = None,
 ) -> ChatResponse:
     settings, resolved_api_key = load_settings(api_key)
+    if session is None:
+        raise RuntimeError("Database session is required for video cache")
     history = "\n".join(
         f"{'使用者' if message.role == 'user' else 'AI'}：{message.content}"
         for message in request.history
     ) or "（尚無先前對話）"
 
-    uploaded_file_name: str | None = None
-
     async with genai.Client(
         api_key=resolved_api_key,
     ).aio as client:
-        try:
-            uploaded_video_part, uploaded_file_name = await upload_chat_video_clip(
-                client,
-                request,
-            )
-            response = await client.models.generate_content(
-                model=settings.gemini_model,
-                contents=types.Content(
-                    parts=build_chat_parts(
-                        request,
-                        history,
-                        uploaded_video_part,
-                    )
-                ),
-                config=types.GenerateContentConfig(
-                    system_instruction=CHAT_SYSTEM_INSTRUCTION,
-                ),
-            )
-        finally:
-            if uploaded_file_name:
-                try:
-                    await client.files.delete(name=uploaded_file_name)
-                except Exception:
-                    pass
+        uploaded_video_part = await upload_chat_video_clip(
+            client,
+            request,
+            resolved_api_key,
+            session,
+        )
+        response = await client.models.generate_content(
+            model=settings.gemini_model,
+            contents=types.Content(
+                parts=build_chat_parts(
+                    request,
+                    history,
+                    uploaded_video_part,
+                )
+            ),
+            config=types.GenerateContentConfig(
+                system_instruction=CHAT_SYSTEM_INSTRUCTION,
+            ),
+        )
 
     if not response.text:
         raise RuntimeError("Gemini did not return a chat response")
