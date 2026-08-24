@@ -4,6 +4,8 @@ import type { SyntheticEvent } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import type { CanvasNode, VideoCanvasNode } from '../../types/canvas'
+import { getBilibiliVideo } from './bilibili'
+import { BilibiliPlayer } from './BilibiliPlayer'
 import { getDropboxVideoUrl } from './dropbox'
 import { VimeoPlayer } from './VimeoPlayer'
 import { getVimeoVideoUrl } from './vimeo'
@@ -33,6 +35,16 @@ function validateVideoUrl(value: string): string | null {
     }
 
     const hostname = url.hostname.toLowerCase().replace(/^www\./, '')
+    if (
+      (hostname === 'bilibili.com' ||
+        hostname === 'm.bilibili.com' ||
+        hostname === 'player.bilibili.com' ||
+        hostname === 'b23.tv') &&
+      !getBilibiliVideo(value)
+    ) {
+      return '請貼上完整的 Bilibili 影片網址，暫不支援 b23.tv 短網址。'
+    }
+
     if (hostname === 'dropbox.com' && !getDropboxVideoUrl(value)) {
       return '請貼上 Dropbox 影片檔案的分享連結，資料夾連結無法播放。'
     }
@@ -78,6 +90,7 @@ function VideoNodeEditor({
       : null
   const youtubeVideoId = getYouTubeVideoId(node.data.source)
   const vimeoVideoUrl = getVimeoVideoUrl(node.data.source)
+  const bilibiliVideo = getBilibiliVideo(node.data.source)
   const directVideoUrl =
     getDropboxVideoUrl(node.data.source) ?? node.data.source
 
@@ -256,6 +269,12 @@ function VideoNodeEditor({
               requestId={videoSeekRequest?.requestId}
               onDuration={handleEmbeddedDuration}
               onError={handleEmbeddedError}
+            />
+          ) : bilibiliVideo ? (
+            <BilibiliPlayer
+              video={bilibiliVideo}
+              requestedTimeMs={requestedTimeMs}
+              requestId={videoSeekRequest?.requestId}
             />
           ) : (
             <video
