@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import ContextNode
+from app.schemas import AnalyzeVideoRequest, ContextNode
 
 
 def test_accepts_video_aware_context() -> None:
@@ -41,5 +41,34 @@ def test_rejects_invalid_context_time_range(payload: dict[str, int]) -> None:
                 "id": "concept-1",
                 "title": "片段",
                 **payload,
+            }
+        )
+
+
+def test_accepts_youtube_video_analysis_request() -> None:
+    request = AnalyzeVideoRequest.model_validate(
+        {
+            "videoNodeId": "video-1",
+            "provider": "youtube",
+            "source": "https://www.youtube.com/watch?v=9hE5-98ZeCg",
+            "title": "研究影片",
+            "prompt": "整理影片重點",
+            "maxSegments": 5,
+        }
+    )
+
+    assert request.video_node_id == "video-1"
+    assert request.max_segments == 5
+
+
+def test_rejects_non_youtube_video_analysis_request() -> None:
+    with pytest.raises(ValidationError, match="僅支援 YouTube"):
+        AnalyzeVideoRequest.model_validate(
+            {
+                "videoNodeId": "video-1",
+                "provider": "youtube",
+                "source": "https://example.com/video.mp4",
+                "title": "研究影片",
+                "prompt": "整理影片重點",
             }
         )
