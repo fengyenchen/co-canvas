@@ -4,6 +4,8 @@ import type { SyntheticEvent } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import type { CanvasNode, VideoCanvasNode } from '../../types/canvas'
+import { VimeoPlayer } from './VimeoPlayer'
+import { getVimeoVideoUrl } from './vimeo'
 import { YouTubePlayer } from './YouTubePlayer'
 import { getYouTubeVideoId } from './youtube'
 
@@ -29,6 +31,14 @@ function validateVideoUrl(value: string): string | null {
       return 'Google Drive 檢視連結無法同步播放時間，請改用可直接播放的影片網址。'
     }
 
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, '')
+    if (
+      (hostname === 'vimeo.com' || hostname === 'player.vimeo.com') &&
+      !getVimeoVideoUrl(value)
+    ) {
+      return '請貼上包含影片 ID 的 Vimeo 影片網址。'
+    }
+
     return null
   } catch {
     return '請輸入完整的影片網址。'
@@ -49,9 +59,6 @@ function VideoNodeEditor({
   const videoSeekRequest = useCanvasStore(
     (state) => state.videoSeekRequest,
   )
-  const updateVideoPlayback = useCanvasStore(
-    (state) => state.updateVideoPlayback,
-  )
   const activeContextNodeId = useChatStore((state) => state.activeContextNodeId)
   const setActiveContextNodeId = useChatStore(
     (state) => state.setActiveContextNodeId,
@@ -65,12 +72,13 @@ function VideoNodeEditor({
       ? videoSeekRequest.timeMs
       : null
   const youtubeVideoId = getYouTubeVideoId(node.data.source)
+  const vimeoVideoUrl = getVimeoVideoUrl(node.data.source)
 
-  const handleYouTubeDuration = useCallback((durationMs: number) => {
+  const handleEmbeddedDuration = useCallback((durationMs: number) => {
     updateVideoNode(node.id, { durationMs })
   }, [node.id, updateVideoNode])
 
-  const handleYouTubeError = useCallback(() => {
+  const handleEmbeddedError = useCallback(() => {
     setFailedSource(node.data.source)
   }, [node.data.source])
 
@@ -228,12 +236,19 @@ function VideoNodeEditor({
         <div className="mt-4 overflow-hidden rounded-lg bg-black">
           {youtubeVideoId ? (
             <YouTubePlayer
-              nodeId={node.id}
               videoId={youtubeVideoId}
               requestedTimeMs={requestedTimeMs}
               requestId={videoSeekRequest?.requestId}
-              onDuration={handleYouTubeDuration}
-              onError={handleYouTubeError}
+              onDuration={handleEmbeddedDuration}
+              onError={handleEmbeddedError}
+            />
+          ) : vimeoVideoUrl ? (
+            <VimeoPlayer
+              source={vimeoVideoUrl}
+              requestedTimeMs={requestedTimeMs}
+              requestId={videoSeekRequest?.requestId}
+              onDuration={handleEmbeddedDuration}
+              onError={handleEmbeddedError}
             />
           ) : (
             <video
@@ -243,34 +258,6 @@ function VideoNodeEditor({
             preload="metadata"
             src={node.data.source}
             onLoadedMetadata={handleLoadedMetadata}
-            onPlay={(event) =>
-              updateVideoPlayback(
-                node.id,
-                Math.round(event.currentTarget.currentTime * 1000),
-                true,
-              )
-            }
-            onTimeUpdate={(event) =>
-              updateVideoPlayback(
-                node.id,
-                Math.round(event.currentTarget.currentTime * 1000),
-                !event.currentTarget.paused,
-              )
-            }
-            onPause={(event) =>
-              updateVideoPlayback(
-                node.id,
-                Math.round(event.currentTarget.currentTime * 1000),
-                false,
-              )
-            }
-            onEnded={(event) =>
-              updateVideoPlayback(
-                node.id,
-                Math.round(event.currentTarget.currentTime * 1000),
-                false,
-              )
-            }
             onError={() => setFailedSource(node.data.source)}
             className="block aspect-video max-h-[35dvh] w-full object-contain"
           >

@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import { useCanvasStore } from '../../stores/canvasStore'
 
 type YouTubePlayerInstance = {
   destroy: () => void
@@ -59,7 +58,6 @@ function loadYouTubeApi(): Promise<YouTubeNamespace> {
 }
 
 type YouTubePlayerProps = {
-  nodeId: string
   videoId: string
   requestedTimeMs: number | null
   requestId?: string
@@ -68,7 +66,6 @@ type YouTubePlayerProps = {
 }
 
 export function YouTubePlayer({
-  nodeId,
   videoId,
   requestedTimeMs,
   requestId,
@@ -77,11 +74,7 @@ export function YouTubePlayer({
 }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YouTubePlayerInstance | null>(null)
-  const pollTimerRef = useRef<number | null>(null)
   const requestedTimeRef = useRef(requestedTimeMs)
-  const updateVideoPlayback = useCanvasStore(
-    (state) => state.updateVideoPlayback,
-  )
 
   useEffect(() => {
     requestedTimeRef.current = requestedTimeMs
@@ -89,13 +82,6 @@ export function YouTubePlayer({
 
   useEffect(() => {
     let disposed = false
-
-    function stopPolling() {
-      if (pollTimerRef.current !== null) {
-        window.clearInterval(pollTimerRef.current)
-        pollTimerRef.current = null
-      }
-    }
 
     void loadYouTubeApi().then((YT) => {
       if (disposed || !containerRef.current) return
@@ -111,24 +97,7 @@ export function YouTubePlayer({
               target.seekTo(requestedTimeRef.current / 1000, true)
             }
           },
-          onStateChange: ({ target, data }) => {
-            const isPlaying = data === 1
-            updateVideoPlayback(
-              nodeId,
-              Math.round(target.getCurrentTime() * 1000),
-              isPlaying,
-            )
-            stopPolling()
-            if (isPlaying) {
-              pollTimerRef.current = window.setInterval(() => {
-                updateVideoPlayback(
-                  nodeId,
-                  Math.round(target.getCurrentTime() * 1000),
-                  true,
-                )
-              }, 250)
-            }
-          },
+          onStateChange: () => undefined,
           onError,
         },
       })
@@ -136,11 +105,10 @@ export function YouTubePlayer({
 
     return () => {
       disposed = true
-      stopPolling()
       playerRef.current?.destroy()
       playerRef.current = null
     }
-  }, [nodeId, onDuration, onError, updateVideoPlayback, videoId])
+  }, [onDuration, onError, videoId])
 
   useEffect(() => {
     if (requestedTimeMs !== null) {

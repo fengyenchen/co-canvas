@@ -25,26 +25,15 @@ export function ConceptNode({
     const requestVideoSeek = useCanvasStore(
         (state) => state.requestVideoSeek,
     )
-    const videoPlayback = useCanvasStore((state) => state.videoPlayback)
     const hasTimeRange =
         data.startTimeMs !== undefined && data.endTimeMs !== undefined
-    const isActiveSegment = Boolean(
-        hasTimeRange &&
-        linkedVideoNodeId &&
-        videoPlayback?.isPlaying &&
-        videoPlayback.videoNodeId === linkedVideoNodeId &&
-        videoPlayback.currentTimeMs >= data.startTimeMs! &&
-        videoPlayback.currentTimeMs <= data.endTimeMs!,
-    )
 
     return (
         <div
             className={`w-64 rounded-xl border bg-background px-4 py-3 shadow-sm
-            ${isActiveSegment
-                ? 'border-primary bg-primary/8 ring-2 ring-primary/25'
-                : selected
-                  ? 'border-primary ring-2 ring-primary/15'
-                  : 'border-border'}`}
+            ${selected
+                ? 'border-primary ring-2 ring-primary/15'
+                : 'border-border'}`}
         >
             <Handle
                 id="top"
