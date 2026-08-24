@@ -20,6 +20,7 @@ class LinkedVideoContext(ApiModel):
     id: str
     title: str = Field(min_length=1, max_length=120)
     provider: str = Field(min_length=1, max_length=40)
+    source: str | None = Field(default=None, max_length=2048)
     duration_ms: int | None = Field(default=None, ge=0)
 
 
@@ -103,19 +104,3 @@ class GenerateSuggestionResponse(ApiModel):
 class GenerateSuggestionApiResponse(GenerateSuggestionResponse):
     ai_mode: AiMode
     fallback_reason: AiFallbackReason | None = None
-
-
-class AnalyzeVideoRequest(ApiModel):
-    video_node_id: str = Field(min_length=1)
-    provider: Literal["youtube"]
-    source: str = Field(min_length=1, max_length=2048)
-    title: str = Field(min_length=1, max_length=120)
-    prompt: str = Field(min_length=1, max_length=2000)
-    max_segments: int = Field(default=5, ge=2, le=8)
-
-    @model_validator(mode="after")
-    def validate_youtube_source(self):
-        source = self.source.lower()
-        if "youtube.com/" not in source and "youtu.be/" not in source:
-            raise ValueError("第一版影片分析僅支援 YouTube 網址")
-        return self

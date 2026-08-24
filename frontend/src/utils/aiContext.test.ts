@@ -63,6 +63,7 @@ describe('createAiContextNode', () => {
         id: 'video-1',
         title: '研究影片',
         provider: 'YouTube',
+        source: 'https://www.youtube.com/watch?v=example',
         durationMs: 60_000,
       },
     })

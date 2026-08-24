@@ -113,9 +113,10 @@ async def database_health():
 async def run_gemini(
     operation: Awaitable[ResponseT],
     fallback: Callable[[], ResponseT] | None = None,
+    timeout_seconds: float = 30,
 ) -> tuple[ResponseT, AiFallbackReason | None]:
     try:
-        async with asyncio.timeout(30):
+        async with asyncio.timeout(timeout_seconds):
             return await operation, None
     except GeminiConfigurationError as error:
         raise HTTPException(
@@ -277,6 +278,20 @@ async def chat(
     response, fallback_reason = await run_gemini(
         chat_with_gemini(request, runtime.api_key),
         fallback=lambda: chat_with_mock(request),
+        timeout_seconds=(
+            90
+            if request.selected_node
+            and request.selected_node.start_time_ms is not None
+            and request.selected_node.linked_video
+            and request.selected_node.linked_video.source
+            and (
+                "youtube.com/"
+                in request.selected_node.linked_video.source.lower()
+                or "youtu.be/"
+                in request.selected_node.linked_video.source.lower()
+            )
+            else 30
+        ),
     )
 
     if runtime.uses_user_key and user is not None:

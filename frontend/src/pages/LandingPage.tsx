@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { motion, MotionConfig, type HTMLMotionProps } from 'motion/react'
-import { Film, Link2, Play } from 'lucide-react'
+import { Film, Link2, MessageSquareText, Play } from 'lucide-react'
 import { Link, Navigate } from 'react-router'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 
@@ -350,6 +350,17 @@ export function LandingPage() {
                     <h3 className="font-semibold">用時間區間標記片段</h3>
                     <p className="mt-1 text-sm leading-6 text-foreground/60">
                       支援時間定位的影片來源，可以將開始與結束時間附加到文字節點，點一下就回到對應片段。
+                    </p>
+                  </div>
+                </li>
+                <li className="flex gap-4">
+                  <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <MessageSquareText aria-hidden="true" className="size-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-semibold">直接和選取片段對話</h3>
+                    <p className="mt-1 text-sm leading-6 text-foreground/60">
+                      從片段文字節點進入對話，Gemini 會讀取所選的 YouTube 時間區間，依實際影音內容回答。
                     </p>
                   </div>
                 </li>

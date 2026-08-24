@@ -25,6 +25,11 @@ type ChatPanelProps = {
   aiSettingsRevision?: number
 }
 
+function formatClipTime(timeMs: number): string {
+  const totalSeconds = Math.floor(timeMs / 1000)
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`
+}
+
 export function ChatPanel({
   mobileHeightPercent,
   isReadOnly = false,
@@ -100,6 +105,19 @@ export function ChatPanel({
   const contextNode = nodes.find(
     (node) => node.id === activeContextNodeId,
   ) ?? null
+  const contextPayload = contextNode
+    ? createAiContextNode(contextNode, nodes, edges)
+    : null
+  const attachedVideoClip =
+    contextPayload?.startTimeMs !== undefined &&
+    contextPayload.endTimeMs !== undefined &&
+    contextPayload.linkedVideo
+      ? {
+          startTimeMs: contextPayload.startTimeMs,
+          endTimeMs: contextPayload.endTimeMs,
+          video: contextPayload.linkedVideo,
+        }
+      : null
 
   const visibleMessages = messages.filter(
     (message) =>
@@ -555,6 +573,9 @@ export function ChatPanel({
             {contextNeighborNodes.length > 0
               ? `＋${selectedContextNeighborNodes.length}/${contextNeighborNodes.length} 個相鄰節點`
               : '（無相鄰節點）'}
+            {attachedVideoClip
+              ? `・影片片段 ${formatClipTime(attachedVideoClip.startTimeMs)}–${formatClipTime(attachedVideoClip.endTimeMs)}`
+              : ''}
           </span>
           <span
             aria-hidden="true"
@@ -571,6 +592,22 @@ export function ChatPanel({
               {contextNode.data.title}
             </div>
           </div>
+
+          {attachedVideoClip && (
+            <div className="rounded-lg border border-primary/15 bg-primary/5 px-3 py-2">
+              <div className="text-xs text-foreground/50">隨對話附上的影片片段</div>
+              <div className="mt-1 text-sm font-medium text-foreground">
+                {attachedVideoClip.video.title}・
+                {formatClipTime(attachedVideoClip.startTimeMs)}–
+                {formatClipTime(attachedVideoClip.endTimeMs)}
+              </div>
+              {attachedVideoClip.video.provider !== 'YouTube' && (
+                <div className="mt-1 text-xs leading-5 text-foreground/55">
+                  目前只有 YouTube 片段能直接提供給 Gemini 觀看。
+                </div>
+              )}
+            </div>
+          )}
 
           {contextNeighborNodes.length > 0 && (
             <div>

@@ -77,6 +77,7 @@ export function createAiContextNode(
             id: linkedVideo.id,
             title: linkedVideo.data.title,
             provider: getVideoProvider(linkedVideo.data.source),
+            source: linkedVideo.data.source,
             ...(linkedVideo.data.durationMs === undefined
               ? {}
               : { durationMs: linkedVideo.data.durationMs }),

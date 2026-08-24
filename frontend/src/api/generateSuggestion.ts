@@ -29,7 +29,7 @@ const suggestionSchema = z.object({
     'missing_key',
     'invalid_key',
     'quota_exceeded',
-  ]).nullable(),
+  ]).nullable().optional().transform((value) => value ?? null),
 })
 
 type GenerateSuggestionResult = {

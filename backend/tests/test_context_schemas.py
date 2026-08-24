@@ -1,7 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import AnalyzeVideoRequest, ContextNode
+from app.schemas import ChatRequest, ContextNode
+from app.services.gemini import build_chat_parts
 
 
 def test_accepts_video_aware_context() -> None:
@@ -17,6 +18,7 @@ def test_accepts_video_aware_context() -> None:
                 "id": "video-1",
                 "title": "研究影片",
                 "provider": "YouTube",
+                "source": "https://www.youtube.com/watch?v=9hE5-98ZeCg",
                 "durationMs": 60_000,
             },
         }
@@ -25,6 +27,7 @@ def test_accepts_video_aware_context() -> None:
     assert context.start_time_ms == 10_000
     assert context.linked_video is not None
     assert context.linked_video.provider == "YouTube"
+    assert context.linked_video.source == "https://www.youtube.com/watch?v=9hE5-98ZeCg"
 
 
 @pytest.mark.parametrize(
@@ -45,30 +48,29 @@ def test_rejects_invalid_context_time_range(payload: dict[str, int]) -> None:
         )
 
 
-def test_accepts_youtube_video_analysis_request() -> None:
-    request = AnalyzeVideoRequest.model_validate(
+def test_chat_attaches_selected_youtube_clip() -> None:
+    request = ChatRequest.model_validate(
         {
-            "videoNodeId": "video-1",
-            "provider": "youtube",
-            "source": "https://www.youtube.com/watch?v=9hE5-98ZeCg",
-            "title": "研究影片",
-            "prompt": "整理影片重點",
-            "maxSegments": 5,
+            "prompt": "這個片段在說什麼？",
+            "selectedNode": {
+                "id": "concept-1",
+                "title": "關鍵片段",
+                "startTimeMs": 10_000,
+                "endTimeMs": 20_000,
+                "linkedVideo": {
+                    "id": "video-1",
+                    "title": "研究影片",
+                    "provider": "YouTube",
+                    "source": "https://youtu.be/9hE5-98ZeCg",
+                },
+            },
         }
     )
 
-    assert request.video_node_id == "video-1"
-    assert request.max_segments == 5
+    parts = build_chat_parts(request, "（尚無先前對話）")
 
-
-def test_rejects_non_youtube_video_analysis_request() -> None:
-    with pytest.raises(ValidationError, match="僅支援 YouTube"):
-        AnalyzeVideoRequest.model_validate(
-            {
-                "videoNodeId": "video-1",
-                "provider": "youtube",
-                "source": "https://example.com/video.mp4",
-                "title": "研究影片",
-                "prompt": "整理影片重點",
-            }
-        )
+    assert len(parts) == 2
+    assert parts[0].file_data.file_uri == "https://youtu.be/9hE5-98ZeCg"
+    assert parts[0].video_metadata.start_offset == "10.0s"
+    assert parts[0].video_metadata.end_offset == "20.0s"
+    assert "這個片段在說什麼？" in parts[1].text

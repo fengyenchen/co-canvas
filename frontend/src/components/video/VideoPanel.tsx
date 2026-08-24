@@ -4,11 +4,6 @@ import type { SyntheticEvent } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import type { CanvasNode, VideoCanvasNode } from '../../types/canvas'
-import type { VideoAnalysisRequest } from '../../types/videoAnalysis'
-import {
-  createVideoAnalysisRequest,
-  DEFAULT_VIDEO_ANALYSIS_PROMPT,
-} from '../../utils/videoAnalysis'
 import { getBilibiliVideo } from './bilibili'
 import { BilibiliPlayer } from './BilibiliPlayer'
 import { getDropboxVideoUrl } from './dropbox'
@@ -88,13 +83,6 @@ function VideoNodeEditor({
   const [draftUrl, setDraftUrl] = useState(node.data.source)
   const [formError, setFormError] = useState<string | null>(null)
   const [failedSource, setFailedSource] = useState<string | null>(null)
-  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false)
-  const [analysisPrompt, setAnalysisPrompt] = useState(
-    DEFAULT_VIDEO_ANALYSIS_PROMPT,
-  )
-  const [maxSegments, setMaxSegments] = useState(5)
-  const [preparedAnalysis, setPreparedAnalysis] =
-    useState<VideoAnalysisRequest | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const requestedTimeMs =
     videoSeekRequest?.videoNodeId === node.id
@@ -311,92 +299,6 @@ function VideoNodeEditor({
             </p>
           )}
         </div>
-      )}
-
-      {!isReadOnly && node.data.source && (
-        <section className="mt-4 border-t border-border pt-4">
-          <button
-            type="button"
-            onClick={() => setIsAnalysisOpen((isOpen) => !isOpen)}
-            className="flex min-h-11 w-full cursor-pointer items-center justify-between rounded-lg border border-border px-4 text-sm font-medium text-foreground transition hover:border-primary/40"
-            aria-expanded={isAnalysisOpen}
-          >
-            <span>AI 分析影片</span>
-            <span aria-hidden="true" className="text-foreground/45">
-              {isAnalysisOpen ? '−' : '+'}
-            </span>
-          </button>
-
-          {isAnalysisOpen && (
-            <div className="mt-3 rounded-lg border border-border bg-canvas p-3">
-              {!youtubeVideoId ? (
-                <p className="text-xs leading-5 text-foreground/60">
-                  第一版影片分析僅支援公開 YouTube 影片；其他來源仍可播放並手動設定片段。
-                </p>
-              ) : (
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    setPreparedAnalysis(
-                      createVideoAnalysisRequest(
-                        node,
-                        analysisPrompt,
-                        maxSegments,
-                      ),
-                    )
-                  }}
-                >
-                  <label className="block">
-                    <span className="mb-1 block text-xs text-foreground/65">
-                      分析需求
-                    </span>
-                    <textarea
-                      value={analysisPrompt}
-                      rows={3}
-                      onChange={(event) => {
-                        setAnalysisPrompt(event.target.value)
-                        setPreparedAnalysis(null)
-                      }}
-                      className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    />
-                  </label>
-
-                  <label className="mt-3 block">
-                    <span className="mb-1 block text-xs text-foreground/65">
-                      建議片段數量
-                    </span>
-                    <select
-                      value={maxSegments}
-                      onChange={(event) => {
-                        setMaxSegments(Number(event.target.value))
-                        setPreparedAnalysis(null)
-                      }}
-                      className="min-h-11 w-full cursor-pointer rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    >
-                      {[3, 4, 5, 6, 7, 8].map((count) => (
-                        <option key={count} value={count}>{count} 個</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <button
-                    type="submit"
-                    disabled={!analysisPrompt.trim()}
-                    className="mt-3 min-h-11 w-full cursor-pointer rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    確認分析設定
-                  </button>
-
-                  {preparedAnalysis && (
-                    <p role="status" className="mt-3 text-xs leading-5 text-primary">
-                      分析設定已準備完成，下一步會送至 Gemini 並產生時間節點預覽。
-                    </p>
-                  )}
-                </form>
-              )}
-            </div>
-          )}
-        </section>
       )}
 
       {!isReadOnly && (

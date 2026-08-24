@@ -2,6 +2,7 @@ export type LinkedVideoContext = {
   id: string
   title: string
   provider: string
+  source: string
   durationMs?: number
 }
 
