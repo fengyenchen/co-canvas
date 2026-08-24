@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { CanvasEdge, CanvasNode } from '../types/canvas'
 import type { ChatMessage } from '../types/chat'
 import type { ProjectDocument } from '../types/project'
+import type { SuggestionDecisionEvent } from '../types/suggestion'
 
 const originSchema = z.enum(['user', 'ai'])
 const nullToUndefined = (value: unknown) =>
@@ -143,11 +144,27 @@ const chatMessageSchema = z.object({
   retryContent: optionalStringSchema,
 })
 
+const suggestionDecisionEventSchema = z.object({
+  id: z.string().min(1),
+  action: z.enum(['accepted', 'rejected', 'regenerated']),
+  contextNodeId: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
+  aiMode: z.enum(['gemini', 'mock']),
+  edited: z.boolean(),
+  decisionTimeMs: z.number().int().nonnegative(),
+  nodeCount: z.number().int().nonnegative().max(8),
+  createdAt: z.string(),
+})
+
 const projectDocumentShape = {
   version: z.literal(4),
   nodes: z.array(canvasNodeSchema),
   edges: z.array(canvasEdgeSchema),
   messages: z.array(chatMessageSchema),
+  suggestionEvents: z.array(suggestionDecisionEventSchema).default([]),
 }
 
 const projectDocumentV4Schema = z.object(projectDocumentShape)
@@ -386,9 +403,10 @@ export function createProjectFile(
   nodes: CanvasNode[],
   edges: CanvasEdge[],
   messages: ChatMessage[],
+  suggestionEvents: SuggestionDecisionEvent[] = [],
 ): ProjectFile {
   return {
-    ...createProjectDocument(nodes, edges, messages),
+    ...createProjectDocument(nodes, edges, messages, suggestionEvents),
     exportedAt: new Date().toISOString(),
   }
 }
@@ -397,6 +415,7 @@ export function createProjectDocument(
   nodes: CanvasNode[],
   edges: CanvasEdge[],
   messages: ChatMessage[],
+  suggestionEvents: SuggestionDecisionEvent[] = [],
 ): ProjectDocument {
   const nodeIds = new Set(nodes.map((node) => node.id))
 
@@ -419,6 +438,7 @@ export function createProjectDocument(
       (message) =>
         message.contextNodeId === null || nodeIds.has(message.contextNodeId),
     ),
+    suggestionEvents,
   }
 }
 

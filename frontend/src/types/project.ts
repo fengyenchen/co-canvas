@@ -1,11 +1,13 @@
 import type { CanvasEdge, CanvasNode } from './canvas'
 import type { ChatMessage } from './chat'
+import type { SuggestionDecisionEvent } from './suggestion'
 
 export type ProjectDocument = {
   version: 4
   nodes: CanvasNode[]
   edges: CanvasEdge[]
   messages: ChatMessage[]
+  suggestionEvents: SuggestionDecisionEvent[]
 }
 
 export type ProjectVisibility = 'private' | 'public'

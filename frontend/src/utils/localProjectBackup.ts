@@ -23,8 +23,13 @@ export function setActiveProjectId(projectId: string): void {
 export function backupLocalProject(): boolean {
   try {
     const { nodes, edges } = useCanvasStore.getState()
-    const { messages } = useChatStore.getState()
-    const project = createProjectFile(nodes, edges, messages)
+    const { messages, suggestionEvents } = useChatStore.getState()
+    const project = createProjectFile(
+      nodes,
+      edges,
+      messages,
+      suggestionEvents,
+    )
 
     localStorage.setItem(
       LOCAL_PROJECT_BACKUP_KEY,
@@ -42,8 +47,13 @@ export function getLocalProjectDocument(): ProjectDocument | null {
 
     if (!activeProjectId || activeProjectId === LOCAL_PROJECT_ID) {
       const { nodes, edges } = useCanvasStore.getState()
-      const { messages } = useChatStore.getState()
-      return createProjectDocument(nodes, edges, messages)
+      const { messages, suggestionEvents } = useChatStore.getState()
+      return createProjectDocument(
+        nodes,
+        edges,
+        messages,
+        suggestionEvents,
+      )
     }
 
     const rawProject = localStorage.getItem(LOCAL_PROJECT_BACKUP_KEY)
@@ -58,6 +68,7 @@ export function getLocalProjectDocument(): ProjectDocument | null {
       project.nodes,
       project.edges,
       project.messages,
+      project.suggestionEvents,
     )
   } catch {
     return null
@@ -79,7 +90,10 @@ export function restoreLocalProject(): boolean {
       .replaceProject(project.nodes, project.edges)
     useChatStore
       .getState()
-      .replaceProjectMessages(project.messages)
+      .replaceProjectMessages(
+        project.messages,
+        project.suggestionEvents,
+      )
     return true
   } catch {
     return false

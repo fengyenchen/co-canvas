@@ -108,6 +108,17 @@ class ProjectMessage(ApiModel):
     retry_content: str | None = Field(default=None, max_length=4000)
 
 
+class ProjectSuggestionDecisionEvent(ApiModel):
+    id: str = Field(min_length=1)
+    action: Literal["accepted", "rejected", "regenerated"]
+    context_node_id: str | None = None
+    ai_mode: Literal["gemini", "mock"]
+    edited: bool
+    decision_time_ms: int = Field(ge=0)
+    node_count: int = Field(ge=0, le=8)
+    created_at: str
+
+
 class ProjectDocument(ApiModel):
     version: Literal[4] = 4
     nodes: list[ProjectNode] = Field(default_factory=list, max_length=500)
@@ -115,6 +126,10 @@ class ProjectDocument(ApiModel):
     messages: list[ProjectMessage] = Field(
         default_factory=list,
         max_length=2000,
+    )
+    suggestion_events: list[ProjectSuggestionDecisionEvent] = Field(
+        default_factory=list,
+        max_length=5000,
     )
 
     @model_validator(mode="before")

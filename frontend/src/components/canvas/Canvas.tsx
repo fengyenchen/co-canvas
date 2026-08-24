@@ -75,6 +75,9 @@ function CanvasContent({
         (state) => state.replaceProject,
     )
     const messages = useChatStore((state) => state.messages)
+    const suggestionEvents = useChatStore(
+        (state) => state.suggestionEvents,
+    )
     const replaceProjectMessages = useChatStore(
         (state) => state.replaceProjectMessages,
     )
@@ -179,6 +182,7 @@ function CanvasContent({
             nodes,
             edges,
             messages,
+            suggestionEvents,
         )
         const date = new Date().toISOString().slice(0, 10)
 
@@ -204,7 +208,10 @@ function CanvasContent({
             }
 
             replaceProject(project.nodes, project.edges)
-            replaceProjectMessages(project.messages)
+            replaceProjectMessages(
+                project.messages,
+                project.suggestionEvents,
+            )
 
             window.requestAnimationFrame(() => {
                 void fitView({

@@ -383,6 +383,9 @@ export function ChatPanel({
         prompt: sourceContent,
         suggestion: result.data.suggestion,
         latencyMs: result.latencyMs,
+        aiMode: result.data.aiMode,
+        previewedAt: new Date().toISOString(),
+        edited: false,
       })
     } else {
       addMessage({

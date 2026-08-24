@@ -1,7 +1,11 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ChatMessage, NewChatMessage } from '../types/chat'
-import type { SuggestionPreview } from '../types/suggestion'
+import type {
+  SuggestionDecision,
+  SuggestionDecisionEvent,
+  SuggestionPreview,
+} from '../types/suggestion'
 
 export type GenerationMode = 'chat' | 'suggestion'
 
@@ -10,6 +14,7 @@ type ChatState = {
   messages: ChatMessage[]
   generationMode: GenerationMode | null
   pendingSuggestion: SuggestionPreview | null
+  suggestionEvents: SuggestionDecisionEvent[]
 
   setActiveContextNodeId: (
     nodeId: string | null,
@@ -35,7 +40,17 @@ type ChatState = {
 
   clearPendingSuggestion: () => void
 
-  replaceProjectMessages: (messages: ChatMessage[]) => void
+  updatePendingSuggestionNode: (
+    tempId: string,
+    updates: { title?: string; content?: string },
+  ) => void
+
+  recordSuggestionDecision: (action: SuggestionDecision) => void
+
+  replaceProjectMessages: (
+    messages: ChatMessage[],
+    suggestionEvents?: SuggestionDecisionEvent[],
+  ) => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -44,6 +59,7 @@ export const useChatStore = create<ChatState>()(
     messages: [],
     generationMode: null,
     pendingSuggestion: null,
+    suggestionEvents: [],
 
     setActiveContextNodeId: (nodeId) =>
       set({
@@ -131,9 +147,55 @@ export const useChatStore = create<ChatState>()(
         pendingSuggestion: null,
       }),
 
-    replaceProjectMessages: (messages) =>
+    updatePendingSuggestionNode: (tempId, updates) =>
+      set((state) => {
+        if (!state.pendingSuggestion) return state
+
+        return {
+          pendingSuggestion: {
+            ...state.pendingSuggestion,
+            edited: true,
+            suggestion: {
+              ...state.pendingSuggestion.suggestion,
+              nodes: state.pendingSuggestion.suggestion.nodes.map((node) =>
+                node.tempId === tempId ? { ...node, ...updates } : node,
+              ),
+            },
+          },
+        }
+      }),
+
+    recordSuggestionDecision: (action) =>
+      set((state) => {
+        const preview = state.pendingSuggestion
+        if (!preview) return state
+
+        const previewedAt = Date.parse(preview.previewedAt)
+        const decisionTimeMs = Number.isFinite(previewedAt)
+          ? Math.max(0, Date.now() - previewedAt)
+          : 0
+
+        return {
+          suggestionEvents: [
+            ...state.suggestionEvents,
+            {
+              id: crypto.randomUUID(),
+              action,
+              contextNodeId: preview.contextNodeId,
+              aiMode: preview.aiMode,
+              edited: preview.edited,
+              decisionTimeMs,
+              nodeCount: preview.suggestion.nodes.length,
+              createdAt: new Date().toISOString(),
+            },
+          ].slice(-5000),
+        }
+      }),
+
+    replaceProjectMessages: (messages, suggestionEvents = []) =>
       set({
         messages,
+        suggestionEvents,
         activeContextNodeId: null,
         generationMode: null,
         pendingSuggestion: null,
@@ -144,6 +206,7 @@ export const useChatStore = create<ChatState>()(
     partialize: (state) => ({
       activeContextNodeId: state.activeContextNodeId,
       messages: state.messages,
+      suggestionEvents: state.suggestionEvents,
     }),
   }),
 )

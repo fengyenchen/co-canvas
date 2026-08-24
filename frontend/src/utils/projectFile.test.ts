@@ -5,6 +5,7 @@ import type {
   VideoCanvasNode,
 } from '../types/canvas'
 import type { ChatMessage } from '../types/chat'
+import type { SuggestionDecisionEvent } from '../types/suggestion'
 import {
   createProjectFile,
   parseProjectFile,
@@ -75,6 +76,19 @@ const messages: ChatMessage[] = [
   },
 ]
 
+const suggestionEvents: SuggestionDecisionEvent[] = [
+  {
+    id: 'suggestion-event-1',
+    action: 'accepted',
+    contextNodeId: 'deleted-node',
+    aiMode: 'mock',
+    edited: true,
+    decisionTimeMs: 1_250,
+    nodeCount: 2,
+    createdAt: '2026-08-24T00:00:00.000Z',
+  },
+]
+
 describe('projectFile', () => {
   it('允許尚未設定網址的空白影片節點', () => {
     const blankVideo: VideoCanvasNode = {
@@ -92,6 +106,26 @@ describe('projectFile', () => {
 
     expect(project.version).toBe(4)
     expect(project.messages.map((message) => message.id)).toEqual(['message-1'])
+  })
+
+  it('保留 AI 建議決策紀錄與已刪除節點的歷史參照', () => {
+    const project = createProjectFile(
+      nodes,
+      edges,
+      messages,
+      suggestionEvents,
+    )
+    const imported = parseProjectFile(JSON.parse(JSON.stringify(project)))
+
+    expect(imported.suggestionEvents).toEqual(suggestionEvents)
+  })
+
+  it('舊專案未包含建議紀錄時預設為空陣列', () => {
+    const project = createProjectFile(nodes, edges, messages)
+    const legacyProject = { ...project } as Partial<typeof project>
+    delete legacyProject.suggestionEvents
+
+    expect(parseProjectFile(legacyProject).suggestionEvents).toEqual([])
   })
 
   it('保留多個影片節點與節點時間綁定', () => {

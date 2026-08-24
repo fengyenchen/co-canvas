@@ -93,14 +93,18 @@ export function EditorPage() {
     (state) => state.activeContextNodeId,
   )
   const messages = useChatStore((state) => state.messages)
+  const suggestionEvents = useChatStore(
+    (state) => state.suggestionEvents,
+  )
   const projectDocument = useMemo(
     () =>
       createProjectDocument(
         nodes,
         edges,
         messages,
+        suggestionEvents,
       ),
-    [edges, messages, nodes],
+    [edges, messages, nodes, suggestionEvents],
   )
   const projectDocumentSignature = useMemo(
     () => JSON.stringify(projectDocument),
@@ -136,7 +140,7 @@ export function EditorPage() {
 
           if (!restoredLocalProject) {
             replaceProject([], [])
-            replaceProjectMessages([])
+            replaceProjectMessages([], [])
           }
         }
 
@@ -163,7 +167,10 @@ export function EditorPage() {
           project.document.nodes,
           project.document.edges,
         )
-        replaceProjectMessages(project.document.messages)
+        replaceProjectMessages(
+          project.document.messages,
+          project.document.suggestionEvents,
+        )
         setProjectAccessRole(project.accessRole)
         setLoadedProject(project)
         savedDocumentSignatureRef.current = JSON.stringify(

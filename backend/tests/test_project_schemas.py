@@ -44,6 +44,33 @@ def test_upgrades_version_one_document() -> None:
 
     assert document.version == 4
     assert document.nodes == []
+    assert document.suggestion_events == []
+
+
+def test_accepts_suggestion_decision_event() -> None:
+    document = ProjectDocument.model_validate(
+        {
+            "version": 4,
+            "nodes": [],
+            "edges": [],
+            "messages": [],
+            "suggestionEvents": [
+                {
+                    "id": "suggestion-event-1",
+                    "action": "accepted",
+                    "contextNodeId": "deleted-node",
+                    "aiMode": "mock",
+                    "edited": True,
+                    "decisionTimeMs": 1250,
+                    "nodeCount": 2,
+                    "createdAt": "2026-08-24T00:00:00.000Z",
+                }
+            ],
+        }
+    )
+
+    assert len(document.suggestion_events) == 1
+    assert document.suggestion_events[0].edited is True
 
 
 def test_accepts_video_node_before_source_is_configured() -> None:
