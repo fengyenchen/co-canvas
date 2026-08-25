@@ -259,6 +259,20 @@ npm test -- --run
 npm run build
 ```
 
+首次執行 E2E 前，安裝 Playwright Chromium：
+
+```bat
+npx playwright install chromium
+```
+
+執行瀏覽器 E2E：
+
+```bat
+npm run test:e2e
+```
+
+E2E 會啟動獨立的 Vite 測試伺服器，並以瀏覽器層的固定回應取代 Neon Auth、專案 API 與 Gemini，因此不會建立真實帳號、不會修改 Neon 資料，也不會消耗 Gemini 額度。目前涵蓋登入、建立專案、畫布儲存、複製分享連結、版本恢復及影片片段分析資料傳送。
+
 在 `backend` 目錄執行：
 
 ```bat

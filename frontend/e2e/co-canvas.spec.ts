@@ -1,0 +1,149 @@
+import { expect, test } from '@playwright/test'
+import {
+  PROJECT_ID,
+  VERSION_ID,
+  createProject,
+  emptyDocument,
+  installE2eMocks,
+} from './fixtures'
+
+test('登入後進入雲端專案列表', async ({ page }) => {
+  await installE2eMocks(page, { authenticated: false })
+  await page.goto('/auth/sign-in?returnTo=%2Fprojects')
+
+  await page.getByLabel('電子郵件').fill('e2e@example.com')
+  await page.getByLabel('密碼').fill('e2e-password')
+  await page.getByRole('button', { name: '登入', exact: true }).click()
+
+  await expect(page).toHaveURL(/\/projects$/)
+  await expect(page.getByTitle('e2e@example.com')).toBeVisible()
+})
+
+test('建立專案、儲存節點並複製分享連結', async ({ page }) => {
+  const state = await installE2eMocks(page)
+  await page.goto('/projects')
+
+  await page.getByRole('button', { name: '新增專案', exact: true }).click()
+  const createDialog = page.getByRole('dialog', { name: '新增專案' })
+  await createDialog.getByLabel('專案名稱').fill('E2E 研究計畫')
+  await createDialog.getByRole('button', { name: '建立專案', exact: true }).click()
+
+  await expect(page).toHaveURL(new RegExp(`/projects/${PROJECT_ID}$`))
+  await page.getByRole('button', { name: '新增節點' }).click()
+  await page.getByRole('button', { name: '文字節點' }).click()
+  await page.getByLabel('標題').fill('已儲存的節點')
+
+  await expect.poll(() => state.projectUpdates.length).toBeGreaterThan(0)
+  await expect.poll(() => {
+    const latestUpdate = state.projectUpdates.at(-1)
+    return JSON.stringify(latestUpdate?.document ?? '')
+  }).toContain('已儲存的節點')
+
+  await page.getByRole('button', { name: '專案', exact: true }).click()
+  await page.getByRole('button', { name: '複製分享連結' }).click()
+  await expect(page.getByRole('button', { name: '已複製連結' })).toBeVisible()
+})
+
+test('從版本紀錄恢復先前畫布', async ({ page }) => {
+  const currentDocument = emptyDocument()
+  currentDocument.nodes.push({
+    id: 'current-node',
+    type: 'concept',
+    position: { x: 0, y: 0 },
+    data: { title: '目前節點', content: '', origin: 'user' },
+  })
+  const restoredDocument = emptyDocument()
+  restoredDocument.nodes.push({
+    id: 'restored-node',
+    type: 'concept',
+    position: { x: 0, y: 0 },
+    data: { title: '已恢復節點', content: '', origin: 'user' },
+  })
+  const project = createProject({ document: currentDocument })
+  const versions = new Map([
+    [
+      PROJECT_ID,
+      [
+        {
+          id: VERSION_ID,
+          name: '基準版本',
+          kind: 'manual' as const,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          document: restoredDocument,
+        },
+      ],
+    ],
+  ])
+  await installE2eMocks(page, { projects: [project], versions })
+  await page.goto(`/projects/${PROJECT_ID}`)
+
+  await expect(page.getByText('目前節點', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '專案', exact: true }).click()
+  await page.getByRole('button', { name: '版本紀錄' }).click()
+  await page.getByRole('button', { name: '恢復', exact: true }).click()
+  await page.getByRole('button', { name: '確認恢復' }).click()
+
+  await expect(page.getByText('已恢復節點', { exact: true })).toBeVisible()
+  await expect(page.getByText('目前節點', { exact: true })).toHaveCount(0)
+})
+
+test('影片片段會隨對話送往分析 API', async ({ page }) => {
+  const document = emptyDocument()
+  document.nodes.push(
+    {
+      id: 'clip-note',
+      type: 'concept',
+      position: { x: 0, y: 180 },
+      data: {
+        title: '片段筆記',
+        content: '分析指定片段',
+        origin: 'user',
+        startTimeMs: 1_000,
+        endTimeMs: 3_000,
+      },
+    },
+    {
+      id: 'video-source',
+      type: 'video',
+      position: { x: 0, y: 0 },
+      data: {
+        title: '測試影片',
+        content: '公開 MP4',
+        origin: 'user',
+        sourceType: 'url',
+        source: 'https://media.example.test/sample.mp4',
+        durationMs: 10_000,
+      },
+    },
+  )
+  document.edges.push({
+    id: 'video-to-note',
+    source: 'video-source',
+    target: 'clip-note',
+    data: { origin: 'user', label: '片段' },
+    label: '片段',
+  })
+  const state = await installE2eMocks(page, {
+    projects: [createProject({ document })],
+  })
+  await page.route('https://media.example.test/**', (route) => route.abort())
+  await page.goto(`/projects/${PROJECT_ID}`)
+
+  const clipNode = page.locator('.react-flow__node').filter({ hasText: '片段筆記' })
+  await clipNode.dblclick()
+  await page.getByPlaceholder(/想問什麼/).fill('整理這段影片的重點')
+  await page.getByRole('button', { name: '送出' }).click()
+
+  await expect(page.getByText('影片分析完成')).toBeVisible()
+  await expect.poll(() => state.lastChatRequest).not.toBeNull()
+  expect(state.lastChatRequest).toMatchObject({
+    selectedNode: {
+      id: 'clip-note',
+      startTimeMs: 1_000,
+      endTimeMs: 3_000,
+      linkedVideo: {
+        source: 'https://media.example.test/sample.mp4',
+      },
+    },
+  })
+})
