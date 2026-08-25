@@ -16,6 +16,7 @@ import { useChatStore } from '../../stores/chatStore'
 import { formatLatency } from '../../utils/formatLatency'
 import { createAiContextNode } from '../../utils/aiContext'
 import { measureRequest } from '../../utils/measureRequest'
+import { MarkdownMessage } from './MarkdownMessage'
 import { SuggestionPreview } from './SuggestionPreview'
 
 type ChatPanelProps = {
@@ -55,6 +56,10 @@ export function ChatPanel({
     useState<AiFallbackReason | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
+  const [copyState, setCopyState] = useState<{
+    messageId: string
+    status: 'copied' | 'error'
+  } | null>(null)
   const [neighborSelection, setNeighborSelection] = useState<{
     contextNodeId: string | null
     excludedNodeIds: Set<string>
@@ -67,6 +72,7 @@ export function ChatPanel({
   const previousContextNodeIdRef = useRef<string | null>(null)
   const previousMessageCountRef = useRef(0)
   const activeRequestControllerRef = useRef<AbortController | null>(null)
+  const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const activeContextNodeId = useChatStore(
     (state) => state.activeContextNodeId,
@@ -309,6 +315,12 @@ export function ChatPanel({
     setGenerationMode(null)
   }, [activeContextNodeId, setGenerationMode])
 
+  useEffect(() => () => {
+    if (copyResetTimeoutRef.current) {
+      clearTimeout(copyResetTimeoutRef.current)
+    }
+  }, [])
+
   function finishRequest(controller: AbortController) {
     if (activeRequestControllerRef.current !== controller) {
       return
@@ -513,6 +525,24 @@ export function ChatPanel({
     setEditingMessageId(null)
     setEditingContent('')
     void requestChatResponse(content, [messageId])
+  }
+
+  async function handleCopyMessage(messageId: string, content: string) {
+    if (copyResetTimeoutRef.current) {
+      clearTimeout(copyResetTimeoutRef.current)
+    }
+
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopyState({ messageId, status: 'copied' })
+    } catch {
+      setCopyState({ messageId, status: 'error' })
+    }
+
+    copyResetTimeoutRef.current = setTimeout(() => {
+      setCopyState(null)
+      copyResetTimeoutRef.current = null
+    }, 2500)
   }
 
   if (!contextNode) {
@@ -758,15 +788,19 @@ export function ChatPanel({
                   <div
                     role={message.isError ? 'alert' : undefined}
                     className={[
-                      'whitespace-pre-wrap wrap-break-word rounded-xl px-3 py-2 text-sm',
+                      'wrap-break-word rounded-xl px-3 py-2 text-sm',
                       message.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
+                        ? 'whitespace-pre-wrap bg-primary text-primary-foreground'
                         : message.isError
-                          ? 'border border-red-200 bg-red-50 text-red-700'
+                          ? 'whitespace-pre-wrap border border-red-200 bg-red-50 text-red-700'
                           : 'border border-border bg-background text-foreground',
                     ].join(' ')}
                   >
-                    {message.content}
+                    {message.role === 'ai' && !message.isError ? (
+                      <MarkdownMessage content={message.content} />
+                    ) : (
+                      message.content
+                    )}
                   </div>
                 )}
 
@@ -777,6 +811,21 @@ export function ChatPanel({
                         回應 {formatLatency(message.latencyMs)}
                       </span>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleCopyMessage(message.id, message.content)
+                      }}
+                      aria-label="複製 AI 回覆"
+                      className="min-h-11 cursor-pointer rounded-md px-2 text-xs text-foreground/50 transition hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    >
+                      {copyState?.messageId === message.id
+                        ? copyState.status === 'copied'
+                          ? '已複製'
+                          : '複製失敗'
+                        : '複製'}
+                    </button>
 
                     {!isReadOnly && message.canGenerateNodes && (
                       <button
