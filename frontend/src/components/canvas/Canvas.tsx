@@ -32,10 +32,15 @@ type CanvasProps = {
     canRenameProject?: boolean
     canManageProjectPermissions?: boolean
     canCopyProjectLink?: boolean
+    canDuplicateProject?: boolean
+    canDeleteProject?: boolean
     canManageAiSettings?: boolean
     onRenameProject?: () => void
     onManageProjectPermissions?: () => void
+    onDuplicateProject?: () => void
+    onDeleteProject?: () => void
     onManageAiSettings?: () => void
+    projectAction?: 'idle' | 'duplicating' | 'deleting'
 }
 
 function CanvasContent({
@@ -43,10 +48,15 @@ function CanvasContent({
     canRenameProject = false,
     canManageProjectPermissions = false,
     canCopyProjectLink = false,
+    canDuplicateProject = false,
+    canDeleteProject = false,
     canManageAiSettings = false,
     onRenameProject,
     onManageProjectPermissions,
+    onDuplicateProject,
+    onDeleteProject,
     onManageAiSettings,
+    projectAction = 'idle',
 }: CanvasProps) {
     const nodes = useCanvasStore((state) => state.nodes)
     const { fitView, getNode, screenToFlowPosition, setCenter } = useReactFlow()
@@ -306,7 +316,7 @@ function CanvasContent({
                     type="button"
                     aria-label="關閉專案選單"
                     onClick={() => setIsProjectMenuOpen(false)}
-                    className="fixed inset-0 z-[9] cursor-default bg-transparent"
+                    className="fixed inset-0 z-9 cursor-default bg-transparent"
                 />
             )}
 
@@ -315,7 +325,7 @@ function CanvasContent({
                     type="button"
                     aria-label="關閉新增節點選單"
                     onClick={() => setIsAddNodeMenuOpen(false)}
-                    className="fixed inset-0 z-[9] cursor-default bg-transparent"
+                    className="fixed inset-0 z-9 cursor-default bg-transparent"
                 />
             )}
 
@@ -394,7 +404,7 @@ function CanvasContent({
                             <span className="hidden sm:inline">自動排版</span>
                         </button>
 
-                        <div className="flex min-h-11 min-w-[5.5rem] flex-1 overflow-hidden rounded-lg border border-border bg-background shadow-sm sm:flex-none">
+                        <div className="flex min-h-11 min-w-22 flex-1 overflow-hidden rounded-lg border border-border bg-background shadow-sm sm:flex-none">
                             <button
                                 type="button"
                                 onClick={undo}
@@ -478,6 +488,21 @@ function CanvasContent({
                                       : '複製分享連結'}
                             </button>
                         )}
+                        {canDuplicateProject && (
+                            <button
+                                type="button"
+                                disabled={projectAction !== 'idle'}
+                                onClick={() => {
+                                    setIsProjectMenuOpen(false)
+                                    onDuplicateProject?.()
+                                }}
+                                className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {projectAction === 'duplicating'
+                                    ? '複製中…'
+                                    : '建立副本'}
+                            </button>
+                        )}
                         {canManageAiSettings && (
                             <button
                                 type="button"
@@ -520,6 +545,24 @@ function CanvasContent({
                         >
                             匯出 PNG
                         </button>
+                        {canDeleteProject && (
+                            <>
+                                <div className="my-1 border-t border-border" />
+                                <button
+                                    type="button"
+                                    disabled={projectAction !== 'idle'}
+                                    onClick={() => {
+                                        setIsProjectMenuOpen(false)
+                                        onDeleteProject?.()
+                                    }}
+                                    className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {projectAction === 'deleting'
+                                        ? '移動中…'
+                                        : '移到垃圾桶'}
+                                </button>
+                            </>
+                        )}
                     </div>
                     )}
                 </div>

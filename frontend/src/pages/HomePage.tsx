@@ -5,6 +5,7 @@ import {
   addProjectMember,
   createProject,
   deleteProject,
+  getProject,
   listProjectMembers,
   listProjects,
   removeProjectMember,
@@ -32,6 +33,11 @@ import { getLocalProjectDocument } from '../utils/localProjectBackup'
 
 type CreateProjectMode = 'empty' | 'local'
 type ProjectSort = 'updated-desc' | 'updated-asc' | 'name-asc'
+const PROJECT_COPY_SUFFIX = '（副本）'
+
+function getProjectCopyName(name: string) {
+  return `${name.slice(0, 120 - PROJECT_COPY_SUFFIX.length)}${PROJECT_COPY_SUFFIX}`
+}
 
 function formatUpdatedAt(value: string) {
   const date = new Date(value)
@@ -116,6 +122,9 @@ export function HomePage() {
     string | null
   >(null)
   const [deletingProjectId, setDeletingProjectId] = useState<
+    string | null
+  >(null)
+  const [duplicatingProjectId, setDuplicatingProjectId] = useState<
     string | null
   >(null)
   const [actionErrorMessage, setActionErrorMessage] = useState<
@@ -473,6 +482,31 @@ export function HomePage() {
       setActionErrorMessage(getLoadErrorMessage(error))
     } finally {
       setDeletingProjectId(null)
+    }
+  }
+
+  async function handleDuplicateProject(project: ProjectSummary) {
+    if (duplicatingProjectId) {
+      return
+    }
+
+    setDuplicatingProjectId(project.id)
+    setActionErrorMessage(null)
+
+    try {
+      const sourceProject = await getProject(project.id)
+      const duplicatedProject = await createProject({
+        name: getProjectCopyName(sourceProject.name),
+        document: sourceProject.document,
+      })
+      setProjects((currentProjects) => [
+        duplicatedProject,
+        ...currentProjects,
+      ])
+    } catch (error) {
+      setActionErrorMessage(getLoadErrorMessage(error))
+    } finally {
+      setDuplicatingProjectId(null)
     }
   }
 
@@ -965,6 +999,19 @@ export function HomePage() {
                             重新命名
                           </button>
                         )}
+                        <button
+                          type="button"
+                          disabled={duplicatingProjectId !== null}
+                          onClick={() => {
+                            setOpenProjectMenuId(null)
+                            void handleDuplicateProject(project)
+                          }}
+                          className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {duplicatingProjectId === project.id
+                            ? '複製中…'
+                            : '建立副本'}
+                        </button>
                         <button
                           type="button"
                           onClick={() => {

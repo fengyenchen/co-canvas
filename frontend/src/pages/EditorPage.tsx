@@ -6,7 +6,12 @@ import {
   useNavigate,
   useParams,
 } from 'react-router'
-import { createProject, getProject, updateProject } from '../api/projects'
+import {
+  createProject,
+  deleteProject,
+  getProject,
+  updateProject,
+} from '../api/projects'
 import { ApiRequestError } from '../api/errors'
 import { Canvas } from '../components/canvas/Canvas'
 import { ChatPanel } from '../components/chat/ChatPanel'
@@ -41,9 +46,14 @@ type ProjectSaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 const SAVE_DELAY_MS = 800
 const CONFLICT_COPY_SUFFIX = '（衝突副本）'
+const PROJECT_COPY_SUFFIX = '（副本）'
 
 function getConflictCopyName(name: string): string {
   return `${name.slice(0, 120 - CONFLICT_COPY_SUFFIX.length)}${CONFLICT_COPY_SUFFIX}`
+}
+
+function getProjectCopyName(name: string): string {
+  return `${name.slice(0, 120 - PROJECT_COPY_SUFFIX.length)}${PROJECT_COPY_SUFFIX}`
 }
 
 function getProjectLoadErrorMessage(error: unknown): string {
@@ -95,6 +105,10 @@ export function EditorPage() {
     'idle' | 'reloading' | 'copying'
   >('idle')
   const [conflictActionError, setConflictActionError] = useState('')
+  const [projectAction, setProjectAction] = useState<
+    'idle' | 'duplicating' | 'deleting'
+  >('idle')
+  const [projectActionError, setProjectActionError] = useState('')
   const [activeSettingsDialog, setActiveSettingsDialog] =
     useState<ProjectSettingsDialog>(null)
   const [aiSettingsRevision, setAiSettingsRevision] = useState(0)
@@ -380,6 +394,57 @@ export function EditorPage() {
     }
   }
 
+  async function duplicateCurrentProject() {
+    if (
+      !projectId ||
+      projectId === LOCAL_PROJECT_ID ||
+      !loadedProject ||
+      projectAction !== 'idle'
+    ) {
+      return
+    }
+
+    setProjectAction('duplicating')
+    setProjectActionError('')
+
+    try {
+      const copy = await createProject({
+        name: getProjectCopyName(loadedProject.name),
+        document: projectDocument,
+      })
+      setProjectAction('idle')
+      void navigate(`/projects/${copy.id}`)
+    } catch (error) {
+      setProjectActionError(getProjectLoadErrorMessage(error))
+      setProjectAction('idle')
+    }
+  }
+
+  async function moveCurrentProjectToTrash() {
+    if (
+      !projectId ||
+      projectId === LOCAL_PROJECT_ID ||
+      projectAccessRole !== 'owner' ||
+      projectAction !== 'idle'
+    ) {
+      return
+    }
+
+    setProjectAction('deleting')
+    setProjectActionError('')
+
+    try {
+      await deleteProject(projectId)
+      if (recoveryUserId) {
+        clearCloudProjectRecovery(projectId, recoveryUserId)
+      }
+      void navigate('/projects', { replace: true })
+    } catch (error) {
+      setProjectActionError(getProjectLoadErrorMessage(error))
+      setProjectAction('idle')
+    }
+  }
+
   if (projectLoadState === 'loading') {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-6">
@@ -514,14 +579,44 @@ export function EditorPage() {
             projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
           }
           canCopyProjectLink={projectId !== LOCAL_PROJECT_ID}
+          canDuplicateProject={projectId !== LOCAL_PROJECT_ID}
+          canDeleteProject={
+            projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
+          }
           canManageAiSettings={projectId !== LOCAL_PROJECT_ID}
           onRenameProject={() => setActiveSettingsDialog('rename')}
           onManageProjectPermissions={() =>
             setActiveSettingsDialog('permissions')
           }
+          onDuplicateProject={() => void duplicateCurrentProject()}
+          onDeleteProject={() => void moveCurrentProjectToTrash()}
           onManageAiSettings={() => setActiveSettingsDialog('ai')}
+          projectAction={projectAction}
         />
       </div>
+
+      {(projectAction !== 'idle' || projectActionError) && (
+        <div
+          role={projectActionError ? 'alert' : 'status'}
+          className="fixed bottom-4 left-1/2 z-50 flex min-h-11 w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground shadow-lg"
+        >
+          <span>
+            {projectActionError ||
+              (projectAction === 'duplicating'
+                ? '正在複製專案…'
+                : '正在移到垃圾桶…')}
+          </span>
+          {projectActionError && (
+            <button
+              type="button"
+              onClick={() => setProjectActionError('')}
+              className="min-h-11 shrink-0 cursor-pointer rounded-lg px-3 font-medium transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            >
+              關閉
+            </button>
+          )}
+        </div>
+      )}
 
       {loadedProject && activeSettingsDialog && (
         <ProjectSettingsDialogs
