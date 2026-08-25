@@ -5,6 +5,7 @@ const AUTH_ORIGIN = 'https://e2e-auth.local'
 
 export const PROJECT_ID = '11111111-1111-4111-8111-111111111111'
 export const VERSION_ID = '22222222-2222-4222-8222-222222222222'
+export const COPY_PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 
 const USER = {
   id: 'e2e-user',
@@ -35,7 +36,7 @@ export type E2eProject = {
   document: E2eDocument
 }
 
-type E2eVersion = {
+export type E2eVersion = {
   id: string
   name: string | null
   kind: 'manual' | 'automatic' | 'pre_restore' | 'pre_import'
@@ -43,9 +44,15 @@ type E2eVersion = {
   document: E2eDocument
 }
 
+export type E2eTrashedProject = E2eProject & {
+  deletedAt: string
+  expiresAt: string
+}
+
 export type E2eState = {
   authenticated: boolean
   projects: E2eProject[]
+  trashedProjects: E2eTrashedProject[]
   versions: Map<string, E2eVersion[]>
   projectUpdates: Array<Record<string, unknown>>
   lastChatRequest: Record<string, unknown> | null
@@ -103,6 +110,8 @@ export async function installE2eMocks(
     authenticated?: boolean
     projects?: E2eProject[]
     versions?: Map<string, E2eVersion[]>
+    trashedProjects?: E2eTrashedProject[]
+    updateConflictCount?: number
     projectGetError?: {
       status: number
       detail: string
@@ -112,11 +121,15 @@ export async function installE2eMocks(
   const state: E2eState = {
     authenticated: options.authenticated ?? true,
     projects: options.projects ? structuredClone(options.projects) : [],
+    trashedProjects: options.trashedProjects
+      ? structuredClone(options.trashedProjects)
+      : [],
     versions: options.versions ?? new Map(),
     projectUpdates: [],
     lastChatRequest: null,
   }
   let updateSequence = 0
+  let remainingUpdateConflicts = options.updateConflictCount ?? 0
 
   await page.route(`${AUTH_ORIGIN}/**`, async (route) => {
     const request = route.request()
@@ -220,6 +233,7 @@ export async function installE2eMocks(
         publicAccessRole?: 'editor' | 'viewer'
       }
       const project = createProject({
+        id: state.projects.length === 0 ? PROJECT_ID : COPY_PROJECT_ID,
         name: input.name,
         document: input.document ?? emptyDocument(),
         visibility: input.visibility ?? 'private',
@@ -227,6 +241,57 @@ export async function installE2eMocks(
       })
       state.projects.push(project)
       await json(route, project, 201)
+      return
+    }
+
+    if (path === '/api/projects/trash' && method === 'GET') {
+      await json(
+        route,
+        state.trashedProjects.map((project) => ({
+          ...projectSummary(project),
+          deletedAt: project.deletedAt,
+          expiresAt: project.expiresAt,
+        })),
+      )
+      return
+    }
+
+    const restoreProjectMatch = path.match(/^\/api\/projects\/([^/]+)\/restore$/)
+    if (restoreProjectMatch && method === 'POST') {
+      const projectIndex = state.trashedProjects.findIndex(
+        (item) => item.id === restoreProjectMatch[1],
+      )
+      const trashedProject = state.trashedProjects[projectIndex]
+
+      if (!trashedProject) {
+        await json(route, { detail: '找不到垃圾桶專案' }, 404)
+        return
+      }
+
+      const project: E2eProject = {
+        id: trashedProject.id,
+        name: trashedProject.name,
+        visibility: trashedProject.visibility,
+        publicAccessRole: trashedProject.publicAccessRole,
+        accessRole: trashedProject.accessRole,
+        createdAt: trashedProject.createdAt,
+        updatedAt: trashedProject.updatedAt,
+        document: trashedProject.document,
+      }
+      state.trashedProjects.splice(projectIndex, 1)
+      state.projects.unshift(project)
+      await json(route, project)
+      return
+    }
+
+    const permanentDeleteMatch = path.match(
+      /^\/api\/projects\/([^/]+)\/permanent$/,
+    )
+    if (permanentDeleteMatch && method === 'DELETE') {
+      state.trashedProjects = state.trashedProjects.filter(
+        (item) => item.id !== permanentDeleteMatch[1],
+      )
+      await route.fulfill({ status: 204 })
       return
     }
 
@@ -325,6 +390,16 @@ export async function installE2eMocks(
       }
 
       if (method === 'PATCH') {
+        if (remainingUpdateConflicts > 0) {
+          remainingUpdateConflicts -= 1
+          await json(
+            route,
+            { detail: '專案已由其他工作階段更新' },
+            409,
+          )
+          return
+        }
+
         const input = request.postDataJSON() as Record<string, unknown>
         state.projectUpdates.push(input)
         if (typeof input.name === 'string') project.name = input.name
@@ -337,6 +412,18 @@ export async function installE2eMocks(
         }
         project.updatedAt = `2026-01-01T00:00:${String(++updateSequence).padStart(2, '0')}.000Z`
         await json(route, project)
+        return
+      }
+
+
+      if (method === 'DELETE') {
+        state.projects = state.projects.filter((item) => item.id !== project.id)
+        state.trashedProjects.unshift({
+          ...project,
+          deletedAt: '2026-01-02T00:00:00.000Z',
+          expiresAt: '2099-01-01T00:00:00.000Z',
+        })
+        await route.fulfill({ status: 204 })
         return
       }
     }
