@@ -6,7 +6,7 @@ import {
   useNavigate,
   useParams,
 } from 'react-router'
-import { getProject, updateProject } from '../api/projects'
+import { createProject, getProject, updateProject } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
 import { Canvas } from '../components/canvas/Canvas'
 import { ChatPanel } from '../components/chat/ChatPanel'
@@ -40,6 +40,11 @@ type ProjectLoadState = 'loading' | 'ready' | 'error'
 type ProjectSaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 const SAVE_DELAY_MS = 800
+const CONFLICT_COPY_SUFFIX = '（衝突副本）'
+
+function getConflictCopyName(name: string): string {
+  return `${name.slice(0, 120 - CONFLICT_COPY_SUFFIX.length)}${CONFLICT_COPY_SUFFIX}`
+}
 
 function getProjectLoadErrorMessage(error: unknown): string {
   if (error instanceof ApiRequestError && error.status === 404) {
@@ -71,6 +76,7 @@ export function EditorPage() {
   const layoutRef = useRef<HTMLDivElement>(null)
   const resizingPointerIdRef = useRef<number | null>(null)
   const savedDocumentSignatureRef = useRef('')
+  const savedProjectUpdatedAtRef = useRef<string | null>(null)
   const [projectLoadState, setProjectLoadState] =
     useState<ProjectLoadState>('loading')
   const [projectLoadError, setProjectLoadError] = useState('')
@@ -84,6 +90,11 @@ export function EditorPage() {
   const [recoveryUserId, setRecoveryUserId] = useState<string | null>(null)
   const [pendingRecovery, setPendingRecovery] =
     useState<CloudProjectRecovery | null>(null)
+  const [hasSaveConflict, setHasSaveConflict] = useState(false)
+  const [conflictAction, setConflictAction] = useState<
+    'idle' | 'reloading' | 'copying'
+  >('idle')
+  const [conflictActionError, setConflictActionError] = useState('')
   const [activeSettingsDialog, setActiveSettingsDialog] =
     useState<ProjectSettingsDialog>(null)
   const [aiSettingsRevision, setAiSettingsRevision] = useState(0)
@@ -132,7 +143,11 @@ export function EditorPage() {
       setLoadedProject(null)
       setRecoveryUserId(null)
       setPendingRecovery(null)
+      setHasSaveConflict(false)
+      setConflictAction('idle')
+      setConflictActionError('')
       setActiveSettingsDialog(null)
+      savedProjectUpdatedAtRef.current = null
 
       if (!projectId) {
         setProjectLoadState('error')
@@ -192,6 +207,7 @@ export function EditorPage() {
         )
         setProjectAccessRole(project.accessRole)
         setLoadedProject(project)
+        savedProjectUpdatedAtRef.current = project.updatedAt
         setRecoveryUserId(currentRecoveryUserId)
         savedDocumentSignatureRef.current = JSON.stringify(
           project.document,
@@ -250,6 +266,7 @@ export function EditorPage() {
       !projectId ||
       projectId === LOCAL_PROJECT_ID ||
       !recoveryUserId ||
+      hasSaveConflict ||
       projectDocumentSignature === savedDocumentSignatureRef.current
     ) {
       return
@@ -263,19 +280,27 @@ export function EditorPage() {
       setProjectSaveRequiresLogin(false)
 
       try {
-        await updateProject(projectId, {
+        const updatedProject = await updateProject(projectId, {
           document: projectDocument,
+          expectedUpdatedAt: savedProjectUpdatedAtRef.current ?? undefined,
         })
+
+        savedProjectUpdatedAtRef.current = updatedProject.updatedAt
 
         if (isCancelled) {
           return
         }
 
+        setLoadedProject(updatedProject)
         savedDocumentSignatureRef.current = projectDocumentSignature
         clearCloudProjectRecovery(projectId, recoveryUserId)
         setProjectSaveState('saved')
       } catch (error) {
         if (!isCancelled) {
+          if (error instanceof ApiRequestError && error.status === 409) {
+            setHasSaveConflict(true)
+            setConflictActionError('')
+          }
           setProjectSaveState('error')
           setProjectSaveRequiresLogin(
             error instanceof ApiRequestError && error.status === 401,
@@ -295,7 +320,65 @@ export function EditorPage() {
     projectAccessRole,
     projectLoadState,
     recoveryUserId,
+    hasSaveConflict,
   ])
+
+  async function reloadCloudProjectAfterConflict() {
+    if (!projectId || projectId === LOCAL_PROJECT_ID || conflictAction !== 'idle') {
+      return
+    }
+
+    setConflictAction('reloading')
+    setConflictActionError('')
+
+    try {
+      const project = await getProject(projectId)
+      replaceProject(project.document.nodes, project.document.edges)
+      replaceProjectMessages(
+        project.document.messages,
+        project.document.suggestionEvents,
+      )
+      savedDocumentSignatureRef.current = JSON.stringify(project.document)
+      savedProjectUpdatedAtRef.current = project.updatedAt
+      setLoadedProject(project)
+      setProjectAccessRole(project.accessRole)
+      if (recoveryUserId) {
+        clearCloudProjectRecovery(projectId, recoveryUserId)
+      }
+      setPendingRecovery(null)
+      setHasSaveConflict(false)
+      setProjectSaveState('saved')
+    } catch (error) {
+      setConflictActionError(getProjectLoadErrorMessage(error))
+    } finally {
+      setConflictAction('idle')
+    }
+  }
+
+  async function keepConflictAsCopy() {
+    if (!projectId || conflictAction !== 'idle') {
+      return
+    }
+
+    setConflictAction('copying')
+    setConflictActionError('')
+
+    try {
+      const copy = await createProject({
+        name: getConflictCopyName(loadedProject?.name ?? '未命名專案'),
+        document: projectDocument,
+      })
+      if (recoveryUserId) {
+        clearCloudProjectRecovery(projectId, recoveryUserId)
+      }
+      setHasSaveConflict(false)
+      void navigate(`/projects/${copy.id}`, { replace: true })
+    } catch (error) {
+      setConflictActionError(getProjectLoadErrorMessage(error))
+    } finally {
+      setConflictAction('idle')
+    }
+  }
 
   if (projectLoadState === 'loading') {
     return (
@@ -449,11 +532,65 @@ export function EditorPage() {
           onProjectUpdated={(project) => {
             setLoadedProject(project)
             setProjectAccessRole(project.accessRole)
+            savedProjectUpdatedAtRef.current = project.updatedAt
           }}
           onAiCredentialUpdated={() =>
             setAiSettingsRevision((revision) => revision + 1)
           }
         />
+      )}
+
+      {hasSaveConflict && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-[1px]">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="save-conflict-title"
+            aria-describedby="save-conflict-description"
+            className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-xl"
+          >
+            <h2
+              id="save-conflict-title"
+              className="text-xl font-semibold text-foreground"
+            >
+              偵測到編輯衝突
+            </h2>
+            <p
+              id="save-conflict-description"
+              className="mt-2 leading-7 text-muted-foreground"
+            >
+              此專案已在其他分頁或裝置更新，因此目前內容沒有覆蓋雲端版本。你可以重新載入最新版本，或將目前內容另存為私人副本。
+            </p>
+            {conflictActionError && (
+              <p role="alert" className="mt-3 text-sm text-red-600">
+                {conflictActionError}
+              </p>
+            )}
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => void reloadCloudProjectAfterConflict()}
+                disabled={conflictAction !== 'idle'}
+                className="min-h-11 cursor-pointer rounded-xl border border-border px-4 text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {conflictAction === 'reloading'
+                  ? '重新載入中…'
+                  : '重新載入雲端版本'}
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => void keepConflictAsCopy()}
+                disabled={conflictAction !== 'idle'}
+                className="min-h-11 cursor-pointer rounded-xl bg-primary px-4 font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {conflictAction === 'copying'
+                  ? '建立副本中…'
+                  : '保留目前內容為副本'}
+              </button>
+            </div>
+          </section>
+        </div>
       )}
 
       {pendingRecovery && (
@@ -529,7 +666,11 @@ export function EditorPage() {
           {projectSaveState === 'saving' && '儲存中…'}
           {projectSaveState === 'saved' && '已儲存'}
           {projectSaveState === 'error' &&
-            (projectSaveRequiresLogin ? '登入已過期，尚未儲存' : '儲存失敗')}
+            (projectSaveRequiresLogin
+              ? '登入已過期，尚未儲存'
+              : hasSaveConflict
+                ? '偵測到編輯衝突'
+                : '儲存失敗')}
           {projectSaveRequiresLogin && (
             <Link
               to={`/auth/sign-in?returnTo=${encodeURIComponent(

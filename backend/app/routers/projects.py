@@ -2,7 +2,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import AuthenticatedUser, CurrentUser, OptionalCurrentUser
@@ -246,17 +246,40 @@ async def update_project(
             detail="只有擁有者可以變更專案權限",
         )
 
+    update_values = {}
+
     if request.name is not None:
-        project.name = request.name
+        update_values["name"] = request.name
 
     if request.document is not None:
-        project.document = request.document.model_dump(by_alias=True)
+        update_values["document"] = request.document.model_dump(by_alias=True)
 
     if request.visibility is not None:
-        project.visibility = request.visibility
+        update_values["visibility"] = request.visibility
 
     if request.public_access_role is not None:
-        project.public_access_role = request.public_access_role
+        update_values["public_access_role"] = request.public_access_role
+
+    if request.expected_updated_at is not None:
+        result = await session.execute(
+            update(Project)
+            .where(
+                Project.id == project_id,
+                Project.updated_at == request.expected_updated_at,
+            )
+            .values(**update_values, updated_at=func.now())
+            .execution_options(synchronize_session=False)
+        )
+
+        if result.rowcount != 1:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="專案已在其他分頁或裝置更新",
+            )
+    else:
+        for field_name, value in update_values.items():
+            setattr(project, field_name, value)
 
     await session.commit()
     await session.refresh(project)

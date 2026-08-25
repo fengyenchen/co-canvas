@@ -337,6 +337,7 @@ class ProjectUpdate(ApiModel):
     document: ProjectDocument | None = None
     visibility: ProjectVisibility | None = None
     public_access_role: PublicAccessRole | None = None
+    expected_updated_at: datetime | None = None
 
     @field_validator("name")
     @classmethod

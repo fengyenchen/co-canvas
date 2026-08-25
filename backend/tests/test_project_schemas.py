@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.project_schemas import ProjectDocument, ProjectVideoNode
+from app.project_schemas import ProjectDocument, ProjectUpdate, ProjectVideoNode
 
 
 def create_video_node(duration_ms: int | None = 60_000) -> dict[str, object]:
@@ -45,6 +45,20 @@ def test_upgrades_version_one_document() -> None:
     assert document.version == 4
     assert document.nodes == []
     assert document.suggestion_events == []
+
+
+def test_accepts_expected_updated_at_for_optimistic_locking() -> None:
+    update = ProjectUpdate.model_validate(
+        {
+            "name": "更新名稱",
+            "expectedUpdatedAt": "2026-08-25T08:30:00.000Z",
+        }
+    )
+
+    assert update.expected_updated_at is not None
+    assert update.model_dump(by_alias=True)["expectedUpdatedAt"].isoformat() == (
+        "2026-08-25T08:30:00+00:00"
+    )
 
 
 def test_accepts_suggestion_decision_event() -> None:

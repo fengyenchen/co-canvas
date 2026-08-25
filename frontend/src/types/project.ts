@@ -48,4 +48,5 @@ export type UpdateProjectInput = {
   document?: ProjectDocument
   visibility?: ProjectVisibility
   publicAccessRole?: PublicAccessRole
+  expectedUpdatedAt?: string
 }
