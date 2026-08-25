@@ -12,6 +12,7 @@ ProjectVisibility = Literal["private", "public"]
 ProjectRole = Literal["owner", "editor", "viewer"]
 PublicAccessRole = Literal["editor", "viewer"]
 ProjectMemberRole = Literal["editor", "viewer"]
+ProjectVersionKind = Literal["manual", "automatic", "pre_restore", "pre_import"]
 
 
 class ProjectPosition(ApiModel):
@@ -382,6 +383,34 @@ class ProjectResponse(ProjectSummary):
 class TrashedProjectSummary(ProjectSummary):
     deleted_at: datetime
     expires_at: datetime
+
+
+class ProjectVersionCreate(ApiModel):
+    name: str | None = Field(default=None, max_length=120)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        name = value.strip()
+        return name or None
+
+
+class ProjectVersionRestore(ApiModel):
+    expected_updated_at: datetime | None = None
+
+
+class ProjectVersionSummary(ApiModel):
+    id: uuid.UUID
+    name: str | None
+    kind: ProjectVersionKind
+    created_at: datetime
+
+
+class ProjectVersionResponse(ProjectVersionSummary):
+    document: ProjectDocument
 
 
 class ProjectMemberCreate(ApiModel):

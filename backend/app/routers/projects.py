@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import AuthenticatedUser, CurrentUser, OptionalCurrentUser
 from app.database import get_database_session
-from app.models import Project, ProjectMember
+from app.models import Project, ProjectMember, ProjectVersion
 from app.project_schemas import (
     ProjectCreate,
     ProjectMemberCreate,
@@ -18,6 +18,10 @@ from app.project_schemas import (
     ProjectRole,
     ProjectSummary,
     ProjectUpdate,
+    ProjectVersionCreate,
+    ProjectVersionResponse,
+    ProjectVersionRestore,
+    ProjectVersionSummary,
     TrashedProjectSummary,
 )
 
@@ -166,6 +170,47 @@ async def get_project_member_or_404(
     return member
 
 
+async def get_project_version_or_404(
+    project_id: uuid.UUID,
+    version_id: uuid.UUID,
+    session: AsyncSession,
+) -> ProjectVersion:
+    version = await session.scalar(
+        select(ProjectVersion).where(
+            ProjectVersion.id == version_id,
+            ProjectVersion.project_id == project_id,
+        )
+    )
+
+    if version is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="找不到此版本紀錄",
+        )
+
+    return version
+
+
+def to_project_version_summary(
+    version: ProjectVersion,
+) -> ProjectVersionSummary:
+    return ProjectVersionSummary(
+        id=version.id,
+        name=version.name,
+        kind=version.kind,
+        created_at=version.created_at,
+    )
+
+
+def to_project_version_response(
+    version: ProjectVersion,
+) -> ProjectVersionResponse:
+    return ProjectVersionResponse(
+        **to_project_version_summary(version).model_dump(),
+        document=version.document,
+    )
+
+
 @router.get("", response_model=list[ProjectSummary])
 async def list_projects(
     session: DatabaseSession,
@@ -259,6 +304,135 @@ async def get_project(
     user: OptionalCurrentUser,
 ) -> ProjectResponse:
     project, role = await get_readable_project(project_id, session, user)
+    return to_project_response(project, role)
+
+
+@router.get(
+    "/{project_id}/versions",
+    response_model=list[ProjectVersionSummary],
+)
+async def list_project_versions(
+    project_id: uuid.UUID,
+    session: DatabaseSession,
+    user: OptionalCurrentUser,
+) -> list[ProjectVersionSummary]:
+    await get_readable_project(project_id, session, user)
+    versions = await session.scalars(
+        select(ProjectVersion)
+        .where(ProjectVersion.project_id == project_id)
+        .order_by(ProjectVersion.created_at.desc())
+        .limit(100)
+    )
+    return [to_project_version_summary(version) for version in versions]
+
+
+@router.post(
+    "/{project_id}/versions",
+    response_model=ProjectVersionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_project_version(
+    project_id: uuid.UUID,
+    request: ProjectVersionCreate,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> ProjectVersionResponse:
+    project, role = await get_readable_project(project_id, session, user)
+
+    if role == "viewer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="你只有檢視權限",
+        )
+
+    version = ProjectVersion(
+        project_id=project.id,
+        created_by_id=user.id,
+        name=request.name,
+        kind="manual",
+        document=project.document,
+    )
+    session.add(version)
+    await session.commit()
+    await session.refresh(version)
+    return to_project_version_response(version)
+
+
+@router.get(
+    "/{project_id}/versions/{version_id}",
+    response_model=ProjectVersionResponse,
+)
+async def get_project_version(
+    project_id: uuid.UUID,
+    version_id: uuid.UUID,
+    session: DatabaseSession,
+    user: OptionalCurrentUser,
+) -> ProjectVersionResponse:
+    await get_readable_project(project_id, session, user)
+    version = await get_project_version_or_404(
+        project_id,
+        version_id,
+        session,
+    )
+    return to_project_version_response(version)
+
+
+@router.post(
+    "/{project_id}/versions/{version_id}/restore",
+    response_model=ProjectResponse,
+)
+async def restore_project_version(
+    project_id: uuid.UUID,
+    version_id: uuid.UUID,
+    request: ProjectVersionRestore,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> ProjectResponse:
+    project, role = await get_readable_project(project_id, session, user)
+
+    if role == "viewer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="你只有檢視權限",
+        )
+
+    version = await get_project_version_or_404(
+        project_id,
+        version_id,
+        session,
+    )
+    restore_filters = [Project.id == project_id]
+
+    if request.expected_updated_at is not None:
+        restore_filters.append(
+            Project.updated_at == request.expected_updated_at,
+        )
+
+    result = await session.execute(
+        update(Project)
+        .where(*restore_filters)
+        .values(document=version.document, updated_at=func.now())
+        .execution_options(synchronize_session=False)
+    )
+
+    if result.rowcount != 1:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="專案已在其他分頁或裝置更新",
+        )
+
+    session.add(
+        ProjectVersion(
+            project_id=project.id,
+            created_by_id=user.id,
+            name="恢復前備份",
+            kind="pre_restore",
+            document=project.document,
+        )
+    )
+    await session.commit()
+    await session.refresh(project)
     return to_project_response(project, role)
 
 

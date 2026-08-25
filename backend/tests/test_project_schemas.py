@@ -1,7 +1,14 @@
 import pytest
 from pydantic import ValidationError
 
-from app.project_schemas import ProjectDocument, ProjectUpdate, ProjectVideoNode
+from app.project_schemas import (
+    ProjectDocument,
+    ProjectUpdate,
+    ProjectVersionCreate,
+    ProjectVersionResponse,
+    ProjectVersionRestore,
+    ProjectVideoNode,
+)
 
 
 def create_video_node(duration_ms: int | None = 60_000) -> dict[str, object]:
@@ -59,6 +66,44 @@ def test_accepts_expected_updated_at_for_optimistic_locking() -> None:
     assert update.model_dump(by_alias=True)["expectedUpdatedAt"].isoformat() == (
         "2026-08-25T08:30:00+00:00"
     )
+
+
+def test_normalizes_optional_project_version_name() -> None:
+    named_version = ProjectVersionCreate.model_validate(
+        {"name": "  訪談整理完成  "}
+    )
+    unnamed_version = ProjectVersionCreate.model_validate({"name": "   "})
+
+    assert named_version.name == "訪談整理完成"
+    assert unnamed_version.name is None
+
+
+def test_accepts_project_version_restore_lock() -> None:
+    request = ProjectVersionRestore.model_validate(
+        {"expectedUpdatedAt": "2026-08-25T08:30:00.000Z"}
+    )
+
+    assert request.expected_updated_at is not None
+
+
+def test_accepts_project_version_response() -> None:
+    version = ProjectVersionResponse.model_validate(
+        {
+            "id": "a3c89b13-2640-4d58-a5c4-30fb3db79750",
+            "name": "第一版",
+            "kind": "manual",
+            "createdAt": "2026-08-25T08:30:00.000Z",
+            "document": {
+                "version": 4,
+                "nodes": [],
+                "edges": [],
+                "messages": [],
+            },
+        }
+    )
+
+    assert version.kind == "manual"
+    assert version.document.version == 4
 
 
 def test_accepts_suggestion_decision_event() -> None:
