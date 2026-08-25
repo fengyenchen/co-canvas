@@ -6,6 +6,7 @@ import type {
   ProjectMemberRole,
   ProjectSummary,
   ProjectVersion,
+  ProjectVersionKind,
   ProjectVersionSummary,
   TrashedProjectSummary,
   UpdateProjectInput,
@@ -218,13 +219,14 @@ export async function listProjectVersions(
 export async function createProjectVersion(
   projectId: string,
   name?: string,
+  kind: Exclude<ProjectVersionKind, 'pre_restore'> = 'manual',
 ): Promise<ProjectVersion> {
   const response = await fetch(
     `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/versions`,
     {
       method: 'POST',
       headers: await createRequestHeaders(true),
-      body: JSON.stringify({ name: name?.trim() || null }),
+      body: JSON.stringify({ name: name?.trim() || null, kind }),
     },
   )
 

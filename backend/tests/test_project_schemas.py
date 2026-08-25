@@ -78,6 +78,19 @@ def test_normalizes_optional_project_version_name() -> None:
     assert unnamed_version.name is None
 
 
+def test_accepts_client_project_version_kinds() -> None:
+    automatic = ProjectVersionCreate.model_validate({"kind": "automatic"})
+    pre_import = ProjectVersionCreate.model_validate({"kind": "pre_import"})
+
+    assert automatic.kind == "automatic"
+    assert pre_import.kind == "pre_import"
+
+
+def test_rejects_client_created_pre_restore_version() -> None:
+    with pytest.raises(ValidationError):
+        ProjectVersionCreate.model_validate({"kind": "pre_restore"})
+
+
 def test_accepts_project_version_restore_lock() -> None:
     request = ProjectVersionRestore.model_validate(
         {"expectedUpdatedAt": "2026-08-25T08:30:00.000Z"}

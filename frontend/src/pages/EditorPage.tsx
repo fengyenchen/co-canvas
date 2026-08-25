@@ -52,6 +52,7 @@ type ProjectLoadState = 'loading' | 'ready' | 'error'
 type ProjectSaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 const SAVE_DELAY_MS = 800
+const AUTOMATIC_VERSION_INTERVAL_MS = 10 * 60 * 1000
 const CONFLICT_COPY_SUFFIX = '（衝突副本）'
 const PROJECT_COPY_SUFFIX = '（副本）'
 
@@ -95,6 +96,9 @@ export function EditorPage() {
   const savedDocumentSignatureRef = useRef('')
   const savedProjectUpdatedAtRef = useRef<string | null>(null)
   const versionActionInProgressRef = useRef(false)
+  const automaticVersionInProgressRef = useRef(false)
+  const currentDocumentSignatureRef = useRef('')
+  const lastAutomaticVersionSignatureRef = useRef('')
   const [projectLoadState, setProjectLoadState] =
     useState<ProjectLoadState>('loading')
   const [projectLoadError, setProjectLoadError] = useState('')
@@ -155,6 +159,10 @@ export function EditorPage() {
   )
 
   useEffect(() => {
+    currentDocumentSignatureRef.current = projectDocumentSignature
+  }, [projectDocumentSignature])
+
+  useEffect(() => {
     let isCancelled = false
 
     async function loadProject() {
@@ -172,6 +180,8 @@ export function EditorPage() {
       setActiveSettingsDialog(null)
       setIsVersionsDialogOpen(false)
       versionActionInProgressRef.current = false
+      automaticVersionInProgressRef.current = false
+      lastAutomaticVersionSignatureRef.current = ''
       savedProjectUpdatedAtRef.current = null
 
       if (!projectId) {
@@ -237,6 +247,8 @@ export function EditorPage() {
         savedDocumentSignatureRef.current = JSON.stringify(
           project.document,
         )
+        lastAutomaticVersionSignatureRef.current =
+          savedDocumentSignatureRef.current
         const recovery = currentRecoveryUserId
           ? getCloudProjectRecovery(project.id, currentRecoveryUserId)
           : null
@@ -283,6 +295,45 @@ export function EditorPage() {
     replaceProject,
     replaceProjectMessages,
   ])
+
+  useEffect(() => {
+    if (
+      projectLoadState !== 'ready' ||
+      projectAccessRole === 'viewer' ||
+      !projectId ||
+      projectId === LOCAL_PROJECT_ID
+    ) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      const currentSignature = currentDocumentSignatureRef.current
+
+      if (
+        versionActionInProgressRef.current ||
+        automaticVersionInProgressRef.current ||
+        !currentSignature ||
+        currentSignature !== savedDocumentSignatureRef.current ||
+        currentSignature === lastAutomaticVersionSignatureRef.current
+      ) {
+        return
+      }
+
+      automaticVersionInProgressRef.current = true
+      void createProjectVersion(projectId, undefined, 'automatic')
+        .then(() => {
+          lastAutomaticVersionSignatureRef.current = currentSignature
+        })
+        .catch(() => {
+          // Automatic snapshots retry on the next interval.
+        })
+        .finally(() => {
+          automaticVersionInProgressRef.current = false
+        })
+    }, AUTOMATIC_VERSION_INTERVAL_MS)
+
+    return () => window.clearInterval(intervalId)
+  }, [projectAccessRole, projectId, projectLoadState])
 
   useEffect(() => {
     if (
@@ -472,7 +523,10 @@ export function EditorPage() {
 
     try {
       await syncCurrentProjectForVersionAction()
-      return await createProjectVersion(projectId, name)
+      const version = await createProjectVersion(projectId, name)
+      lastAutomaticVersionSignatureRef.current =
+        savedDocumentSignatureRef.current
+      return version
     } finally {
       versionActionInProgressRef.current = false
     }
@@ -506,6 +560,8 @@ export function EditorPage() {
       savedDocumentSignatureRef.current = JSON.stringify(
         restoredProject.document,
       )
+      lastAutomaticVersionSignatureRef.current =
+        savedDocumentSignatureRef.current
       setPendingRecovery(null)
       setHasSaveConflict(false)
       setProjectSaveState('saved')
@@ -513,6 +569,23 @@ export function EditorPage() {
       if (recoveryUserId) {
         clearCloudProjectRecovery(projectId, recoveryUserId)
       }
+    } finally {
+      versionActionInProgressRef.current = false
+    }
+  }
+
+  async function createPreImportVersion() {
+    if (!projectId || projectId === LOCAL_PROJECT_ID) {
+      return
+    }
+
+    versionActionInProgressRef.current = true
+
+    try {
+      await syncCurrentProjectForVersionAction()
+      await createProjectVersion(projectId, '匯入前備份', 'pre_import')
+      lastAutomaticVersionSignatureRef.current =
+        savedDocumentSignatureRef.current
     } finally {
       versionActionInProgressRef.current = false
     }
@@ -690,6 +763,7 @@ export function EditorPage() {
           onDuplicateProject={() => void duplicateCurrentProject()}
           onDeleteProject={() => void moveCurrentProjectToTrash()}
           onViewProjectVersions={() => setIsVersionsDialogOpen(true)}
+          onBeforeImportProject={createPreImportVersion}
           onManageAiSettings={() => setActiveSettingsDialog('ai')}
           projectAction={projectAction}
         />

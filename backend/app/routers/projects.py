@@ -37,6 +37,8 @@ DatabaseSession = Annotated[
 ]
 
 TRASH_RETENTION_DAYS = 30
+AUTOMATIC_VERSION_RETENTION_DAYS = 30
+AUTOMATIC_VERSION_LIMIT = 50
 
 
 async def get_project_or_404(
@@ -345,11 +347,61 @@ async def create_project_version(
             detail="你只有檢視權限",
         )
 
+    if request.kind == "automatic":
+        automatic_cutoff = datetime.now(timezone.utc) - timedelta(
+            days=AUTOMATIC_VERSION_RETENTION_DAYS
+        )
+        await session.execute(
+            delete(ProjectVersion).where(
+                ProjectVersion.project_id == project.id,
+                ProjectVersion.kind == "automatic",
+                ProjectVersion.created_at < automatic_cutoff,
+            )
+        )
+        latest_automatic_version = await session.scalar(
+            select(ProjectVersion)
+            .where(
+                ProjectVersion.project_id == project.id,
+                ProjectVersion.kind == "automatic",
+            )
+            .order_by(ProjectVersion.created_at.desc())
+            .limit(1)
+        )
+
+        if (
+            latest_automatic_version is not None
+            and latest_automatic_version.document == project.document
+        ):
+            await session.commit()
+            return to_project_version_response(latest_automatic_version)
+
+        retained_automatic_ids = list(
+            await session.scalars(
+                select(ProjectVersion.id)
+                .where(
+                    ProjectVersion.project_id == project.id,
+                    ProjectVersion.kind == "automatic",
+                )
+                .order_by(ProjectVersion.created_at.desc())
+                .offset(AUTOMATIC_VERSION_LIMIT - 1)
+            )
+        )
+        if retained_automatic_ids:
+            await session.execute(
+                delete(ProjectVersion).where(
+                    ProjectVersion.id.in_(retained_automatic_ids)
+                )
+            )
+
+    version_name = request.name
+    if request.kind == "pre_import" and version_name is None:
+        version_name = "匯入前備份"
+
     version = ProjectVersion(
         project_id=project.id,
         created_by_id=user.id,
-        name=request.name,
-        kind="manual",
+        name=version_name,
+        kind=request.kind,
         document=project.document,
     )
     session.add(version)

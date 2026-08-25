@@ -387,6 +387,7 @@ class TrashedProjectSummary(ProjectSummary):
 
 class ProjectVersionCreate(ApiModel):
     name: str | None = Field(default=None, max_length=120)
+    kind: Literal["manual", "automatic", "pre_import"] = "manual"
 
     @field_validator("name")
     @classmethod

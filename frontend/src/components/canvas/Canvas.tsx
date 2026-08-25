@@ -41,6 +41,7 @@ type CanvasProps = {
     onDuplicateProject?: () => void
     onDeleteProject?: () => void
     onViewProjectVersions?: () => void
+    onBeforeImportProject?: () => Promise<void>
     onManageAiSettings?: () => void
     projectAction?: 'idle' | 'duplicating' | 'deleting'
 }
@@ -59,6 +60,7 @@ function CanvasContent({
     onDuplicateProject,
     onDeleteProject,
     onViewProjectVersions,
+    onBeforeImportProject,
     onManageAiSettings,
     projectAction = 'idle',
 }: CanvasProps) {
@@ -219,6 +221,17 @@ function CanvasContent({
                 )
             ) {
                 return
+            }
+
+            if (onBeforeImportProject) {
+                try {
+                    await onBeforeImportProject()
+                } catch {
+                    window.alert(
+                        '無法建立匯入前備份，畫布尚未變更。請稍後再試。',
+                    )
+                    return
+                }
             }
 
             replaceProject(project.nodes, project.edges)
