@@ -7,9 +7,11 @@ import {
   useParams,
 } from 'react-router'
 import {
+  createProjectVersion,
   createProject,
   deleteProject,
   getProject,
+  restoreProjectVersion,
   updateProject,
 } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
@@ -19,6 +21,7 @@ import {
   ProjectSettingsDialogs,
   type ProjectSettingsDialog,
 } from '../components/project/ProjectSettingsDialogs'
+import { ProjectVersionsDialog } from '../components/project/ProjectVersionsDialog'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useChatStore } from '../stores/chatStore'
 import {
@@ -35,7 +38,11 @@ import {
   type CloudProjectRecovery,
 } from '../utils/cloudProjectRecovery'
 import { createProjectDocument } from '../utils/projectFile'
-import type { Project, ProjectRole } from '../types/project'
+import type {
+  Project,
+  ProjectRole,
+  ProjectVersion,
+} from '../types/project'
 
 const MIN_CHAT_HEIGHT_PERCENT = 30
 const MAX_CHAT_HEIGHT_PERCENT = 75
@@ -87,6 +94,7 @@ export function EditorPage() {
   const resizingPointerIdRef = useRef<number | null>(null)
   const savedDocumentSignatureRef = useRef('')
   const savedProjectUpdatedAtRef = useRef<string | null>(null)
+  const versionActionInProgressRef = useRef(false)
   const [projectLoadState, setProjectLoadState] =
     useState<ProjectLoadState>('loading')
   const [projectLoadError, setProjectLoadError] = useState('')
@@ -112,6 +120,7 @@ export function EditorPage() {
   const [activeSettingsDialog, setActiveSettingsDialog] =
     useState<ProjectSettingsDialog>(null)
   const [aiSettingsRevision, setAiSettingsRevision] = useState(0)
+  const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false)
   const [mobileChatHeight, setMobileChatHeight] = useState(
     DEFAULT_CHAT_HEIGHT_PERCENT,
   )
@@ -161,6 +170,8 @@ export function EditorPage() {
       setConflictAction('idle')
       setConflictActionError('')
       setActiveSettingsDialog(null)
+      setIsVersionsDialogOpen(false)
+      versionActionInProgressRef.current = false
       savedProjectUpdatedAtRef.current = null
 
       if (!projectId) {
@@ -290,6 +301,10 @@ export function EditorPage() {
 
     let isCancelled = false
     const timeoutId = window.setTimeout(async () => {
+      if (versionActionInProgressRef.current) {
+        return
+      }
+
       setProjectSaveState('saving')
       setProjectSaveRequiresLogin(false)
 
@@ -417,6 +432,89 @@ export function EditorPage() {
     } catch (error) {
       setProjectActionError(getProjectLoadErrorMessage(error))
       setProjectAction('idle')
+    }
+  }
+
+  async function syncCurrentProjectForVersionAction(): Promise<Project> {
+    if (!projectId || projectId === LOCAL_PROJECT_ID || !loadedProject) {
+      throw new Error('目前專案無法建立版本')
+    }
+
+    if (projectDocumentSignature === savedDocumentSignatureRef.current) {
+      return loadedProject
+    }
+
+    setProjectSaveState('saving')
+    const updatedProject = await updateProject(projectId, {
+      document: projectDocument,
+      expectedUpdatedAt: savedProjectUpdatedAtRef.current ?? undefined,
+    })
+    savedProjectUpdatedAtRef.current = updatedProject.updatedAt
+    savedDocumentSignatureRef.current = projectDocumentSignature
+    setLoadedProject(updatedProject)
+    setProjectSaveState('saved')
+
+    if (recoveryUserId) {
+      clearCloudProjectRecovery(projectId, recoveryUserId)
+    }
+
+    return updatedProject
+  }
+
+  async function createCurrentProjectVersion(
+    name: string,
+  ): Promise<ProjectVersion> {
+    if (!projectId || projectId === LOCAL_PROJECT_ID) {
+      throw new Error('本機畫布不支援雲端版本紀錄')
+    }
+
+    versionActionInProgressRef.current = true
+
+    try {
+      await syncCurrentProjectForVersionAction()
+      return await createProjectVersion(projectId, name)
+    } finally {
+      versionActionInProgressRef.current = false
+    }
+  }
+
+  async function restoreCurrentProjectVersion(versionId: string) {
+    if (!projectId || projectId === LOCAL_PROJECT_ID) {
+      throw new Error('本機畫布不支援雲端版本紀錄')
+    }
+
+    versionActionInProgressRef.current = true
+
+    try {
+      const currentProject = await syncCurrentProjectForVersionAction()
+      const restoredProject = await restoreProjectVersion(
+        projectId,
+        versionId,
+        currentProject.updatedAt,
+      )
+      replaceProject(
+        restoredProject.document.nodes,
+        restoredProject.document.edges,
+      )
+      replaceProjectMessages(
+        restoredProject.document.messages,
+        restoredProject.document.suggestionEvents,
+      )
+      setLoadedProject(restoredProject)
+      setProjectAccessRole(restoredProject.accessRole)
+      savedProjectUpdatedAtRef.current = restoredProject.updatedAt
+      savedDocumentSignatureRef.current = JSON.stringify(
+        restoredProject.document,
+      )
+      setPendingRecovery(null)
+      setHasSaveConflict(false)
+      setProjectSaveState('saved')
+
+      if (recoveryUserId) {
+        clearCloudProjectRecovery(projectId, recoveryUserId)
+      }
+    } finally {
+      versionActionInProgressRef.current = false
     }
   }
 
@@ -583,6 +681,7 @@ export function EditorPage() {
           canDeleteProject={
             projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
           }
+          canViewProjectVersions={projectId !== LOCAL_PROJECT_ID}
           canManageAiSettings={projectId !== LOCAL_PROJECT_ID}
           onRenameProject={() => setActiveSettingsDialog('rename')}
           onManageProjectPermissions={() =>
@@ -590,6 +689,7 @@ export function EditorPage() {
           }
           onDuplicateProject={() => void duplicateCurrentProject()}
           onDeleteProject={() => void moveCurrentProjectToTrash()}
+          onViewProjectVersions={() => setIsVersionsDialogOpen(true)}
           onManageAiSettings={() => setActiveSettingsDialog('ai')}
           projectAction={projectAction}
         />
@@ -632,6 +732,16 @@ export function EditorPage() {
           onAiCredentialUpdated={() =>
             setAiSettingsRevision((revision) => revision + 1)
           }
+        />
+      )}
+
+      {loadedProject && isVersionsDialogOpen && (
+        <ProjectVersionsDialog
+          project={loadedProject}
+          canEdit={projectAccessRole !== 'viewer'}
+          onClose={() => setIsVersionsDialogOpen(false)}
+          onCreateVersion={createCurrentProjectVersion}
+          onRestoreVersion={restoreCurrentProjectVersion}
         />
       )}
 

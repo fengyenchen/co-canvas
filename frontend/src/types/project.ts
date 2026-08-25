@@ -14,6 +14,11 @@ export type ProjectVisibility = 'private' | 'public'
 export type ProjectRole = 'owner' | 'editor' | 'viewer'
 export type PublicAccessRole = Exclude<ProjectRole, 'owner'>
 export type ProjectMemberRole = Exclude<ProjectRole, 'owner'>
+export type ProjectVersionKind =
+  | 'manual'
+  | 'automatic'
+  | 'pre_restore'
+  | 'pre_import'
 
 export type ProjectMember = {
   id: string
@@ -39,6 +44,17 @@ export type Project = ProjectSummary & {
 export type TrashedProjectSummary = ProjectSummary & {
   deletedAt: string
   expiresAt: string
+}
+
+export type ProjectVersionSummary = {
+  id: string
+  name: string | null
+  kind: ProjectVersionKind
+  createdAt: string
+}
+
+export type ProjectVersion = ProjectVersionSummary & {
+  document: ProjectDocument
 }
 
 export type CreateProjectInput = {

@@ -5,6 +5,8 @@ import type {
   ProjectMember,
   ProjectMemberRole,
   ProjectSummary,
+  ProjectVersion,
+  ProjectVersionSummary,
   TrashedProjectSummary,
   UpdateProjectInput,
 } from '../types/project'
@@ -35,6 +37,17 @@ const projectMemberSchema = z.object({
   email: z.email(),
   role: z.enum(['editor', 'viewer']),
   createdAt: z.string(),
+})
+
+const projectVersionSummarySchema = z.object({
+  id: z.uuid(),
+  name: z.string().nullable(),
+  kind: z.enum(['manual', 'automatic', 'pre_restore', 'pre_import']),
+  createdAt: z.string(),
+})
+
+const projectVersionSchema = projectVersionSummarySchema.extend({
+  document: projectDocumentSchema,
 })
 
 const API_BASE_URL =
@@ -185,6 +198,78 @@ export async function permanentlyDeleteProject(projectId: string): Promise<void>
   if (!response.ok) {
     return throwApiRequestError(response)
   }
+}
+
+export async function listProjectVersions(
+  projectId: string,
+): Promise<ProjectVersionSummary[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/versions`,
+    { headers: await createRequestHeaders() },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+
+  return z.array(projectVersionSummarySchema).parse(await response.json())
+}
+
+export async function createProjectVersion(
+  projectId: string,
+  name?: string,
+): Promise<ProjectVersion> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/versions`,
+    {
+      method: 'POST',
+      headers: await createRequestHeaders(true),
+      body: JSON.stringify({ name: name?.trim() || null }),
+    },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+
+  return projectVersionSchema.parse(await response.json())
+}
+
+export async function getProjectVersion(
+  projectId: string,
+  versionId: string,
+): Promise<ProjectVersion> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}`,
+    { headers: await createRequestHeaders() },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+
+  return projectVersionSchema.parse(await response.json())
+}
+
+export async function restoreProjectVersion(
+  projectId: string,
+  versionId: string,
+  expectedUpdatedAt?: string,
+): Promise<Project> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}/restore`,
+    {
+      method: 'POST',
+      headers: await createRequestHeaders(true),
+      body: JSON.stringify({ expectedUpdatedAt }),
+    },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+
+  return projectSchema.parse(await response.json())
 }
 
 export async function listProjectMembers(

@@ -34,11 +34,13 @@ type CanvasProps = {
     canCopyProjectLink?: boolean
     canDuplicateProject?: boolean
     canDeleteProject?: boolean
+    canViewProjectVersions?: boolean
     canManageAiSettings?: boolean
     onRenameProject?: () => void
     onManageProjectPermissions?: () => void
     onDuplicateProject?: () => void
     onDeleteProject?: () => void
+    onViewProjectVersions?: () => void
     onManageAiSettings?: () => void
     projectAction?: 'idle' | 'duplicating' | 'deleting'
 }
@@ -50,11 +52,13 @@ function CanvasContent({
     canCopyProjectLink = false,
     canDuplicateProject = false,
     canDeleteProject = false,
+    canViewProjectVersions = false,
     canManageAiSettings = false,
     onRenameProject,
     onManageProjectPermissions,
     onDuplicateProject,
     onDeleteProject,
+    onViewProjectVersions,
     onManageAiSettings,
     projectAction = 'idle',
 }: CanvasProps) {
@@ -501,6 +505,19 @@ function CanvasContent({
                                 {projectAction === 'duplicating'
                                     ? '複製中…'
                                     : '建立副本'}
+                            </button>
+                        )}
+                        {canViewProjectVersions && (
+                            <button
+                                type="button"
+                                disabled={projectAction !== 'idle'}
+                                onClick={() => {
+                                    setIsProjectMenuOpen(false)
+                                    onViewProjectVersions?.()
+                                }}
+                                className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                版本紀錄
                             </button>
                         )}
                         {canManageAiSettings && (
