@@ -5,6 +5,7 @@ import type {
   ProjectMember,
   ProjectMemberRole,
   ProjectSummary,
+  TrashedProjectSummary,
   UpdateProjectInput,
 } from '../types/project'
 import { projectDocumentSchema } from '../utils/projectFile'
@@ -22,6 +23,11 @@ const projectSummarySchema = z.object({
 
 const projectSchema = projectSummarySchema.extend({
   document: projectDocumentSchema,
+})
+
+const trashedProjectSummarySchema = projectSummarySchema.extend({
+  deletedAt: z.string(),
+  expiresAt: z.string(),
 })
 
 const projectMemberSchema = z.object({
@@ -72,6 +78,18 @@ export async function listProjects(): Promise<ProjectSummary[]> {
   }
 
   return z.array(projectSummarySchema).parse(await response.json())
+}
+
+export async function listTrashedProjects(): Promise<TrashedProjectSummary[]> {
+  const response = await fetch(`${API_BASE_URL}/api/projects/trash`, {
+    headers: await createRequestHeaders(),
+  })
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+
+  return z.array(trashedProjectSummarySchema).parse(await response.json())
 }
 
 export async function getProject(projectId: string): Promise<Project> {
@@ -128,6 +146,36 @@ export async function updateProject(
 export async function deleteProject(projectId: string): Promise<void> {
   const response = await fetch(
     `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}`,
+    {
+      method: 'DELETE',
+      headers: await createRequestHeaders(),
+    },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+}
+
+export async function restoreProject(projectId: string): Promise<Project> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/restore`,
+    {
+      method: 'POST',
+      headers: await createRequestHeaders(),
+    },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+
+  return projectSchema.parse(await response.json())
+}
+
+export async function permanentlyDeleteProject(projectId: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/permanent`,
     {
       method: 'DELETE',
       headers: await createRequestHeaders(),

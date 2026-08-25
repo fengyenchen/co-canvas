@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 import {
   addProjectMember,
@@ -11,6 +12,7 @@ import {
   updateProjectMember,
 } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
+import { ProjectTrash } from '../components/project/ProjectTrash'
 import {
   deleteGeminiCredential,
   getGeminiCredential,
@@ -127,6 +129,7 @@ export function HomePage() {
   const [authUserEmail, setAuthUserEmail] = useState<string | null>(null)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [isTrashOpen, setIsTrashOpen] = useState(false)
   const [aiCredential, setAiCredential] = useState<AiCredential | null>(
     null,
   )
@@ -426,10 +429,7 @@ export function HomePage() {
   }
 
   async function handleDeleteProject(project: ProjectSummary) {
-    if (
-      deletingProjectId ||
-      !window.confirm(`確定要刪除「${project.name}」嗎？此操作無法復原。`)
-    ) {
+    if (deletingProjectId) {
       return
     }
 
@@ -477,6 +477,7 @@ export function HomePage() {
       await authClient.signOut()
       setAuthUserEmail(null)
       setProjects([])
+      setIsTrashOpen(false)
       setErrorMessage(null)
     } finally {
       setIsSigningOut(false)
@@ -620,15 +621,6 @@ export function HomePage() {
                 登入
               </Link>
             )}
-            {authUserEmail && (
-              <button
-                type="button"
-                onClick={() => openCreateProjectDialog('empty')}
-                className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              >
-                新增專案
-              </button>
-            )}
           </div>
         </header>
 
@@ -638,18 +630,65 @@ export function HomePage() {
               id="project-list-title"
               className="text-lg font-semibold text-foreground"
             >
-              你的專案
+              {isTrashOpen ? '垃圾桶' : '你的專案'}
             </h2>
             {authUserEmail && (
-              <button
-                type="button"
-                onClick={() => openCreateProjectDialog('local')}
-                className="min-h-11 cursor-pointer self-start rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:self-auto"
-              >
-                將本機畫布存到雲端
-              </button>
+              <div className="flex flex-wrap gap-2">
+                {!isTrashOpen && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openCreateProjectDialog('empty')}
+                      className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      新增專案
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openCreateProjectDialog('local')}
+                      className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      將本機畫布存到雲端
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  aria-label={isTrashOpen ? '返回專案' : '開啟垃圾桶'}
+                  onClick={() => {
+                    setActionErrorMessage(null)
+                    setIsTrashOpen((current) => !current)
+                  }}
+                  className="inline-flex size-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-auto sm:px-4"
+                >
+                  {isTrashOpen ? (
+                    <ArrowLeft aria-hidden="true" className="size-5 sm:hidden" />
+                  ) : (
+                    <Trash2 aria-hidden="true" className="size-5 sm:hidden" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {isTrashOpen ? '返回專案' : '垃圾桶'}
+                  </span>
+                </button>
+              </div>
             )}
           </div>
+
+          {!isAuthLoading && authUserEmail && isTrashOpen && (
+            <ProjectTrash
+              onProjectRestored={(project) =>
+                setProjects((currentProjects) => [
+                  project,
+                  ...currentProjects.filter(
+                    (currentProject) => currentProject.id !== project.id,
+                  ),
+                ])
+              }
+            />
+          )}
+
+          {!isTrashOpen && (
+            <>
 
           {isAuthLoading && (
             <div
@@ -877,8 +916,8 @@ export function HomePage() {
                               className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {deletingProjectId === project.id
-                                ? '刪除中…'
-                                : '刪除專案'}
+                                ? '移動中…'
+                                : '移到垃圾桶'}
                             </button>
                           </>
                         )}
@@ -888,6 +927,8 @@ export function HomePage() {
                   </li>
                 ))}
               </ul>
+            </>
+          )}
             </>
           )}
         </section>

@@ -1,8 +1,9 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import AuthenticatedUser, CurrentUser, OptionalCurrentUser
@@ -17,6 +18,7 @@ from app.project_schemas import (
     ProjectRole,
     ProjectSummary,
     ProjectUpdate,
+    TrashedProjectSummary,
 )
 
 
@@ -30,6 +32,8 @@ DatabaseSession = Annotated[
     Depends(get_database_session),
 ]
 
+TRASH_RETENTION_DAYS = 30
+
 
 async def get_project_or_404(
     project_id: uuid.UUID,
@@ -40,6 +44,7 @@ async def get_project_or_404(
         select(Project).where(
             Project.id == project_id,
             Project.owner_id == owner_id,
+            Project.deleted_at.is_(None),
         ),
     )
 
@@ -59,7 +64,7 @@ async def get_readable_project(
 ) -> tuple[Project, ProjectRole]:
     project = await session.get(Project, project_id)
 
-    if project is None:
+    if project is None or project.deleted_at is not None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="找不到此專案",
@@ -183,6 +188,7 @@ async def list_projects(
             ),
         )
         .where(
+            Project.deleted_at.is_(None),
             or_(
                 Project.owner_id == user.id,
                 ProjectMember.id.is_not(None),
@@ -207,6 +213,43 @@ async def list_projects(
         summaries.append(to_project_summary(project, access_role))
 
     return summaries
+
+
+@router.get("/trash", response_model=list[TrashedProjectSummary])
+async def list_trashed_projects(
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> list[TrashedProjectSummary]:
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=TRASH_RETENTION_DAYS)
+    await session.execute(
+        delete(Project).where(
+            Project.owner_id == user.id,
+            Project.deleted_at.is_not(None),
+            Project.deleted_at < cutoff,
+        )
+    )
+    await session.commit()
+
+    projects = await session.scalars(
+        select(Project)
+        .where(
+            Project.owner_id == user.id,
+            Project.deleted_at.is_not(None),
+        )
+        .order_by(Project.deleted_at.desc())
+        .limit(100)
+    )
+
+    return [
+        TrashedProjectSummary(
+            **to_project_summary(project, "owner").model_dump(),
+            deleted_at=project.deleted_at,
+            expires_at=project.deleted_at
+            + timedelta(days=TRASH_RETENTION_DAYS),
+        )
+        for project in projects
+    ]
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -298,9 +341,73 @@ async def delete_project(
 ) -> Response:
     project = await get_project_or_404(project_id, session, user.id)
 
-    await session.delete(project)
+    project.deleted_at = datetime.now(timezone.utc)
     await session.commit()
 
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{project_id}/restore", response_model=ProjectResponse)
+async def restore_project(
+    project_id: uuid.UUID,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> ProjectResponse:
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_id == user.id,
+            Project.deleted_at.is_not(None),
+        )
+    )
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="垃圾桶中找不到此專案",
+        )
+
+    if project.deleted_at < datetime.now(timezone.utc) - timedelta(
+        days=TRASH_RETENTION_DAYS
+    ):
+        await session.delete(project)
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="此專案已超過 30 天保留期限",
+        )
+
+    project.deleted_at = None
+    await session.commit()
+    await session.refresh(project)
+    return to_project_response(project, "owner")
+
+
+@router.delete(
+    "/{project_id}/permanent",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def permanently_delete_project(
+    project_id: uuid.UUID,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> Response:
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_id == user.id,
+            Project.deleted_at.is_not(None),
+        )
+    )
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="垃圾桶中找不到此專案",
+        )
+
+    await session.delete(project)
+    await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

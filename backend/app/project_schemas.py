@@ -379,6 +379,11 @@ class ProjectResponse(ProjectSummary):
     document: ProjectDocument
 
 
+class TrashedProjectSummary(ProjectSummary):
+    deleted_at: datetime
+    expires_at: datetime
+
+
 class ProjectMemberCreate(ApiModel):
     email: str = Field(
         min_length=3,

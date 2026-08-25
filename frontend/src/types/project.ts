@@ -36,6 +36,11 @@ export type Project = ProjectSummary & {
   document: ProjectDocument
 }
 
+export type TrashedProjectSummary = ProjectSummary & {
+  deletedAt: string
+  expiresAt: string
+}
+
 export type CreateProjectInput = {
   name: string
   document?: ProjectDocument
