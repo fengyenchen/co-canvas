@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, Search, Trash2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 import {
   addProjectMember,
@@ -31,6 +31,7 @@ import type {
 import { getLocalProjectDocument } from '../utils/localProjectBackup'
 
 type CreateProjectMode = 'empty' | 'local'
+type ProjectSort = 'updated-desc' | 'updated-asc' | 'name-asc'
 
 function formatUpdatedAt(value: string) {
   const date = new Date(value)
@@ -130,6 +131,9 @@ export function HomePage() {
   const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isTrashOpen, setIsTrashOpen] = useState(false)
+  const [projectSearch, setProjectSearch] = useState('')
+  const [projectSort, setProjectSort] =
+    useState<ProjectSort>('updated-desc')
   const [aiCredential, setAiCredential] = useState<AiCredential | null>(
     null,
   )
@@ -141,6 +145,28 @@ export function HomePage() {
   const [aiSettingsError, setAiSettingsError] = useState<string | null>(
     null,
   )
+  const visibleProjects = useMemo(() => {
+    const normalizedSearch = projectSearch.trim().toLocaleLowerCase('zh-TW')
+    const filteredProjects = normalizedSearch
+      ? projects.filter((project) =>
+          project.name.toLocaleLowerCase('zh-TW').includes(normalizedSearch),
+        )
+      : [...projects]
+
+    return filteredProjects.sort((firstProject, secondProject) => {
+      if (projectSort === 'name-asc') {
+        return firstProject.name.localeCompare(secondProject.name, 'zh-TW', {
+          numeric: true,
+          sensitivity: 'base',
+        })
+      }
+
+      const timeDifference =
+        Date.parse(firstProject.updatedAt) - Date.parse(secondProject.updatedAt)
+
+      return projectSort === 'updated-asc' ? timeDifference : -timeDifference
+    })
+  }, [projectSearch, projectSort, projects])
 
   useEffect(() => {
     let isCancelled = false
@@ -690,6 +716,43 @@ export function HomePage() {
           {!isTrashOpen && (
             <>
 
+          {!isAuthLoading &&
+            authUserEmail &&
+            !isLoading &&
+            !errorMessage &&
+            projects.length > 0 && (
+            <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <label className="relative block">
+                <span className="sr-only">搜尋專案名稱</span>
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-foreground/45"
+                />
+                <input
+                  type="search"
+                  value={projectSearch}
+                  onChange={(event) => setProjectSearch(event.target.value)}
+                  placeholder="搜尋專案名稱"
+                  className="min-h-11 w-full rounded-lg border border-border bg-background py-2 pl-10 pr-3 text-base text-foreground shadow-sm outline-none transition placeholder:text-foreground/40 focus:border-primary/40 focus:ring-2 focus:ring-primary/20"
+                />
+              </label>
+              <label className="block">
+                <span className="sr-only">專案排序方式</span>
+                <select
+                  value={projectSort}
+                  onChange={(event) =>
+                    setProjectSort(event.target.value as ProjectSort)
+                  }
+                  className="min-h-11 w-full cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground shadow-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/20 sm:w-auto"
+                >
+                  <option value="updated-desc">最近更新</option>
+                  <option value="updated-asc">最早更新</option>
+                  <option value="name-asc">名稱排序</option>
+                </select>
+              </label>
+            </div>
+          )}
+
           {isAuthLoading && (
             <div
               role="status"
@@ -777,7 +840,30 @@ export function HomePage() {
             authUserEmail &&
             !isLoading &&
             !errorMessage &&
-            projects.length > 0 && (
+            projects.length > 0 &&
+            visibleProjects.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border bg-background/70 px-6 py-10 text-center">
+              <h3 className="font-semibold text-foreground">
+                找不到符合的專案
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-foreground/60">
+                請嘗試其他名稱，或清除目前的搜尋文字。
+              </p>
+              <button
+                type="button"
+                onClick={() => setProjectSearch('')}
+                className="mt-4 min-h-11 cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              >
+                清除搜尋
+              </button>
+            </div>
+          )}
+
+          {!isAuthLoading &&
+            authUserEmail &&
+            !isLoading &&
+            !errorMessage &&
+            visibleProjects.length > 0 && (
             <>
               {openProjectMenuId && (
                 <button
@@ -798,7 +884,7 @@ export function HomePage() {
               )}
 
               <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {projects.map((project) => (
+                {visibleProjects.map((project) => (
                   <li
                     key={project.id}
                     className="relative rounded-xl border border-border bg-background shadow-sm transition hover:border-primary/30 hover:shadow-md"
