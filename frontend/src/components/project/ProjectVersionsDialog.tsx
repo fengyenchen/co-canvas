@@ -161,6 +161,11 @@ export function ProjectVersionsDialog({
       aria-labelledby="project-versions-title"
       aria-describedby="project-versions-description"
       onClose={onClose}
+      onCancel={(event) => {
+        if (isBusy) {
+          event.preventDefault()
+        }
+      }}
       onClick={(event) => {
         if (event.target === event.currentTarget && !isBusy) {
           event.currentTarget.close()

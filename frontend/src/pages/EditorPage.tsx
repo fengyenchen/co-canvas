@@ -496,20 +496,25 @@ export function EditorPage() {
     }
 
     setProjectSaveState('saving')
-    const updatedProject = await updateProject(projectId, {
-      document: projectDocument,
-      expectedUpdatedAt: savedProjectUpdatedAtRef.current ?? undefined,
-    })
-    savedProjectUpdatedAtRef.current = updatedProject.updatedAt
-    savedDocumentSignatureRef.current = projectDocumentSignature
-    setLoadedProject(updatedProject)
-    setProjectSaveState('saved')
+    try {
+      const updatedProject = await updateProject(projectId, {
+        document: projectDocument,
+        expectedUpdatedAt: savedProjectUpdatedAtRef.current ?? undefined,
+      })
+      savedProjectUpdatedAtRef.current = updatedProject.updatedAt
+      savedDocumentSignatureRef.current = projectDocumentSignature
+      setLoadedProject(updatedProject)
+      setProjectSaveState('saved')
 
-    if (recoveryUserId) {
-      clearCloudProjectRecovery(projectId, recoveryUserId)
+      if (recoveryUserId) {
+        clearCloudProjectRecovery(projectId, recoveryUserId)
+      }
+
+      return updatedProject
+    } catch (error) {
+      setProjectSaveState('error')
+      throw error
     }
-
-    return updatedProject
   }
 
   async function createCurrentProjectVersion(

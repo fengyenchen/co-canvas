@@ -16,6 +16,7 @@ import {
     downloadFile,
     parseProjectFile,
 } from '../../utils/projectFile'
+import type { ProjectFile } from '../../utils/projectFile'
 import { ConceptNode } from './ConceptNode'
 import { VideoNode } from './VideoNode'
 import { EdgeEditor } from './EdgeEditor'
@@ -72,6 +73,10 @@ function CanvasContent({
     const [searchQuery, setSearchQuery] = useState('')
     const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false)
     const [isAddNodeMenuOpen, setIsAddNodeMenuOpen] = useState(false)
+    const [pendingImportProject, setPendingImportProject] =
+        useState<ProjectFile | null>(null)
+    const [isImportingProject, setIsImportingProject] = useState(false)
+    const [importError, setImportError] = useState('')
     const [copyLinkState, setCopyLinkState] = useState<
         'idle' | 'copied' | 'error'
     >('idle')
@@ -214,31 +219,36 @@ function CanvasContent({
             const project = parseProjectFile(
                 JSON.parse(await file.text()),
             )
-
-            if (
-                !window.confirm(
-                    '匯入會覆蓋目前的畫布與對話，確定要繼續嗎？',
-                )
-            ) {
-                return
+            setImportError('')
+            setPendingImportProject(project)
+        } catch {
+            setImportError('無法匯入：檔案格式無效或版本不支援。')
+        } finally {
+            if (fileInputRef.current) {
+                fileInputRef.current.value = ''
             }
+        }
+    }
 
-            if (onBeforeImportProject) {
-                try {
-                    await onBeforeImportProject()
-                } catch {
-                    window.alert(
-                        '無法建立匯入前備份，畫布尚未變更。請稍後再試。',
-                    )
-                    return
-                }
-            }
+    async function confirmImportProject() {
+        if (!pendingImportProject || isImportingProject) {
+            return
+        }
 
-            replaceProject(project.nodes, project.edges)
-            replaceProjectMessages(
-                project.messages,
-                project.suggestionEvents,
+        setIsImportingProject(true)
+        setImportError('')
+
+        try {
+            await onBeforeImportProject?.()
+            replaceProject(
+                pendingImportProject.nodes,
+                pendingImportProject.edges,
             )
+            replaceProjectMessages(
+                pendingImportProject.messages,
+                pendingImportProject.suggestionEvents,
+            )
+            setPendingImportProject(null)
 
             window.requestAnimationFrame(() => {
                 void fitView({
@@ -248,11 +258,11 @@ function CanvasContent({
                 })
             })
         } catch {
-            window.alert('無法匯入：檔案格式無效或版本不支援。')
+            setImportError(
+                '無法建立匯入前備份，畫布尚未變更。請稍後再試。',
+            )
         } finally {
-            if (fileInputRef.current) {
-                fileInputRef.current.value = ''
-            }
+            setIsImportingProject(false)
         }
     }
 
@@ -344,6 +354,91 @@ function CanvasContent({
                     onClick={() => setIsAddNodeMenuOpen(false)}
                     className="fixed inset-0 z-9 cursor-default bg-transparent"
                 />
+            )}
+
+            {importError && !pendingImportProject && (
+                <div
+                    role="alert"
+                    className="fixed bottom-4 left-1/2 z-50 flex min-h-11 w-[min(30rem,calc(100%-2rem))] -translate-x-1/2 items-center justify-between gap-3 rounded-xl border border-red-200 bg-background px-4 py-3 text-sm text-red-700 shadow-lg"
+                >
+                    <span>{importError}</span>
+                    <button
+                        type="button"
+                        onClick={() => setImportError('')}
+                        className="min-h-11 shrink-0 cursor-pointer rounded-lg px-3 font-medium text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    >
+                        關閉
+                    </button>
+                </div>
+            )}
+
+            {pendingImportProject && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-[1px]">
+                    <section
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="import-project-title"
+                        aria-describedby="import-project-description"
+                        className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-xl"
+                    >
+                        <h2
+                            id="import-project-title"
+                            className="text-xl font-semibold text-foreground"
+                        >
+                            匯入這份專案？
+                        </h2>
+                        <p
+                            id="import-project-description"
+                            className="mt-2 text-sm leading-6 text-foreground/60"
+                        >
+                            匯入會覆蓋目前的畫布與對話。雲端專案會先建立「匯入前備份」，本機畫布則維持原本的 localStorage 備份方式。
+                        </p>
+                        <dl className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-border bg-canvas/60 p-4 text-sm">
+                            <dt className="text-foreground/60">節點</dt>
+                            <dd className="text-right text-foreground">
+                                {pendingImportProject.nodes.length}
+                            </dd>
+                            <dt className="text-foreground/60">連線</dt>
+                            <dd className="text-right text-foreground">
+                                {pendingImportProject.edges.length}
+                            </dd>
+                            <dt className="text-foreground/60">對話</dt>
+                            <dd className="text-right text-foreground">
+                                {pendingImportProject.messages.length}
+                            </dd>
+                        </dl>
+                        {importError && (
+                            <p
+                                role="alert"
+                                className="mt-4 text-sm text-red-600"
+                            >
+                                {importError}
+                            </p>
+                        )}
+                        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            <button
+                                type="button"
+                                disabled={isImportingProject}
+                                onClick={() => {
+                                    setPendingImportProject(null)
+                                    setImportError('')
+                                }}
+                                className="min-h-11 cursor-pointer rounded-lg border border-border px-4 text-sm font-medium text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                取消
+                            </button>
+                            <button
+                                type="button"
+                                autoFocus
+                                disabled={isImportingProject}
+                                onClick={() => void confirmImportProject()}
+                                className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {isImportingProject ? '備份並匯入中…' : '確認匯入'}
+                            </button>
+                        </div>
+                    </section>
+                </div>
             )}
 
             <div className="absolute left-4 right-4 top-4 z-10 flex items-center justify-between gap-2 sm:right-auto sm:justify-start">
