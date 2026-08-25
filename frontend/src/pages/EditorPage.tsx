@@ -23,6 +23,12 @@ import {
   restoreLocalProject,
   setActiveProjectId,
 } from '../utils/localProjectBackup'
+import {
+  clearCloudProjectRecovery,
+  getCloudProjectRecovery,
+  saveCloudProjectRecovery,
+  type CloudProjectRecovery,
+} from '../utils/cloudProjectRecovery'
 import { createProjectDocument } from '../utils/projectFile'
 import type { Project, ProjectRole } from '../types/project'
 
@@ -75,6 +81,9 @@ export function EditorPage() {
   const [projectAccessRole, setProjectAccessRole] =
     useState<ProjectRole>('owner')
   const [loadedProject, setLoadedProject] = useState<Project | null>(null)
+  const [recoveryUserId, setRecoveryUserId] = useState<string | null>(null)
+  const [pendingRecovery, setPendingRecovery] =
+    useState<CloudProjectRecovery | null>(null)
   const [activeSettingsDialog, setActiveSettingsDialog] =
     useState<ProjectSettingsDialog>(null)
   const [aiSettingsRevision, setAiSettingsRevision] = useState(0)
@@ -121,6 +130,8 @@ export function EditorPage() {
       setProjectSaveRequiresLogin(false)
       setProjectAccessRole('owner')
       setLoadedProject(null)
+      setRecoveryUserId(null)
+      setPendingRecovery(null)
       setActiveSettingsDialog(null)
 
       if (!projectId) {
@@ -157,6 +168,14 @@ export function EditorPage() {
       }
 
       try {
+        let currentRecoveryUserId: string | null = null
+        try {
+          const { authClient } = await import('../lib/auth')
+          const { data: sessionData } = await authClient.getSession()
+          currentRecoveryUserId = sessionData?.user.id ?? 'anonymous'
+        } catch {
+          // Skip recovery if the account scope cannot be verified safely.
+        }
         const project = await getProject(projectId)
 
         if (isCancelled) {
@@ -173,9 +192,22 @@ export function EditorPage() {
         )
         setProjectAccessRole(project.accessRole)
         setLoadedProject(project)
+        setRecoveryUserId(currentRecoveryUserId)
         savedDocumentSignatureRef.current = JSON.stringify(
           project.document,
         )
+        const recovery = currentRecoveryUserId
+          ? getCloudProjectRecovery(project.id, currentRecoveryUserId)
+          : null
+        if (
+          project.accessRole !== 'viewer' &&
+          recovery &&
+          Date.parse(recovery.savedAt) > Date.parse(project.updatedAt) &&
+          JSON.stringify(recovery.document) !==
+            JSON.stringify(project.document)
+        ) {
+          setPendingRecovery(recovery)
+        }
         setActiveProjectId(projectId)
         setProjectLoadState('ready')
       } catch (error) {
@@ -217,10 +249,13 @@ export function EditorPage() {
       projectAccessRole === 'viewer' ||
       !projectId ||
       projectId === LOCAL_PROJECT_ID ||
+      !recoveryUserId ||
       projectDocumentSignature === savedDocumentSignatureRef.current
     ) {
       return
     }
+
+    saveCloudProjectRecovery(projectId, recoveryUserId, projectDocument)
 
     let isCancelled = false
     const timeoutId = window.setTimeout(async () => {
@@ -237,6 +272,7 @@ export function EditorPage() {
         }
 
         savedDocumentSignatureRef.current = projectDocumentSignature
+        clearCloudProjectRecovery(projectId, recoveryUserId)
         setProjectSaveState('saved')
       } catch (error) {
         if (!isCancelled) {
@@ -258,6 +294,7 @@ export function EditorPage() {
     projectId,
     projectAccessRole,
     projectLoadState,
+    recoveryUserId,
   ])
 
   if (projectLoadState === 'loading') {
@@ -417,6 +454,67 @@ export function EditorPage() {
             setAiSettingsRevision((revision) => revision + 1)
           }
         />
+      )}
+
+      {pendingRecovery && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-[1px]">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cloud-recovery-title"
+            aria-describedby="cloud-recovery-description"
+            className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-xl"
+          >
+            <h2
+              id="cloud-recovery-title"
+              className="text-xl font-semibold text-foreground"
+            >
+              發現未儲存的內容
+            </h2>
+            <p
+              id="cloud-recovery-description"
+              className="mt-2 leading-7 text-muted-foreground"
+            >
+              此裝置保留了比雲端版本更新的暫存內容。請選擇要恢復暫存內容，或繼續使用目前的雲端版本。
+            </p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              暫存於 {new Date(pendingRecovery.savedAt).toLocaleString('zh-TW')}
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  clearCloudProjectRecovery(
+                    pendingRecovery.projectId,
+                    pendingRecovery.userId,
+                  )
+                  setPendingRecovery(null)
+                }}
+                className="min-h-11 cursor-pointer rounded-xl border border-border px-4 text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              >
+                使用雲端版本
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => {
+                  replaceProject(
+                    pendingRecovery.document.nodes,
+                    pendingRecovery.document.edges,
+                  )
+                  replaceProjectMessages(
+                    pendingRecovery.document.messages,
+                    pendingRecovery.document.suggestionEvents,
+                  )
+                  setPendingRecovery(null)
+                }}
+                className="min-h-11 cursor-pointer rounded-xl bg-primary px-4 font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              >
+                恢復內容
+              </button>
+            </div>
+          </section>
+        </div>
       )}
 
       {projectId !== LOCAL_PROJECT_ID && projectSaveState !== 'idle' && (
