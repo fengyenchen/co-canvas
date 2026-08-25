@@ -15,6 +15,7 @@ type ChatInput = {
   neighborNodes: AiContextNode[]
   history: ChatHistoryMessage[]
   projectId?: string
+  signal?: AbortSignal
 }
 
 const chatResponseSchema = z.object({
@@ -41,7 +42,7 @@ const API_BASE_URL =
 export async function sendChatMessage(
   input: ChatInput,
 ): Promise<ChatResult> {
-  const { projectId, ...requestBody } = input
+  const { projectId, signal, ...requestBody } = input
   const requestUrl = new URL(`${API_BASE_URL}/api/chat`)
   const headers = new Headers({
     'Content-Type': 'application/json',
@@ -61,6 +62,7 @@ export async function sendChatMessage(
     method: 'POST',
     headers,
     body: JSON.stringify(requestBody),
+    signal,
   })
 
   if (!response.ok) {

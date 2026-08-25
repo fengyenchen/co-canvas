@@ -9,6 +9,7 @@ type GenerateSuggestionInput = {
   selectedNode: AiContextNode
   neighborNodes: AiContextNode[]
   projectId?: string
+  signal?: AbortSignal
 }
 
 const suggestionSchema = z.object({
@@ -44,7 +45,7 @@ const API_BASE_URL =
 export async function generateSuggestion(
   input: GenerateSuggestionInput,
 ): Promise<GenerateSuggestionResult> {
-  const { projectId, ...requestBody } = input
+  const { projectId, signal, ...requestBody } = input
   const requestUrl = new URL(
     `${API_BASE_URL}/api/suggestions/generate`,
   )
@@ -68,6 +69,7 @@ export async function generateSuggestion(
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody),
+      signal,
     },
   )
 

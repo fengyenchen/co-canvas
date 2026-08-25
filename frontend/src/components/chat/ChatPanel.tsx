@@ -66,6 +66,7 @@ export function ChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const previousContextNodeIdRef = useRef<string | null>(null)
   const previousMessageCountRef = useRef(0)
+  const activeRequestControllerRef = useRef<AbortController | null>(null)
 
   const activeContextNodeId = useChatStore(
     (state) => state.activeContextNodeId,
@@ -302,6 +303,31 @@ export function ChatPanel({
     )
   }, [activeContextNodeId, visibleMessages])
 
+  useEffect(() => () => {
+    activeRequestControllerRef.current?.abort()
+    activeRequestControllerRef.current = null
+    setGenerationMode(null)
+  }, [activeContextNodeId, setGenerationMode])
+
+  function finishRequest(controller: AbortController) {
+    if (activeRequestControllerRef.current !== controller) {
+      return
+    }
+
+    activeRequestControllerRef.current = null
+    setGenerationMode(null)
+  }
+
+  function cancelActiveRequest() {
+    const controller = activeRequestControllerRef.current
+    if (!controller) {
+      return
+    }
+
+    controller.abort()
+    finishRequest(controller)
+  }
+
   async function requestChatResponse(
     content: string,
     excludedMessageIds: string[] = [],
@@ -317,13 +343,16 @@ export function ChatPanel({
     }
 
     const contextNodeId = activeContextNodeId
+    const controller = new AbortController()
 
     clearPendingSuggestion()
+    activeRequestControllerRef.current = controller
     setGenerationMode('chat')
 
     const result = await measureRequest(() =>
       sendChatMessage({
         projectId,
+        signal: controller.signal,
         prompt: content,
         selectedNode: createAiContextNode(contextNode, nodes, edges),
         neighborNodes: selectedContextNeighborNodes
@@ -338,12 +367,17 @@ export function ChatPanel({
       }),
     )
 
+    if (controller.signal.aborted) {
+      finishRequest(controller)
+      return
+    }
+
     const contextStillExists = useCanvasStore
       .getState()
       .nodes.some((node) => node.id === contextNodeId)
 
     if (!contextStillExists) {
-      setGenerationMode(null)
+      finishRequest(controller)
       return
     }
 
@@ -369,7 +403,7 @@ export function ChatPanel({
       })
     }
 
-    setGenerationMode(null)
+    finishRequest(controller)
   }
 
   async function requestSuggestion(sourceContent: string) {
@@ -383,13 +417,16 @@ export function ChatPanel({
     }
 
     const contextNodeId = activeContextNodeId
+    const controller = new AbortController()
 
     clearPendingSuggestion()
+    activeRequestControllerRef.current = controller
     setGenerationMode('suggestion')
 
     const result = await measureRequest(() =>
       generateSuggestion({
         projectId,
+        signal: controller.signal,
         prompt: `請將以下內容整理成適合畫布的節點：\n\n${sourceContent}`,
         selectedNode: createAiContextNode(contextNode, nodes, edges),
         neighborNodes: selectedContextNeighborNodes
@@ -397,12 +434,17 @@ export function ChatPanel({
       }),
     )
 
+    if (controller.signal.aborted) {
+      finishRequest(controller)
+      return
+    }
+
     const contextStillExists = useCanvasStore
       .getState()
       .nodes.some((node) => node.id === contextNodeId)
 
     if (!contextStillExists) {
-      setGenerationMode(null)
+      finishRequest(controller)
       return
     }
 
@@ -434,7 +476,7 @@ export function ChatPanel({
       })
     }
 
-    setGenerationMode(null)
+    finishRequest(controller)
   }
 
   function handleSend() {
@@ -911,11 +953,16 @@ export function ChatPanel({
 
           <button
             type="button"
-            onClick={handleSend}
-            disabled={!draft.trim()  || isGenerating}
-            className="mt-2 w-full cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={isGenerating ? cancelActiveRequest : handleSend}
+            disabled={!isGenerating && !draft.trim()}
+            className={[
+              'mt-2 w-full cursor-pointer rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40',
+              isGenerating
+                ? 'border border-border bg-background text-foreground hover:bg-primary/10 hover:text-primary'
+                : 'bg-primary text-primary-foreground hover:bg-primary-hover',
+            ].join(' ')}
           >
-            送出
+            {isGenerating ? '取消' : '送出'}
           </button>
         </div>
       )}
