@@ -103,6 +103,10 @@ export async function installE2eMocks(
     authenticated?: boolean
     projects?: E2eProject[]
     versions?: Map<string, E2eVersion[]>
+    projectGetError?: {
+      status: number
+      detail: string
+    }
   } = {},
 ): Promise<E2eState> {
   const state: E2eState = {
@@ -299,6 +303,15 @@ export async function installE2eMocks(
 
     const projectMatch = path.match(/^\/api\/projects\/([^/]+)$/)
     if (projectMatch) {
+      if (method === 'GET' && options.projectGetError) {
+        await json(
+          route,
+          { detail: options.projectGetError.detail },
+          options.projectGetError.status,
+        )
+        return
+      }
+
       const project = state.projects.find((item) => item.id === projectMatch[1])
 
       if (!project) {
