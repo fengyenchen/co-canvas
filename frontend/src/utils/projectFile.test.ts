@@ -127,6 +127,8 @@ describe('projectFile', () => {
         title: '訪談發現',
         width: 640,
         height: 360,
+        color: 'purple',
+        collapsed: true,
       },
     }
     const groupedNode: ConceptCanvasNode = {
@@ -141,7 +143,13 @@ describe('projectFile', () => {
     expect(imported.nodes[0]).toMatchObject({
       id: 'group-1',
       type: 'group',
-      data: { title: '訪談發現', width: 640, height: 360 },
+      data: {
+        title: '訪談發現',
+        width: 640,
+        height: 360,
+        color: 'purple',
+        collapsed: true,
+      },
     })
     expect(imported.nodes[1]).toMatchObject({
       id: 'node-1',

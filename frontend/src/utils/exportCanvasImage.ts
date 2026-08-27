@@ -9,6 +9,17 @@ const TITLE_LINE_HEIGHT = 23
 const BODY_LINE_HEIGHT = 21
 const MARGIN = 80
 const MAX_CANVAS_DIMENSION = 16_000
+const GROUP_COLLAPSED_WIDTH = 320
+const GROUP_COLLAPSED_HEIGHT = 52
+
+const GROUP_EXPORT_COLORS = {
+    default: { fill: '#f7f7f8', stroke: '#a1a1aa' },
+    yellow: { fill: '#fffbeb', stroke: '#fcd34d' },
+    pink: { fill: '#fff1f2', stroke: '#fda4af' },
+    blue: { fill: '#f0f9ff', stroke: '#7dd3fc' },
+    green: { fill: '#ecfdf5', stroke: '#6ee7b7' },
+    purple: { fill: '#f5f3ff', stroke: '#c4b5fd' },
+} as const
 
 type NodeLayout = {
     node: CanvasNode
@@ -92,7 +103,7 @@ function createLayouts(
             .map((node) => [node.id, node]),
     )
 
-    return nodes.map<NodeLayout>((node) => {
+    return nodes.filter((node) => !node.hidden).map<NodeLayout>((node) => {
         const parent = node.parentId ? groupById.get(node.parentId) : undefined
         const x = node.position.x + (parent?.position.x ?? 0)
         const y = node.position.y + (parent?.position.y ?? 0)
@@ -102,8 +113,12 @@ function createLayouts(
                 node,
                 x,
                 y,
-                width: node.data.width,
-                height: node.data.height,
+                width: node.data.collapsed
+                    ? GROUP_COLLAPSED_WIDTH
+                    : node.data.width,
+                height: node.data.collapsed
+                    ? GROUP_COLLAPSED_HEIGHT
+                    : node.data.height,
                 titleLines: [node.data.title || '未命名群組'],
                 contentLines: [],
             }
@@ -218,6 +233,8 @@ function drawNode(context: CanvasRenderingContext2D, layout: NodeLayout) {
     context.save()
 
     if (layout.node.type === 'group') {
+        const groupColors =
+            GROUP_EXPORT_COLORS[layout.node.data.color ?? 'default']
         roundedRectangle(
             context,
             layout.x,
@@ -226,10 +243,10 @@ function drawNode(context: CanvasRenderingContext2D, layout: NodeLayout) {
             layout.height,
             16,
         )
-        context.fillStyle = 'rgba(91, 91, 102, 0.04)'
+        context.fillStyle = groupColors.fill
         context.fill()
         context.setLineDash([8, 6])
-        context.strokeStyle = 'rgba(91, 91, 102, 0.35)'
+        context.strokeStyle = groupColors.stroke
         context.lineWidth = 2
         context.stroke()
         context.setLineDash([])

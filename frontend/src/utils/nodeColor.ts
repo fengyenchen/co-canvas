@@ -56,3 +56,53 @@ export function getConceptNodeColor(color: ConceptNodeColor | undefined) {
     (option) => option.value === (color ?? 'default'),
   ) ?? CONCEPT_NODE_COLOR_OPTIONS[0]
 }
+
+export const GROUP_NODE_COLOR_OPTIONS = CONCEPT_NODE_COLOR_OPTIONS
+
+const GROUP_NODE_COLORS: Record<ConceptNodeColor, {
+  backgroundClassName: string
+  borderClassName: string
+  dividerClassName: string
+  accentClassName: string
+}> = {
+  default: {
+    backgroundClassName: 'bg-primary/3',
+    borderClassName: 'border-primary/25',
+    dividerClassName: 'border-primary/15',
+    accentClassName: 'text-primary',
+  },
+  yellow: {
+    backgroundClassName: 'bg-amber-50/60',
+    borderClassName: 'border-amber-300',
+    dividerClassName: 'border-amber-200',
+    accentClassName: 'text-amber-700',
+  },
+  pink: {
+    backgroundClassName: 'bg-rose-50/60',
+    borderClassName: 'border-rose-300',
+    dividerClassName: 'border-rose-200',
+    accentClassName: 'text-rose-700',
+  },
+  blue: {
+    backgroundClassName: 'bg-sky-50/60',
+    borderClassName: 'border-sky-300',
+    dividerClassName: 'border-sky-200',
+    accentClassName: 'text-sky-700',
+  },
+  green: {
+    backgroundClassName: 'bg-emerald-50/60',
+    borderClassName: 'border-emerald-300',
+    dividerClassName: 'border-emerald-200',
+    accentClassName: 'text-emerald-700',
+  },
+  purple: {
+    backgroundClassName: 'bg-violet-50/60',
+    borderClassName: 'border-violet-300',
+    dividerClassName: 'border-violet-200',
+    accentClassName: 'text-violet-700',
+  },
+}
+
+export function getGroupNodeColor(color: ConceptNodeColor | undefined) {
+  return GROUP_NODE_COLORS[color ?? 'default']
+}

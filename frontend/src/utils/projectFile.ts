@@ -97,6 +97,8 @@ const groupNodeDataSchema = z.object({
   title: z.string().max(120),
   width: z.number().finite().min(240).max(10000),
   height: z.number().finite().min(160).max(10000),
+  color: conceptNodeColorSchema.default('default'),
+  collapsed: z.boolean().default(false),
 })
 
 const positionSchema = z.object({
@@ -468,7 +470,13 @@ export function createProjectDocument(
         : {}),
       data: node.type === 'concept'
         ? { ...node.data, color: node.data.color ?? 'default' }
-        : node.data,
+        : node.type === 'group'
+          ? {
+              ...node.data,
+              color: node.data.color ?? 'default',
+              collapsed: node.data.collapsed ?? false,
+            }
+          : node.data,
     })) as CanvasNode[],
     edges: edges.map((edge) => ({
       id: edge.id,

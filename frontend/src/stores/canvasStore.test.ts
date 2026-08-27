@@ -56,6 +56,45 @@ describe('canvasStore node groups', () => {
         expect(state.canUndo).toBe(true)
     })
 
+    it('收合群組時隱藏成員，展開後恢復顯示', () => {
+        const groupId = useCanvasStore.getState().groupSelectedNodes()
+
+        useCanvasStore.getState().toggleGroupCollapsed(groupId!)
+        let state = useCanvasStore.getState()
+        expect(
+            state.nodes.find((node) => node.id === groupId && node.type === 'group'),
+        ).toMatchObject({ data: { collapsed: true } })
+        expect(
+            state.nodes.filter((node) => node.parentId === groupId),
+        ).toEqual([
+            expect.objectContaining({ id: 'node-1', hidden: true }),
+            expect.objectContaining({ id: 'node-2', hidden: true }),
+        ])
+
+        useCanvasStore.getState().toggleGroupCollapsed(groupId!)
+        state = useCanvasStore.getState()
+        expect(
+            state.nodes.find((node) => node.id === groupId && node.type === 'group'),
+        ).toMatchObject({ data: { collapsed: false } })
+        expect(
+            state.nodes.filter((node) => node.parentId === groupId),
+        ).toEqual([
+            expect.objectContaining({ id: 'node-1', hidden: false }),
+            expect.objectContaining({ id: 'node-2', hidden: false }),
+        ])
+    })
+
+    it('保留群組主題色設定', () => {
+        const groupId = useCanvasStore.getState().groupSelectedNodes()
+        useCanvasStore.getState().updateGroup(groupId!, { color: 'blue' })
+
+        expect(
+            useCanvasStore
+                .getState()
+                .nodes.find((node) => node.id === groupId && node.type === 'group'),
+        ).toMatchObject({ data: { color: 'blue' } })
+    })
+
     it('節點移到群組框外超過一半時保留畫布位置並移出群組', () => {
         const groupId = useCanvasStore.getState().groupSelectedNodes()
         const group = useCanvasStore
@@ -253,7 +292,11 @@ describe('canvasStore node groups', () => {
             prompt: '補充下一步',
             suggestion: {
                 nodes: [
-                    { tempId: 'new-1', title: '下一步一', content: '內容一' },
+                    {
+                        tempId: 'new-1',
+                        title: '下一步一',
+                        content: '較長內容'.repeat(80),
+                    },
                     { tempId: 'new-2', title: '下一步二', content: '內容二' },
                 ],
                 relations: [
@@ -282,6 +325,34 @@ describe('canvasStore node groups', () => {
         expect(expandedGroupHeight).toBeGreaterThan(
             originalGroupHeight ?? Infinity,
         )
+        expect(aiNodes[1].position.y).toBeGreaterThan(
+            aiNodes[0].position.y + 180,
+        )
+        if (expandedGroup?.type === 'group') {
+            expect(aiNodes.every(
+                (node) =>
+                    node.position.x >= 32 &&
+                    node.position.x + 256 <= expandedGroup.data.width - 32 &&
+                    node.position.y >= 64,
+            )).toBe(true)
+        }
+
+        useCanvasStore.getState().onNodesChange([
+            {
+                id: aiNodes[1].id,
+                type: 'dimensions',
+                dimensions: { width: 256, height: 720 },
+            },
+        ])
+        const measuredGroup = useCanvasStore
+            .getState()
+            .nodes.find((node) => node.id === groupId && node.type === 'group')
+        expect(measuredGroup?.type).toBe('group')
+        if (measuredGroup?.type === 'group') {
+            expect(measuredGroup.data.height).toBeGreaterThanOrEqual(
+                aiNodes[1].position.y + 720 + 32,
+            )
+        }
         expect(state.edges).toContainEqual(
             expect.objectContaining({ label: '接續' }),
         )

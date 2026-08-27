@@ -14,7 +14,10 @@ import {
     getMediaTimePlaceholder,
     parseMediaTimeInput,
 } from '../../utils/mediaTime'
-import { CONCEPT_NODE_COLOR_OPTIONS } from '../../utils/nodeColor'
+import {
+    CONCEPT_NODE_COLOR_OPTIONS,
+    GROUP_NODE_COLOR_OPTIONS,
+} from '../../utils/nodeColor'
 
 function ConceptNodeEditor({
     selectedNode,
@@ -472,6 +475,9 @@ function ConceptNodeEditor({
 
 function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
     const updateGroup = useCanvasStore((state) => state.updateGroup)
+    const toggleGroupCollapsed = useCanvasStore(
+        (state) => state.toggleGroupCollapsed,
+    )
     const ungroupNodes = useCanvasStore((state) => state.ungroupNodes)
     const memberCount = useCanvasStore(
         (state) =>
@@ -512,6 +518,55 @@ function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
                     className="min-h-11 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                 />
             </label>
+
+            <fieldset className="mt-4">
+                <legend className="mb-2 text-sm text-foreground/70">
+                    群組顏色
+                </legend>
+                <div className="flex flex-wrap gap-2">
+                    {GROUP_NODE_COLOR_OPTIONS.map((option) => {
+                        const isSelected =
+                            (selectedNode.data.color ?? 'default') === option.value
+
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                aria-label={option.label}
+                                aria-pressed={isSelected}
+                                title={option.label}
+                                onClick={() =>
+                                    updateGroup(selectedNode.id, {
+                                        color: option.value,
+                                    })
+                                }
+                                className="flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                            >
+                                <span
+                                    className={`flex size-7 items-center justify-center rounded-full border ${option.swatchClassName} ${isSelected
+                                        ? 'border-primary ring-2 ring-primary/25'
+                                        : 'border-foreground/15'}`}
+                                >
+                                    {isSelected && (
+                                        <Check
+                                            aria-hidden="true"
+                                            className="size-3.5 text-foreground/75"
+                                        />
+                                    )}
+                                </span>
+                            </button>
+                        )
+                    })}
+                </div>
+            </fieldset>
+
+            <button
+                type="button"
+                onClick={() => toggleGroupCollapsed(selectedNode.id)}
+                className="mt-4 min-h-11 w-full cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground transition-colors hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+                {selectedNode.data.collapsed ? '展開群組' : '收合群組'}
+            </button>
 
             <p className="mt-4 text-sm leading-6 text-foreground/55">
                 拖曳框內空白處可移動整組；將節點拖到框外超過一半，即會移出群組。

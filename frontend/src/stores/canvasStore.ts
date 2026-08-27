@@ -37,6 +37,8 @@ const GROUP_PADDING_BOTTOM = 32
 const GROUP_LAYOUT_PADDING_TOP = 80
 const GROUP_MIN_WIDTH = 320
 const GROUP_MIN_HEIGHT = 220
+const GROUP_COLLAPSED_WIDTH = 320
+const GROUP_COLLAPSED_HEIGHT = 52
 const GROUP_EXIT_RATIO = 0.5
 
 type CanvasSnapshot = {
@@ -114,8 +116,12 @@ function clearOrphanedTimeRanges(
 function getLayoutNodeSize(node: CanvasNode) {
     if (node.type === 'group') {
         return {
-            width: node.data.width,
-            height: node.data.height,
+            width: node.data.collapsed
+                ? GROUP_COLLAPSED_WIDTH
+                : node.data.width,
+            height: node.data.collapsed
+                ? GROUP_COLLAPSED_HEIGHT
+                : node.data.height,
         }
     }
 
@@ -131,6 +137,56 @@ function getLayoutNodeSize(node: CanvasNode) {
     }
 }
 
+function estimateSuggestedNodeHeight(title: string, content: string) {
+    const countLines = (text: string, charactersPerLine: number) =>
+        text.split('\n').reduce(
+            (total, line) =>
+                total + Math.max(1, Math.ceil([...line].length / charactersPerLine)),
+            0,
+        )
+    const titleHeight = countLines(title, 14) * 24
+    const contentHeight = content ? countLines(content, 16) * 20 + 8 : 0
+
+    return Math.max(SUGGESTED_NODE_HEIGHT, 24 + titleHeight + contentHeight)
+}
+
+function expandGroupsToFitMembers(nodes: CanvasNode[]): CanvasNode[] {
+    const requiredSizeByGroupId = new Map<
+        string,
+        { width: number; height: number }
+    >()
+
+    for (const node of nodes) {
+        if (!node.parentId) continue
+
+        const rect = getNodeRect(node)
+        const current = requiredSizeByGroupId.get(node.parentId) ?? {
+            width: GROUP_MIN_WIDTH,
+            height: GROUP_MIN_HEIGHT,
+        }
+        requiredSizeByGroupId.set(node.parentId, {
+            width: Math.max(current.width, rect.right + GROUP_PADDING_X),
+            height: Math.max(current.height, rect.bottom + GROUP_PADDING_BOTTOM),
+        })
+    }
+
+    return nodes.map((node) => {
+        if (node.type !== 'group') return node
+
+        const requiredSize = requiredSizeByGroupId.get(node.id)
+        if (!requiredSize) return node
+
+        const width = Math.max(node.data.width, requiredSize.width)
+        const height = Math.max(node.data.height, requiredSize.height)
+        if (width === node.data.width && height === node.data.height) return node
+
+        return {
+            ...node,
+            data: { ...node.data, width, height },
+        }
+    })
+}
+
 function layoutGroupContents(
     nodes: CanvasNode[],
     edges: CanvasEdge[],
@@ -139,7 +195,7 @@ function layoutGroupContents(
     const sizesByGroupId = new Map<string, { width: number; height: number }>()
 
     for (const group of nodes) {
-        if (group.type !== 'group') continue
+        if (group.type !== 'group' || group.data.collapsed) continue
 
         const members = nodes.filter((node) => node.parentId === group.id)
         if (members.length === 0) continue
@@ -443,8 +499,9 @@ type CanvasState = {
     groupSelectedNodes: () => string | null
     updateGroup: (
         nodeId: string,
-        updates: Partial<Pick<GroupNodeData, 'title'>>,
+        updates: Partial<Pick<GroupNodeData, 'title' | 'color'>>,
     ) => void
+    toggleGroupCollapsed: (groupId: string) => void
     ungroupNodes: (groupId: string) => void
     reconcileNodeGroup: (nodeId: string) => void
     updateNode: (
@@ -603,6 +660,8 @@ export const useCanvasStore = create<CanvasState>()(
                         GROUP_MIN_HEIGHT,
                         bottom - top + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM,
                     ),
+                    color: 'default',
+                    collapsed: false,
                 },
             }
             const selectedIds = new Set(selectedNodes.map((node) => node.id))
@@ -655,6 +714,36 @@ export const useCanvasStore = create<CanvasState>()(
             }
         }),
 
+    toggleGroupCollapsed: (groupId) =>
+        set((state) => {
+            const group = state.nodes.find(
+                (node) => node.id === groupId && node.type === 'group',
+            )
+            if (!group || group.type !== 'group') return state
+
+            const collapsed = !group.data.collapsed
+            return {
+                nodes: state.nodes.map((node) => {
+                    if (node.id === groupId && node.type === 'group') {
+                        return {
+                            ...node,
+                            selected: true,
+                            data: { ...node.data, collapsed },
+                        }
+                    }
+                    if (node.parentId === groupId) {
+                        return { ...node, hidden: collapsed, selected: false }
+                    }
+                    return { ...node, selected: false }
+                }),
+                edges: state.edges.map((edge) => ({ ...edge, selected: false })),
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
     ungroupNodes: (groupId) =>
         set((state) => {
             const group = state.nodes.find(
@@ -672,6 +761,7 @@ export const useCanvasStore = create<CanvasState>()(
                             ? {
                                 ...node,
                                 parentId: undefined,
+                                hidden: false,
                                 position: {
                                     x: group.position.x + node.position.x,
                                     y: group.position.y + node.position.y,
@@ -695,15 +785,18 @@ export const useCanvasStore = create<CanvasState>()(
                 const nodeRect = getAbsoluteNodeRect(node, state.nodes)
                 const matchingGroup = state.nodes
                     .filter((candidate) => candidate.type === 'group')
-                    .map((group) => ({
-                        group,
-                        ratio: getIntersectionRatio(nodeRect, {
+                    .map((group) => {
+                        const size = getLayoutNodeSize(group)
+                        return {
+                            group,
+                            ratio: getIntersectionRatio(nodeRect, {
                             left: group.position.x,
                             top: group.position.y,
-                            right: group.position.x + group.data.width,
-                            bottom: group.position.y + group.data.height,
-                        }),
-                    }))
+                            right: group.position.x + size.width,
+                            bottom: group.position.y + size.height,
+                            }),
+                        }
+                    })
                     .filter(({ ratio }) => ratio >= GROUP_EXIT_RATIO)
                     .sort((first, second) => second.ratio - first.ratio)[0]?.group
 
@@ -712,6 +805,7 @@ export const useCanvasStore = create<CanvasState>()(
                 const groupedNode: CanvasNode = {
                     ...node,
                     parentId: matchingGroup.id,
+                    hidden: Boolean(matchingGroup.data.collapsed),
                     position: {
                         x: node.position.x - matchingGroup.position.x,
                         y: node.position.y - matchingGroup.position.y,
@@ -755,6 +849,7 @@ export const useCanvasStore = create<CanvasState>()(
                         ? {
                             ...candidate,
                             parentId: undefined,
+                            hidden: false,
                             position: {
                                 x: nodeRect.left,
                                 y: nodeRect.top,
@@ -1038,15 +1133,35 @@ export const useCanvasStore = create<CanvasState>()(
                     nodeEntries.length,
                 )
 
+            let nextGroupNodeY = startY
+            const groupNodeLayoutById = new Map(
+                nodeEntries.map(({ suggestedNode, id }) => {
+                    const height = estimateSuggestedNodeHeight(
+                        suggestedNode.title,
+                        suggestedNode.content,
+                    )
+                    const layout = { y: nextGroupNodeY, height }
+                    nextGroupNodeY += height + CONTEXT_GAP
+                    return [id, layout] as const
+                }),
+            )
+
             const newNodes: CanvasNode[] = nodeEntries.map(
                 ({ suggestedNode, id }, index) => ({
                     id,
                     type: 'concept',
                     position: {
                         x: startX,
-                        y: startY + index * VERTICAL_STEP,
+                        y: isGroupContext
+                            ? groupNodeLayoutById.get(id)!.y
+                            : startY + index * VERTICAL_STEP,
                     },
-                    ...(isGroupContext ? { parentId: contextNode.id } : {}),
+                    ...(isGroupContext
+                        ? {
+                            parentId: contextNode.id,
+                            hidden: Boolean(contextNode.data.collapsed),
+                        }
+                        : {}),
                     data: {
                         title: suggestedNode.title,
                         content: suggestedNode.content,
@@ -1115,9 +1230,13 @@ export const useCanvasStore = create<CanvasState>()(
                 })
                 : []
 
-            const lastNewNodeBottom = nodeEntries.length > 0
-                ? startY + (nodeEntries.length - 1) * VERTICAL_STEP +
-                    SUGGESTED_NODE_HEIGHT + GROUP_PADDING_BOTTOM
+            const lastNewNode = nodeEntries.at(-1)
+            const lastGroupNodeLayout = lastNewNode
+                ? groupNodeLayoutById.get(lastNewNode.id)
+                : undefined
+            const lastNewNodeBottom = lastGroupNodeLayout
+                ? lastGroupNodeLayout.y + lastGroupNodeLayout.height +
+                    GROUP_PADDING_BOTTOM
                 : 0
             const existingNodes = isGroupContext
                 ? state.nodes.map((node) =>
@@ -1181,7 +1300,14 @@ export const useCanvasStore = create<CanvasState>()(
             )
             const shouldSaveHistory = startsDragging || removesNode
 
-            const changedNodes = applyNodeChanges(changes, state.nodes)
+            const hasDimensionChange = changes.some(
+                (change) => change.type === 'dimensions',
+            )
+            const changedNodes = hasDimensionChange
+                ? expandGroupsToFitMembers(
+                    applyNodeChanges(changes, state.nodes),
+                )
+                : applyNodeChanges(changes, state.nodes)
             const changedNodeIds = new Set(changedNodes.map((node) => node.id))
             const remainingEdges = state.edges.filter(
                 (edge) => changedNodeIds.has(edge.source) && changedNodeIds.has(edge.target),
@@ -1320,18 +1446,34 @@ export const useCanvasStore = create<CanvasState>()(
         }),
 
     replaceProject: (nodes, edges) =>
-        set({
-            nodes: nodes.map((node) =>
-                node.type === 'group'
-                    ? { ...node, deletable: false }
-                    : node,
-            ),
-            edges,
-            past: [],
-            future: [],
-            isNodeDragging: false,
-            canUndo: false,
-            canRedo: false,
+        set(() => {
+            const collapsedGroupIds = new Set(
+                nodes
+                    .filter(
+                        (node) => node.type === 'group' && node.data.collapsed,
+                    )
+                    .map((node) => node.id),
+            )
+
+            return {
+                nodes: nodes.map((node) => {
+                    if (node.type === 'group') {
+                        return { ...node, deletable: false }
+                    }
+                    return {
+                        ...node,
+                        hidden: Boolean(
+                            node.parentId && collapsedGroupIds.has(node.parentId),
+                        ),
+                    }
+                }),
+                edges,
+                past: [],
+                future: [],
+                isNodeDragging: false,
+                canUndo: false,
+                canRedo: false,
+            }
         }),
     }), {
         name: 'co-canvas-canvas',

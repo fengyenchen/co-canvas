@@ -78,6 +78,8 @@ class ProjectGroupNodeData(ApiModel):
     title: str = Field(default="未命名群組", max_length=120)
     width: float = Field(ge=240, le=10000)
     height: float = Field(ge=160, le=10000)
+    color: Literal["default", "yellow", "pink", "blue", "green", "purple"] = "default"
+    collapsed: bool = False
 
 
 class ProjectConceptNode(ApiModel):
