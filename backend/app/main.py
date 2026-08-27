@@ -7,6 +7,7 @@ from typing import Annotated, Callable, Literal, TypeVar
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from google.genai.errors import APIError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ from app.database import DatabaseConnectionError, check_database_connection
 from app.database import get_database_session
 from app.models import UserAiCredential
 from app.middleware.request_protection import RequestProtectionMiddleware
+from app.middleware.observability import ObservabilityMiddleware
 from app.routers.ai_credentials import router as ai_credentials_router
 from app.routers.projects import router as projects_router
 from app.schemas import (
@@ -80,6 +82,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(ObservabilityMiddleware)
+
 app.include_router(projects_router)
 app.include_router(ai_credentials_router)
 
@@ -96,6 +100,39 @@ async def health():
         "databaseConfigured": settings.database_url is not None,
         "authConfigured": settings.neon_auth_jwks_url is not None,
     }
+
+
+@app.get("/health/live")
+async def liveness_health():
+    return {
+        "status": "ok",
+        "service": "co-canvas-api",
+    }
+
+
+@app.get("/health/ready")
+async def readiness_health():
+    current_settings = get_settings()
+    checks = {
+        "database": current_settings.database_url is not None,
+        "auth": current_settings.neon_auth_jwks_url is not None,
+    }
+
+    if checks["database"]:
+        try:
+            checks["database"] = await check_database_connection()
+        except DatabaseConnectionError:
+            checks["database"] = False
+
+    is_ready = all(checks.values())
+    return JSONResponse(
+        {
+            "status": "ready" if is_ready else "not_ready",
+            "service": "co-canvas-api",
+            "checks": checks,
+        },
+        status_code=200 if is_ready else 503,
+    )
 
 
 @app.get("/health/database")
