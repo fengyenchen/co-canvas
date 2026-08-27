@@ -86,7 +86,29 @@ function createLayouts(
     context: CanvasRenderingContext2D,
     nodes: CanvasNode[],
 ) {
+    const groupById = new Map(
+        nodes
+            .filter((node) => node.type === 'group')
+            .map((node) => [node.id, node]),
+    )
+
     return nodes.map<NodeLayout>((node) => {
+        const parent = node.parentId ? groupById.get(node.parentId) : undefined
+        const x = node.position.x + (parent?.position.x ?? 0)
+        const y = node.position.y + (parent?.position.y ?? 0)
+
+        if (node.type === 'group') {
+            return {
+                node,
+                x,
+                y,
+                width: node.data.width,
+                height: node.data.height,
+                titleLines: [node.data.title || '未命名群組'],
+                contentLines: [],
+            }
+        }
+
         context.font = TITLE_FONT
         const titleLines = wrapText(
             context,
@@ -113,8 +135,8 @@ function createLayouts(
 
         return {
             node,
-            x: node.position.x,
-            y: node.position.y,
+            x,
+            y,
             width: NODE_WIDTH,
             height,
             titleLines,
@@ -194,6 +216,36 @@ function drawEdge(
 
 function drawNode(context: CanvasRenderingContext2D, layout: NodeLayout) {
     context.save()
+
+    if (layout.node.type === 'group') {
+        roundedRectangle(
+            context,
+            layout.x,
+            layout.y,
+            layout.width,
+            layout.height,
+            16,
+        )
+        context.fillStyle = 'rgba(91, 91, 102, 0.04)'
+        context.fill()
+        context.setLineDash([8, 6])
+        context.strokeStyle = 'rgba(91, 91, 102, 0.35)'
+        context.lineWidth = 2
+        context.stroke()
+        context.setLineDash([])
+        context.fillStyle = '#3f3f46'
+        context.font = TITLE_FONT
+        context.textAlign = 'left'
+        context.textBaseline = 'top'
+        context.fillText(
+            layout.titleLines[0],
+            layout.x + NODE_PADDING,
+            layout.y + NODE_PADDING,
+        )
+        context.restore()
+        return
+    }
+
     context.shadowColor = 'rgba(15, 23, 42, 0.08)'
     context.shadowBlur = 12
     context.shadowOffsetY = 3

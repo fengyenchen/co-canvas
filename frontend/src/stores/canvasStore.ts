@@ -16,6 +16,7 @@ import type {
     CanvasNode,
     CommonCanvasNodeData,
     ConceptNodeData,
+    GroupNodeData,
     VideoNodeData,
 } from '../types/canvas'
 import type { SuggestionPreview } from '../types/suggestion'
@@ -30,6 +31,12 @@ const COLLISION_PADDING = 40
 const HISTORY_LIMIT = 50
 const LAYOUT_NODE_GAP = 64
 const LAYOUT_RANK_GAP = 96
+const GROUP_PADDING_X = 32
+const GROUP_PADDING_TOP = 64
+const GROUP_PADDING_BOTTOM = 32
+const GROUP_MIN_WIDTH = 320
+const GROUP_MIN_HEIGHT = 220
+const GROUP_EXIT_RATIO = 0.5
 
 type CanvasSnapshot = {
     nodes: CanvasNode[]
@@ -118,34 +125,45 @@ function layoutNodes(
         marginy: 40,
     })
 
-    for (const node of nodes) {
+    const layoutNodes = nodes.filter((node) => !node.parentId)
+    const layoutNodeIds = new Set(layoutNodes.map((node) => node.id))
+
+    for (const node of layoutNodes) {
         const width =
             node.measured?.width ??
             node.width ??
+            (node.type === 'group' ? node.data.width : undefined) ??
             SUGGESTED_NODE_WIDTH
         const height =
             node.measured?.height ??
             node.height ??
+            (node.type === 'group' ? node.data.height : undefined) ??
             SUGGESTED_NODE_HEIGHT
 
         graph.setNode(node.id, { width, height })
     }
 
     for (const edge of edges) {
-        graph.setEdge(edge.source, edge.target)
+        if (layoutNodeIds.has(edge.source) && layoutNodeIds.has(edge.target)) {
+            graph.setEdge(edge.source, edge.target)
+        }
     }
 
     dagre.layout(graph)
 
     return nodes.map((node) => {
+        if (node.parentId) return node
+
         const layout = graph.node(node.id)
         const width =
             node.measured?.width ??
             node.width ??
+            (node.type === 'group' ? node.data.width : undefined) ??
             SUGGESTED_NODE_WIDTH
         const height =
             node.measured?.height ??
             node.height ??
+            (node.type === 'group' ? node.data.height : undefined) ??
             SUGGESTED_NODE_HEIGHT
 
         return {
@@ -167,9 +185,15 @@ type NodeRect = {
 
 function getNodeRect(node: CanvasNode): NodeRect {
     const width =
-        node.measured?.width ?? node.width ?? SUGGESTED_NODE_WIDTH
+        node.measured?.width ??
+        node.width ??
+        (node.type === 'group' ? node.data.width : undefined) ??
+        SUGGESTED_NODE_WIDTH
     const height =
-        node.measured?.height ?? node.height ?? SUGGESTED_NODE_HEIGHT
+        node.measured?.height ??
+        node.height ??
+        (node.type === 'group' ? node.data.height : undefined) ??
+        SUGGESTED_NODE_HEIGHT
 
     return {
         left: node.position.x,
@@ -177,6 +201,41 @@ function getNodeRect(node: CanvasNode): NodeRect {
         right: node.position.x + width,
         bottom: node.position.y + height,
     }
+}
+
+function getAbsoluteNodeRect(node: CanvasNode, nodes: CanvasNode[]): NodeRect {
+    const rect = getNodeRect(node)
+    const parent = node.parentId
+        ? nodes.find((candidate) => candidate.id === node.parentId)
+        : undefined
+
+    if (!parent || parent.type !== 'group') return rect
+
+    return {
+        left: rect.left + parent.position.x,
+        top: rect.top + parent.position.y,
+        right: rect.right + parent.position.x,
+        bottom: rect.bottom + parent.position.y,
+    }
+}
+
+function getIntersectionRatio(nodeRect: NodeRect, groupRect: NodeRect): number {
+    const intersectionWidth = Math.max(
+        0,
+        Math.min(nodeRect.right, groupRect.right) -
+            Math.max(nodeRect.left, groupRect.left),
+    )
+    const intersectionHeight = Math.max(
+        0,
+        Math.min(nodeRect.bottom, groupRect.bottom) -
+            Math.max(nodeRect.top, groupRect.top),
+    )
+    const nodeArea = Math.max(
+        1,
+        (nodeRect.right - nodeRect.left) * (nodeRect.bottom - nodeRect.top),
+    )
+
+    return (intersectionWidth * intersectionHeight) / nodeArea
 }
 
 function rectsOverlap(a: NodeRect, b: NodeRect): boolean {
@@ -269,6 +328,13 @@ type CanvasState = {
     } | null
     addNode: (position?: XYPosition) => void
     addVideoNode: (position?: XYPosition) => string
+    groupSelectedNodes: () => string | null
+    updateGroup: (
+        nodeId: string,
+        updates: Partial<Pick<GroupNodeData, 'title'>>,
+    ) => void
+    ungroupNodes: (groupId: string) => void
+    reconcileNodeGroup: (nodeId: string) => void
     updateNode: (
         nodeId: string,
         updates: Partial<
@@ -386,6 +452,205 @@ export const useCanvasStore = create<CanvasState>()(
         return nodeId
     },
 
+    groupSelectedNodes: () => {
+        const groupId = crypto.randomUUID()
+        let didCreateGroup = false
+
+        set((state) => {
+            const selectedNodes = state.nodes.filter(
+                (node) => node.selected && node.type !== 'group' && !node.parentId,
+            )
+
+            if (selectedNodes.length < 2) return state
+
+            const selectedRects = selectedNodes.map((node) =>
+                getAbsoluteNodeRect(node, state.nodes),
+            )
+            const left = Math.min(...selectedRects.map((rect) => rect.left))
+            const top = Math.min(...selectedRects.map((rect) => rect.top))
+            const right = Math.max(...selectedRects.map((rect) => rect.right))
+            const bottom = Math.max(...selectedRects.map((rect) => rect.bottom))
+            const groupX = left - GROUP_PADDING_X
+            const groupY = top - GROUP_PADDING_TOP
+            const groupCount = state.nodes.filter(
+                (node) => node.type === 'group',
+            ).length
+            const groupNode: CanvasNode = {
+                id: groupId,
+                type: 'group',
+                position: { x: groupX, y: groupY },
+                selected: true,
+                deletable: false,
+                data: {
+                    title: `群組 ${groupCount + 1}`,
+                    width: Math.max(
+                        GROUP_MIN_WIDTH,
+                        right - left + GROUP_PADDING_X * 2,
+                    ),
+                    height: Math.max(
+                        GROUP_MIN_HEIGHT,
+                        bottom - top + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM,
+                    ),
+                },
+            }
+            const selectedIds = new Set(selectedNodes.map((node) => node.id))
+            const nextNodes = state.nodes.map((node) => {
+                if (!selectedIds.has(node.id)) {
+                    return { ...node, selected: false }
+                }
+
+                return {
+                    ...node,
+                    parentId: groupId,
+                    position: {
+                        x: node.position.x - groupX,
+                        y: node.position.y - groupY,
+                    },
+                    selected: false,
+                }
+            })
+
+            didCreateGroup = true
+            return {
+                nodes: [groupNode, ...nextNodes],
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        })
+
+        return didCreateGroup ? groupId : null
+    },
+
+    updateGroup: (nodeId, updates) =>
+        set((state) => {
+            const group = state.nodes.find(
+                (node) => node.id === nodeId && node.type === 'group',
+            )
+            if (!group || group.type !== 'group') return state
+
+            return {
+                nodes: state.nodes.map((node) =>
+                    node.id === nodeId && node.type === 'group'
+                        ? { ...node, data: { ...node.data, ...updates } }
+                        : node,
+                ),
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
+    ungroupNodes: (groupId) =>
+        set((state) => {
+            const group = state.nodes.find(
+                (node) => node.id === groupId && node.type === 'group',
+            )
+            if (!group || group.type !== 'group') return state
+
+            return {
+                nodes: state.nodes
+                    .filter((node) => node.id !== groupId)
+                    .map((node) =>
+                        node.parentId === groupId
+                            ? {
+                                ...node,
+                                parentId: undefined,
+                                position: {
+                                    x: group.position.x + node.position.x,
+                                    y: group.position.y + node.position.y,
+                                },
+                            }
+                            : node,
+                    ),
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
+    reconcileNodeGroup: (nodeId) =>
+        set((state) => {
+            const node = state.nodes.find((candidate) => candidate.id === nodeId)
+            if (!node || node.type === 'group') return state
+
+            if (!node.parentId) {
+                const nodeRect = getAbsoluteNodeRect(node, state.nodes)
+                const matchingGroup = state.nodes
+                    .filter((candidate) => candidate.type === 'group')
+                    .map((group) => ({
+                        group,
+                        ratio: getIntersectionRatio(nodeRect, {
+                            left: group.position.x,
+                            top: group.position.y,
+                            right: group.position.x + group.data.width,
+                            bottom: group.position.y + group.data.height,
+                        }),
+                    }))
+                    .filter(({ ratio }) => ratio >= GROUP_EXIT_RATIO)
+                    .sort((first, second) => second.ratio - first.ratio)[0]?.group
+
+                if (!matchingGroup || matchingGroup.type !== 'group') return state
+
+                const groupedNode: CanvasNode = {
+                    ...node,
+                    parentId: matchingGroup.id,
+                    position: {
+                        x: node.position.x - matchingGroup.position.x,
+                        y: node.position.y - matchingGroup.position.y,
+                    },
+                }
+
+                return {
+                    nodes: [
+                        ...state.nodes.filter(
+                            (candidate) => candidate.type === 'group',
+                        ),
+                        ...state.nodes
+                            .filter((candidate) => candidate.type !== 'group')
+                            .map((candidate) =>
+                                candidate.id === nodeId ? groupedNode : candidate,
+                            ),
+                    ],
+                }
+            }
+
+            const group = state.nodes.find(
+                (candidate) =>
+                    candidate.id === node.parentId && candidate.type === 'group',
+            )
+            if (!group || group.type !== 'group') return state
+
+            const nodeRect = getAbsoluteNodeRect(node, state.nodes)
+            const groupRect: NodeRect = {
+                left: group.position.x,
+                top: group.position.y,
+                right: group.position.x + group.data.width,
+                bottom: group.position.y + group.data.height,
+            }
+            if (getIntersectionRatio(nodeRect, groupRect) >= GROUP_EXIT_RATIO) {
+                return state
+            }
+
+            return {
+                nodes: state.nodes.map((candidate) =>
+                    candidate.id === nodeId
+                        ? {
+                            ...candidate,
+                            parentId: undefined,
+                            position: {
+                                x: nodeRect.left,
+                                y: nodeRect.top,
+                            },
+                        }
+                        : candidate,
+                ),
+            }
+        }),
+
     updateNode: (nodeId, updates) =>
         set((state) => ({
             nodes: state.nodes.map((node) => {
@@ -401,10 +666,14 @@ export const useCanvasStore = create<CanvasState>()(
                     }
                 }
 
-                return {
-                    ...node,
-                    data: { ...node.data, ...updates },
+                if (node.type === 'video') {
+                    return {
+                        ...node,
+                        data: { ...node.data, ...updates },
+                    }
                 }
+
+                return node
             }),
             past: addToHistory(
                 state.past,
@@ -904,7 +1173,11 @@ export const useCanvasStore = create<CanvasState>()(
 
     replaceProject: (nodes, edges) =>
         set({
-            nodes,
+            nodes: nodes.map((node) =>
+                node.type === 'group'
+                    ? { ...node, deletable: false }
+                    : node,
+            ),
             edges,
             past: [],
             future: [],

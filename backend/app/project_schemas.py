@@ -74,11 +74,18 @@ class ProjectVideoNodeData(ApiModel):
         return value
 
 
+class ProjectGroupNodeData(ApiModel):
+    title: str = Field(default="未命名群組", max_length=120)
+    width: float = Field(ge=240, le=10000)
+    height: float = Field(ge=160, le=10000)
+
+
 class ProjectConceptNode(ApiModel):
     id: str = Field(min_length=1)
     type: Literal["concept"] = "concept"
     position: ProjectPosition
     data: ProjectConceptNodeData
+    parent_id: str | None = None
 
 
 class ProjectVideoNode(ApiModel):
@@ -86,9 +93,17 @@ class ProjectVideoNode(ApiModel):
     type: Literal["video"] = "video"
     position: ProjectPosition
     data: ProjectVideoNodeData
+    parent_id: str | None = None
 
 
-ProjectNode = ProjectConceptNode | ProjectVideoNode
+class ProjectGroupNode(ApiModel):
+    id: str = Field(min_length=1)
+    type: Literal["group"] = "group"
+    position: ProjectPosition
+    data: ProjectGroupNodeData
+
+
+ProjectNode = ProjectConceptNode | ProjectVideoNode | ProjectGroupNode
 
 
 class ProjectEdgeData(ApiModel):
@@ -287,6 +302,11 @@ class ProjectDocument(ApiModel):
 
     @model_validator(mode="after")
     def validate_node_time_ranges(self) -> "ProjectDocument":
+        group_ids = {
+            node.id
+            for node in self.nodes
+            if isinstance(node, ProjectGroupNode)
+        }
         video_nodes = {
             node.id: node
             for node in self.nodes
@@ -294,6 +314,13 @@ class ProjectDocument(ApiModel):
         }
 
         for node in self.nodes:
+            if (
+                isinstance(node, (ProjectConceptNode, ProjectVideoNode))
+                and node.parent_id is not None
+                and node.parent_id not in group_ids
+            ):
+                raise ValueError("群組成員引用了不存在的群組")
+
             if not isinstance(node, ProjectConceptNode):
                 continue
 

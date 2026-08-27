@@ -93,6 +93,12 @@ const videoNodeDataSchema = z.object({
   ),
 })
 
+const groupNodeDataSchema = z.object({
+  title: z.string().max(120),
+  width: z.number().finite().min(240).max(10000),
+  height: z.number().finite().min(160).max(10000),
+})
+
 const positionSchema = z.object({
   x: z.number().finite(),
   y: z.number().finite(),
@@ -103,6 +109,7 @@ const conceptNodeSchema = z.object({
   type: z.literal('concept'),
   position: positionSchema,
   data: conceptNodeDataSchema,
+  parentId: optionalStringSchema,
 })
 
 const videoNodeSchema = z.object({
@@ -110,11 +117,20 @@ const videoNodeSchema = z.object({
   type: z.literal('video'),
   position: positionSchema,
   data: videoNodeDataSchema,
+  parentId: optionalStringSchema,
+})
+
+const groupNodeSchema = z.object({
+  id: z.string().min(1),
+  type: z.literal('group'),
+  position: positionSchema,
+  data: groupNodeDataSchema,
 })
 
 const canvasNodeSchema = z.discriminatedUnion('type', [
   conceptNodeSchema,
   videoNodeSchema,
+  groupNodeSchema,
 ])
 
 const canvasEdgeSchema = z.object({
@@ -353,6 +369,19 @@ function validateProjectRelations(
   })
 
   project.nodes.forEach((node, index) => {
+    if (node.type !== 'group' && node.parentId !== undefined) {
+      const parent = project.nodes.find(
+        (candidate) => candidate.id === node.parentId,
+      )
+      if (!parent || parent.type !== 'group') {
+        context.addIssue({
+          code: 'custom',
+          path: ['nodes', index, 'parentId'],
+          message: '群組成員引用了不存在的群組',
+        })
+      }
+    }
+
     if (node.type !== 'concept') return
     const { startTimeMs, endTimeMs } = node.data
 
@@ -434,6 +463,9 @@ export function createProjectDocument(
       id: node.id,
       type: node.type,
       position: node.position,
+      ...(node.type !== 'group' && node.parentId
+        ? { parentId: node.parentId }
+        : {}),
       data: node.type === 'concept'
         ? { ...node.data, color: node.data.color ?? 'default' }
         : node.data,

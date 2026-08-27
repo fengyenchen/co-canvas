@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
-import type { ConceptCanvasNode, VideoCanvasNode } from '../../types/canvas'
+import type {
+    ConceptCanvasNode,
+    GroupCanvasNode,
+    VideoCanvasNode,
+} from '../../types/canvas'
 import {
     formatMediaTime,
     formatMediaTimeInput,
@@ -466,9 +470,62 @@ function ConceptNodeEditor({
     )
 }
 
+function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
+    const updateGroup = useCanvasStore((state) => state.updateGroup)
+    const ungroupNodes = useCanvasStore((state) => state.ungroupNodes)
+    const memberCount = useCanvasStore(
+        (state) =>
+            state.nodes.filter((node) => node.parentId === selectedNode.id).length,
+    )
+
+    return (
+        <aside className="absolute right-4 top-18 z-20 max-h-[calc(100%-5.5rem)] w-50 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-background p-4 shadow-sm md:top-4 md:max-h-[calc(100%-2rem)] md:w-70 lg:w-80">
+            <p className="mb-6 rounded-lg border border-border px-4 py-3 text-sm text-foreground/65">
+                群組內有 {memberCount} 個節點
+            </p>
+
+            <label className="block">
+                <span className="mb-1 block text-sm text-foreground/70">
+                    群組名稱
+                </span>
+                <input
+                    type="text"
+                    value={selectedNode.data.title}
+                    onChange={(event) =>
+                        updateGroup(selectedNode.id, { title: event.target.value })
+                    }
+                    className="min-h-11 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                />
+            </label>
+
+            <p className="mt-4 text-sm leading-6 text-foreground/55">
+                拖曳框內空白處可移動整組；將節點拖到框外超過一半，即會移出群組。
+            </p>
+
+            <div className="mt-6 border-t border-border pt-4">
+                <button
+                    type="button"
+                    onClick={() => ungroupNodes(selectedNode.id)}
+                    className="min-h-11 w-full cursor-pointer rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+                >
+                    解散群組
+                </button>
+            </div>
+        </aside>
+    )
+}
+
 export function NodeEditor() {
     const nodes = useCanvasStore((state) => state.nodes)
     const edges = useCanvasStore((state) => state.edges)
+    const selectedGroup = nodes.find(
+        (node): node is GroupCanvasNode =>
+            Boolean(node.selected && node.type === 'group'),
+    )
+    if (selectedGroup) {
+        return <GroupNodeEditor key={selectedGroup.id} selectedNode={selectedGroup} />
+    }
+
     const selectedNode = nodes.find(
         (node): node is ConceptCanvasNode =>
             Boolean(node.selected && node.type === 'concept'),

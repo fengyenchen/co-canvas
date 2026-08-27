@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   CanvasEdge,
   ConceptCanvasNode,
+  GroupCanvasNode,
   VideoCanvasNode,
 } from '../types/canvas'
 import type { ChatMessage } from '../types/chat'
@@ -115,6 +116,49 @@ describe('projectFile', () => {
 
     expect(imported.nodes[0]?.data).toMatchObject({ color: 'yellow' })
     expect(legacyImported.nodes[0]?.data).toMatchObject({ color: 'default' })
+  })
+
+  it('保留群組名稱、尺寸與節點成員關係', () => {
+    const group: GroupCanvasNode = {
+      id: 'group-1',
+      type: 'group',
+      position: { x: 50, y: 80 },
+      data: {
+        title: '訪談發現',
+        width: 640,
+        height: 360,
+      },
+    }
+    const groupedNode: ConceptCanvasNode = {
+      ...nodes[0],
+      parentId: group.id,
+      position: { x: 32, y: 64 },
+    }
+
+    const exported = createProjectFile([group, groupedNode], [], [])
+    const imported = parseProjectFile(JSON.parse(JSON.stringify(exported)))
+
+    expect(imported.nodes[0]).toMatchObject({
+      id: 'group-1',
+      type: 'group',
+      data: { title: '訪談發現', width: 640, height: 360 },
+    })
+    expect(imported.nodes[1]).toMatchObject({
+      id: 'node-1',
+      parentId: 'group-1',
+      position: { x: 32, y: 64 },
+    })
+  })
+
+  it('拒絕引用不存在群組的節點', () => {
+    const orphanedMember: ConceptCanvasNode = {
+      ...nodes[0],
+      parentId: 'missing-group',
+    }
+
+    expect(() =>
+      parseProjectFile(createProjectFile([orphanedMember], [], [])),
+    ).toThrow('群組成員引用了不存在的群組')
   })
 
   it('匯出時排除孤兒對話', () => {

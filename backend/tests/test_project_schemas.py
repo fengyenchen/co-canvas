@@ -7,6 +7,7 @@ from app.project_schemas import (
     ProjectVersionCreate,
     ProjectVersionResponse,
     ProjectVersionRestore,
+    ProjectGroupNode,
     ProjectVideoNode,
 )
 
@@ -185,6 +186,50 @@ def test_rejects_unknown_concept_node_color() -> None:
             {
                 "version": 4,
                 "nodes": [create_concept_node({"color": "orange"})],
+                "edges": [],
+                "messages": [],
+            }
+        )
+
+
+def test_accepts_group_node_and_member_parent_id() -> None:
+    group = {
+        "id": "group-1",
+        "type": "group",
+        "position": {"x": 40, "y": 80},
+        "data": {
+            "title": "訪談發現",
+            "width": 640,
+            "height": 360,
+        },
+    }
+    concept = {
+        **create_concept_node({}),
+        "parentId": "group-1",
+        "position": {"x": 32, "y": 64},
+    }
+
+    document = ProjectDocument.model_validate(
+        {
+            "version": 4,
+            "nodes": [group, concept],
+            "edges": [],
+            "messages": [],
+        }
+    )
+
+    assert isinstance(document.nodes[0], ProjectGroupNode)
+    assert document.nodes[1].parent_id == "group-1"
+
+
+def test_rejects_member_with_missing_group() -> None:
+    concept = {**create_concept_node({}), "parentId": "missing-group"}
+
+    with pytest.raises(ValidationError, match="群組成員引用了不存在的群組"):
+        ProjectDocument.model_validate(
+            {
+                "version": 4,
+                "nodes": [concept],
                 "edges": [],
                 "messages": [],
             }

@@ -55,6 +55,26 @@ body {
   fill: #52525b;
 }
 
+/* The custom `group` node shares React Flow's built-in group class name. */
+.react-flow__node-group {
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+
+.react-flow__node-group.selectable:hover,
+.react-flow__node-group.selectable.selected,
+.react-flow__node-group.selectable:focus,
+.react-flow__node-group.selectable:focus-visible {
+  box-shadow: none;
+}
+
 .ai-thinking-dot {
   width: 0.375rem;
   height: 0.375rem;

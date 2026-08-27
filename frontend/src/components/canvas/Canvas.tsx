@@ -19,6 +19,7 @@ import {
 import type { ProjectFile } from '../../utils/projectFile'
 import { ConceptNode } from './ConceptNode'
 import { VideoNode } from './VideoNode'
+import { GroupNode } from './GroupNode'
 import { EdgeEditor } from './EdgeEditor'
 import { NodeEditor } from './NodeEditor'
 import { VideoPanel } from '../video/VideoPanel'
@@ -26,6 +27,7 @@ import { VideoPanel } from '../video/VideoPanel'
 const nodeTypes: NodeTypes = {
     concept: ConceptNode,
     video: VideoNode,
+    group: GroupNode,
 }
 
 type CanvasProps = {
@@ -88,6 +90,12 @@ function CanvasContent({
     const edges = useCanvasStore((state) => state.edges)
     const addNode = useCanvasStore((state) => state.addNode)
     const addVideoNode = useCanvasStore((state) => state.addVideoNode)
+    const groupSelectedNodes = useCanvasStore(
+        (state) => state.groupSelectedNodes,
+    )
+    const reconcileNodeGroup = useCanvasStore(
+        (state) => state.reconcileNodeGroup,
+    )
     const onNodesChange = useCanvasStore((state) => state.onNodesChange)
     const onEdgesChange = useCanvasStore((state) => state.onEdgesChange)
     const onConnect = useCanvasStore((state) => state.onConnect)
@@ -118,7 +126,7 @@ function CanvasContent({
 
         return nodes
             .filter((node) =>
-                `${node.data.title}\n${node.data.content}`
+                `${node.data.title}\n${'content' in node.data ? node.data.content : ''}`
                     .toLocaleLowerCase()
                     .includes(query),
             )
@@ -134,6 +142,9 @@ function CanvasContent({
             })
             .slice(0, 20)
     }, [nodes, searchQuery])
+    const selectedUngroupedNodeCount = nodes.filter(
+        (node) => node.selected && node.type !== 'group' && !node.parentId,
+    ).length
 
     function getNewNodePosition() {
         const bounds = canvasSectionRef.current?.getBoundingClientRect()
@@ -512,6 +523,17 @@ function CanvasContent({
 
                         <button
                             type="button"
+                            onClick={groupSelectedNodes}
+                            disabled={selectedUngroupedNodeCount < 2}
+                            title="框選至少兩個未分組節點後建立群組"
+                            className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-none sm:px-4"
+                        >
+                            <span className="sm:hidden">群組</span>
+                            <span className="hidden sm:inline">建立群組</span>
+                        </button>
+
+                        <button
+                            type="button"
                             onClick={handleAutoLayout}
                             disabled={nodes.length < 2}
                             className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-none sm:px-4"
@@ -791,7 +813,7 @@ function CanvasContent({
                                                         {node.data.title ||
                                                             '未命名節點'}
                                                     </span>
-                                                    {node.data.content && (
+                                                    {'content' in node.data && node.data.content && (
                                                         <span className="mt-0.5 block truncate text-xs text-foreground/60">
                                                             {node.data.content}
                                                         </span>
@@ -836,6 +858,7 @@ function CanvasContent({
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={isReadOnly ? undefined : onConnect}
+                onNodeDragStop={(_, node) => reconcileNodeGroup(node.id)}
                 onNodeDoubleClick={(_, node) => {
                     if (node.type === 'concept') {
                         setActiveContextNodeId(node.id)
@@ -844,6 +867,9 @@ function CanvasContent({
                 nodesDraggable={!isReadOnly}
                 nodesConnectable={!isReadOnly}
                 edgesReconnectable={!isReadOnly}
+                multiSelectionKeyCode="Shift"
+                selectionKeyCode="Shift"
+                elevateNodesOnSelect={false}
                 deleteKeyCode={isReadOnly ? null : ['Backspace', 'Delete']}
                 className="bg-canvas"
                 fitView

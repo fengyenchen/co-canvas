@@ -44,6 +44,10 @@ export function createAiContextNode(
   nodes: CanvasNode[],
   edges: CanvasEdge[],
 ): AiContextNode {
+  if (node.type === 'group') {
+    throw new Error('群組框不能作為 AI 對話上下文')
+  }
+
   const base = {
     id: node.id,
     title: node.data.title,
