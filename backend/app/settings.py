@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AnyHttpUrl, SecretStr
+from pydantic import AnyHttpUrl, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     database_migration_url: SecretStr | None = None
     neon_auth_jwks_url: AnyHttpUrl | None = None
     cors_allowed_origins: str = "http://localhost:5173"
+    api_rate_limit_requests: int = Field(default=120, ge=1)
+    ai_rate_limit_requests: int = Field(default=20, ge=1)
+    rate_limit_window_seconds: int = Field(default=60, ge=1)
+    max_request_body_bytes: int = Field(default=2_000_000, ge=1)
 
     @property
     def cors_origins(self) -> list[str]:

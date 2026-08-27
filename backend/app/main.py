@@ -15,6 +15,7 @@ from app.auth import AuthenticatedUser, OptionalCurrentUser
 from app.database import DatabaseConnectionError, check_database_connection
 from app.database import get_database_session
 from app.models import UserAiCredential
+from app.middleware.request_protection import RequestProtectionMiddleware
 from app.routers.ai_credentials import router as ai_credentials_router
 from app.routers.projects import router as projects_router
 from app.schemas import (
@@ -62,6 +63,14 @@ app = FastAPI(
 )
 
 settings = get_settings()
+
+app.add_middleware(
+    RequestProtectionMiddleware,
+    api_requests=settings.api_rate_limit_requests,
+    ai_requests=settings.ai_rate_limit_requests,
+    window_seconds=settings.rate_limit_window_seconds,
+    max_body_bytes=settings.max_request_body_bytes,
+)
 
 app.add_middleware(
     CORSMiddleware,
