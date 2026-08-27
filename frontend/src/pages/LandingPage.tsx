@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { motion, MotionConfig, type HTMLMotionProps } from 'motion/react'
-import { CloudUpload, Film, Link2, MessageSquareText, Play } from 'lucide-react'
-import { Link, Navigate } from 'react-router'
+import { CloudUpload, ExternalLink, Film, Link2, MessageSquareText, Play } from 'lucide-react'
+import { Link } from 'react-router'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 
 type SessionState = 'checking' | 'signed-in' | 'signed-out'
@@ -28,6 +28,7 @@ function Reveal({ children, delay = 0, ...props }: RevealProps) {
 export function LandingPage() {
   const [sessionState, setSessionState] =
     useState<SessionState>('checking')
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   useEffect(() => {
     let isCancelled = false
@@ -54,8 +55,17 @@ export function LandingPage() {
     }
   }, [])
 
-  if (sessionState === 'signed-in') {
-    return <Navigate to="/projects" replace />
+  async function handleSignOut() {
+    if (isSigningOut) return
+
+    setIsSigningOut(true)
+    try {
+      const { authClient } = await import('../lib/auth')
+      await authClient.signOut()
+      setSessionState('signed-out')
+    } finally {
+      setIsSigningOut(false)
+    }
   }
 
   return (
@@ -74,7 +84,7 @@ export function LandingPage() {
             height="44"
             className="size-11 object-contain"
           />
-          <span>Co-Canvas</span>
+          <span className="hidden sm:inline">Co-Canvas</span>
         </Link>
 
         <nav aria-label="主要導覽" className="flex items-center gap-2">
@@ -103,11 +113,39 @@ export function LandingPage() {
             適用情境
           </a>
           <Link
-            to="/auth/sign-in?returnTo=%2Fprojects"
-            className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            to="/guide"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 md:inline-flex"
           >
-            登入
+            使用手冊
+            <ExternalLink aria-hidden="true" className="size-3.5" />
           </Link>
+          {sessionState === 'signed-in' ? (
+            <>
+              <Link
+                to="/projects"
+                className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                進入專案
+              </Link>
+              <button
+                type="button"
+                disabled={isSigningOut}
+                onClick={() => void handleSignOut()}
+                className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSigningOut ? '登出中…' : '登出'}
+              </button>
+            </>
+          ) : (
+            <Link
+              to="/auth/sign-in?returnTo=%2Fprojects"
+              className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              登入
+            </Link>
+          )}
         </nav>
       </header>
 
@@ -127,10 +165,10 @@ export function LandingPage() {
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
-                to="/auth/sign-up?returnTo=%2Fprojects"
+                to={sessionState === 'signed-in' ? '/projects' : '/auth/sign-up?returnTo=%2Fprojects'}
                 className="inline-flex min-h-12 cursor-pointer items-center justify-center rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
-                免費開始使用
+                {sessionState === 'signed-in' ? '進入專案' : '免費開始使用'}
               </Link>
               <Link
                 to="/projects/local"
@@ -316,12 +354,19 @@ export function LandingPage() {
 
             <Reveal className="mt-6">
               <aside className="rounded-2xl border border-border bg-background px-5 py-4 text-sm leading-6 text-foreground/60 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-8">
-                <strong className="block shrink-0 font-semibold text-foreground">
-                  支援人機協作研究
-                </strong>
-                <p className="mt-1 sm:mt-0">
-                  雲端專案擁有者可匯出 AI 建議的接受、取消、重新生成、編輯狀態與決策時間，作為互動行為分析資料。
-                </p>
+                <div>
+                  <strong className="block shrink-0 font-semibold text-foreground">支援人機協作研究</strong>
+                  <p className="mt-1">雲端專案擁有者可匯出 AI 建議的接受、取消、重新生成、編輯狀態與決策時間，作為互動行為分析資料。</p>
+                </div>
+                <Link
+                  to="/guide/research"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-border px-4 font-medium text-foreground transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:mt-0"
+                >
+                  查看研究資料指南
+                  <ExternalLink aria-hidden="true" className="size-4" />
+                </Link>
               </aside>
             </Reveal>
           </div>
@@ -705,10 +750,10 @@ export function LandingPage() {
 
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                 <Link
-                  to="/auth/sign-up?returnTo=%2Fprojects"
+                  to={sessionState === 'signed-in' ? '/projects' : '/auth/sign-up?returnTo=%2Fprojects'}
                   className="inline-flex min-h-12 cursor-pointer items-center justify-center rounded-xl bg-background px-6 text-sm font-semibold text-foreground shadow-sm transition hover:bg-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/70"
                 >
-                  建立雲端專案
+                  {sessionState === 'signed-in' ? '進入專案' : '建立雲端專案'}
                 </Link>
                 <Link
                   to="/projects/local"
@@ -738,9 +783,18 @@ export function LandingPage() {
             <span>Co-Canvas</span>
           </Link>
 
-          <p className="text-sm leading-6 text-foreground/50">
-            對話與節點畫布的人機協作系統
-          </p>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <Link
+              to="/guide"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              使用手冊
+              <ExternalLink aria-hidden="true" className="size-4" />
+            </Link>
+            <p className="text-sm leading-6 text-foreground/50">對話與節點畫布的人機協作系統</p>
+          </div>
         </div>
       </footer>
       </div>

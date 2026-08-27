@@ -13,6 +13,18 @@ const HomePage = lazy(() =>
   })),
 )
 
+const GuidePage = lazy(() =>
+  import('./pages/GuidePage').then((module) => ({
+    default: module.GuidePage,
+  })),
+)
+
+const ResearchGuidePage = lazy(() =>
+  import('./pages/GuidePage').then((module) => ({
+    default: module.ResearchGuidePage,
+  })),
+)
+
 const EditorPage = lazy(() =>
   import('./pages/EditorPage').then((module) => ({
     default: module.EditorPage,
@@ -62,6 +74,22 @@ function App() {
         element={
           <LazyPage message="正在載入專案…">
             <HomePage />
+          </LazyPage>
+        }
+      />
+      <Route
+        path="/guide"
+        element={
+          <LazyPage message="正在載入使用手冊…">
+            <GuidePage />
+          </LazyPage>
+        }
+      />
+      <Route
+        path="/guide/research"
+        element={
+          <LazyPage message="正在載入研究資料指南…">
+            <ResearchGuidePage />
           </LazyPage>
         }
       />

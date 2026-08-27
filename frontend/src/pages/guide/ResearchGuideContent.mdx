@@ -1,0 +1,93 @@
+<GuideHero>
+
+<p className="text-sm font-semibold tracking-[0.16em] text-primary">Co-Canvas 研究擴充指南</p>
+
+# 研究資料利用方式
+
+這是獨立於 Co-Canvas 主要產品操作的研究指南，提供需要進行人機協作研究的使用者查閱。內容說明研究事件的匯出、清理、分析與倫理限制；一般使用 Co-Canvas 不需要閱讀此頁。
+
+<a href="https://github.com/fengyenchen/co-canvas" target="_blank" rel="noopener noreferrer">GitHub Repository：fengyenchen/co-canvas ↗</a>
+
+</GuideHero>
+
+<SectionTitle id="research-export">01 · 匯出方式與資料範圍</SectionTitle>
+
+雲端專案擁有者可在編輯器的「專案」選單選擇「匯出研究資料」。前端下載 UTF-8 CSV，每一列代表一次使用者對 AI 建議預覽做出的決策。事件在雲端專案保存時寫入後端，並使用事件 ID 去重。
+
+本機畫布、編輯者與檢視者不能匯出研究資料。若專案尚未產生任何接受、取消或重新生成事件，CSV 只有欄位標題。
+
+<SectionTitle id="csv-fields">02 · CSV 欄位字典</SectionTitle>
+
+| 欄位 | 意義 | 常見用途 |
+| --- | --- | --- |
+| `eventId` | 後端研究事件 UUID | 資料庫追蹤與除錯 |
+| `clientEventId` | 前端產生的事件 ID | 去除重複上傳；建議作為主要去重鍵 |
+| `actorId` | 執行決策的登入使用者 ID | 計算每位參與者指標；正式分析前應重新編碼 |
+| `action` | `accepted`、`rejected` 或 `regenerated` | 接受率、取消率、重新生成率 |
+| `contextNodeId` | 當時的文字節點或群組上下文 ID | 比較不同工作區域或任務脈絡 |
+| `aiMode` | `gemini` 或 `mock` | 排除 Mock，或比較不同系統條件 |
+| `edited` | 決策前是否修改建議 | 修改率與人類介入程度 |
+| `decisionTimeMs` | 預覽顯示到做出決策的毫秒數 | 決策時間、認知負荷的行為代理指標 |
+| `nodeCount` | 該次預覽的建議節點數 | 控制建議規模，分析規模與決策時間的關係 |
+| `occurredAt` | 使用者裝置記錄的事件時間 | 事件順序與任務歷程 |
+| `recordedAt` | 後端寫入資料庫的時間 | 檢查同步延遲與資料完整性 |
+
+<SectionTitle id="analysis-workflow">03 · 建議的研究處理流程</SectionTitle>
+
+1. **定義分析單位。** 決定以事件、參與者、任務或專案為單位。若一位參與者做多個任務，另外保存 participantId、taskId 與專案 ID 的對照表。
+2. **保留原始檔。** 下載後先複製一份唯讀 CSV，不直接覆寫原始檔。記錄匯出日期、專案版本與實驗條件。
+3. **清理與去重。** 以 `clientEventId` 去重，確認 action 值合法，將 `decisionTimeMs` 轉為秒，並統一時間欄位的時區。
+4. **處理測試資料。** 正式分析通常排除 `aiMode=mock`、開發者帳號、練習任務與事先定義的異常值。
+5. **計算指標。** 依參與者或條件計算接受率、修改率、重新生成率、決策時間中位數與平均建議節點數。
+6. **結合其他資料。** 用外部對照表連結任務完成時間、正確率、問卷與訪談。CSV 本身沒有這些結果變項。
+7. **匿名化與報告。** 把 actorId、contextNodeId 重新編碼或刪除，保存資料字典與分析腳本，再產出統計與圖表。
+
+<SectionTitle id="derived-metrics">04 · 常用衍生指標</SectionTitle>
+
+| 指標 | 計算方式 | 解讀注意事項 |
+| --- | --- | --- |
+| 接受率 | accepted 次數 ÷ 全部決策次數 | 高接受率不一定代表品質較高，也可能是使用者較少檢查 |
+| 取消率 | rejected 次數 ÷ 全部決策次數 | 需搭配任務與建議內容解釋 |
+| 重新生成率 | regenerated 次數 ÷ 全部決策次數 | 一次需求可能有多次重新生成，事件不是獨立任務 |
+| 修改率 | edited=true 次數 ÷ 可分析決策次數 | 可作為人類介入程度，但不表示修改幅度 |
+| 決策時間 | decisionTimeMs ÷ 1000 | 常呈偏態，建議報告中位數與 IQR |
+| 建議規模 | nodeCount 的平均或中位數 | 可作為模型輸出複雜度控制變項 |
+| 同步延遲 | recordedAt − occurredAt | 主要用於資料品質，不是使用者決策時間 |
+
+<SectionTitle id="analysis-tools">05 · Python、Excel 與 Google Sheets</SectionTitle>
+
+### Python／pandas 範例
+
+```python
+import pandas as pd
+
+df = pd.read_csv("project-research-events.csv")
+df = df.drop_duplicates(subset="clientEventId")
+df = df[df["aiMode"] == "gemini"].copy()
+df["decisionTimeSec"] = df["decisionTimeMs"] / 1000
+
+summary = df.groupby("actorId").agg(
+    decisions=("clientEventId", "count"),
+    acceptanceRate=("action", lambda x: (x == "accepted").mean()),
+    rejectionRate=("action", lambda x: (x == "rejected").mean()),
+    regenerationRate=("action", lambda x: (x == "regenerated").mean()),
+    editRate=("edited", "mean"),
+    medianDecisionSec=("decisionTimeSec", "median"),
+    meanNodeCount=("nodeCount", "mean"),
+)
+print(summary)
+```
+
+### Excel／Google Sheets 快速分析
+
+1. 匯入 CSV 時使用 UTF-8；檔案已包含 BOM，Excel 通常可直接顯示中文。
+2. 新增 `decisionTimeSec` 欄：使用 `decisionTimeMs / 1000`。
+3. 用樞紐分析表把 `actorId` 放在列、`action` 放在欄、`clientEventId` 放在值並使用計數。
+4. 將 accepted 次數除以該參與者全部 action 次數得到接受率。
+5. decisionTimeSec 建議使用 MEDIAN，不要只報告容易受極端值影響的平均數。
+
+<SectionTitle id="research-limits">06 · 資料限制與研究倫理</SectionTitle>
+
+研究事件 CSV 不包含完整聊天文字、節點標題或內容、影片內容、游標軌跡、任務完成時間、答案品質、正確率、主觀量表或訪談內容。因此它能描述「使用者如何處理 AI 建議」，不能單獨證明系統提升了表現，也不能從較長決策時間直接推論認知負荷較高。
+
+> **隱私與研究倫理：** actorId 與 contextNodeId 雖不是姓名，仍可連結同一使用者或節點，因此資料不是完全匿名。正式研究前應取得同意、限制原始檔存取、建立匿名化對照表，並依 IRB／研究倫理與保存政策處理。
