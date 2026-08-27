@@ -117,7 +117,7 @@ class ProjectSuggestionDecisionEvent(ApiModel):
     edited: bool
     decision_time_ms: int = Field(ge=0)
     node_count: int = Field(ge=0, le=8)
-    created_at: str
+    created_at: datetime
 
 
 class ProjectDocument(ApiModel):

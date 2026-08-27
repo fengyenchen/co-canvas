@@ -36,12 +36,14 @@ type CanvasProps = {
     canDuplicateProject?: boolean
     canDeleteProject?: boolean
     canViewProjectVersions?: boolean
+    canExportResearchData?: boolean
     canManageAiSettings?: boolean
     onRenameProject?: () => void
     onManageProjectPermissions?: () => void
     onDuplicateProject?: () => void
     onDeleteProject?: () => void
     onViewProjectVersions?: () => void
+    onExportResearchData?: () => void
     onBeforeImportProject?: () => Promise<void>
     onManageAiSettings?: () => void
     projectAction?: 'idle' | 'duplicating' | 'deleting'
@@ -55,12 +57,14 @@ function CanvasContent({
     canDuplicateProject = false,
     canDeleteProject = false,
     canViewProjectVersions = false,
+    canExportResearchData = false,
     canManageAiSettings = false,
     onRenameProject,
     onManageProjectPermissions,
     onDuplicateProject,
     onDeleteProject,
     onViewProjectVersions,
+    onExportResearchData,
     onBeforeImportProject,
     onManageAiSettings,
     projectAction = 'idle',
@@ -626,6 +630,18 @@ function CanvasContent({
                                 className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 版本紀錄
+                            </button>
+                        )}
+                        {canExportResearchData && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsProjectMenuOpen(false)
+                                    onExportResearchData?.()
+                                }}
+                                className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                            >
+                                匯出研究資料
                             </button>
                         )}
                         {canManageAiSettings && (

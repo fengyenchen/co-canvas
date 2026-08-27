@@ -1,6 +1,9 @@
 import uuid
+import csv
+import io
+import json
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import and_, delete, func, or_, select, update
@@ -8,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import AuthenticatedUser, CurrentUser, OptionalCurrentUser
 from app.database import get_database_session
-from app.models import Project, ProjectMember, ProjectVersion
+from app.models import Project, ProjectMember, ProjectVersion, ResearchEvent
 from app.project_schemas import (
     ProjectCreate,
     ProjectMemberCreate,
@@ -16,6 +19,7 @@ from app.project_schemas import (
     ProjectMemberUpdate,
     ProjectResponse,
     ProjectRole,
+    ProjectSuggestionDecisionEvent,
     ProjectSummary,
     ProjectUpdate,
     ProjectVersionCreate,
@@ -39,6 +43,45 @@ DatabaseSession = Annotated[
 TRASH_RETENTION_DAYS = 30
 AUTOMATIC_VERSION_RETENTION_DAYS = 30
 AUTOMATIC_VERSION_LIMIT = 50
+
+
+async def sync_research_events(
+    project_id: uuid.UUID,
+    events: list[ProjectSuggestionDecisionEvent],
+    session: AsyncSession,
+    actor_id: str | None,
+) -> None:
+    if not events:
+        return
+
+    client_event_ids = [event.id for event in events]
+    existing_event_ids = set(
+        await session.scalars(
+            select(ResearchEvent.client_event_id).where(
+                ResearchEvent.project_id == project_id,
+                ResearchEvent.client_event_id.in_(client_event_ids),
+            )
+        )
+    )
+
+    for event in events:
+        if event.id in existing_event_ids:
+            continue
+
+        session.add(
+            ResearchEvent(
+                project_id=project_id,
+                client_event_id=event.id,
+                actor_id=actor_id,
+                action=event.action,
+                context_node_id=event.context_node_id,
+                ai_mode=event.ai_mode,
+                edited=event.edited,
+                decision_time_ms=event.decision_time_ms,
+                node_count=event.node_count,
+                occurred_at=event.created_at,
+            )
+        )
 
 
 async def get_project_or_404(
@@ -309,6 +352,74 @@ async def get_project(
     return to_project_response(project, role)
 
 
+@router.get("/{project_id}/research-events/export")
+async def export_project_research_events(
+    project_id: uuid.UUID,
+    session: DatabaseSession,
+    user: CurrentUser,
+    format: Literal["csv", "json"] = "csv",
+) -> Response:
+    project = await get_project_or_404(project_id, session, user.id)
+    events = list(
+        await session.scalars(
+            select(ResearchEvent)
+            .where(ResearchEvent.project_id == project_id)
+            .order_by(ResearchEvent.occurred_at.asc())
+        )
+    )
+    filename = f"{project.name}-research-events.{format}"
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+    }
+
+    rows = [
+        {
+            "eventId": str(event.id),
+            "clientEventId": event.client_event_id,
+            "actorId": event.actor_id,
+            "action": event.action,
+            "contextNodeId": event.context_node_id,
+            "aiMode": event.ai_mode,
+            "edited": event.edited,
+            "decisionTimeMs": event.decision_time_ms,
+            "nodeCount": event.node_count,
+            "occurredAt": event.occurred_at.isoformat(),
+            "recordedAt": event.created_at.isoformat(),
+        }
+        for event in events
+    ]
+
+    if format == "json":
+        return Response(
+            content=json.dumps(rows, ensure_ascii=False),
+            media_type="application/json",
+            headers=headers,
+        )
+
+    output = io.StringIO(newline="")
+    fieldnames = list(rows[0]) if rows else [
+        "eventId",
+        "clientEventId",
+        "actorId",
+        "action",
+        "contextNodeId",
+        "aiMode",
+        "edited",
+        "decisionTimeMs",
+        "nodeCount",
+        "occurredAt",
+        "recordedAt",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(rows)
+    return Response(
+        content="\ufeff" + output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers=headers,
+    )
+
+
 @router.get(
     "/{project_id}/versions",
     response_model=list[ProjectVersionSummary],
@@ -521,7 +632,10 @@ async def update_project(
         update_values["name"] = request.name
 
     if request.document is not None:
-        update_values["document"] = request.document.model_dump(by_alias=True)
+        update_values["document"] = request.document.model_dump(
+            by_alias=True,
+            mode="json",
+        )
 
     if request.visibility is not None:
         update_values["visibility"] = request.visibility
@@ -549,6 +663,14 @@ async def update_project(
     else:
         for field_name, value in update_values.items():
             setattr(project, field_name, value)
+
+    if request.document is not None:
+        await sync_research_events(
+            project_id,
+            request.document.suggestion_events,
+            session,
+            user.id if user is not None else None,
+        )
 
     await session.commit()
     await session.refresh(project)
@@ -650,11 +772,18 @@ async def create_project(
     project = Project(
         owner_id=user.id,
         name=request.name.strip(),
-        document=request.document.model_dump(by_alias=True),
+        document=request.document.model_dump(by_alias=True, mode="json"),
         visibility=request.visibility,
         public_access_role=request.public_access_role,
     )
     session.add(project)
+    await session.flush()
+    await sync_research_events(
+        project.id,
+        request.document.suggestion_events,
+        session,
+        user.id,
+    )
     await session.commit()
     await session.refresh(project)
 

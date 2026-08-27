@@ -10,6 +10,7 @@ import {
   createProjectVersion,
   createProject,
   deleteProject,
+  downloadProjectResearchEvents,
   getProject,
   restoreProjectVersion,
   updateProject,
@@ -760,6 +761,9 @@ export function EditorPage() {
             projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
           }
           canViewProjectVersions={projectId !== LOCAL_PROJECT_ID}
+          canExportResearchData={
+            projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
+          }
           canManageAiSettings={projectId !== LOCAL_PROJECT_ID}
           onRenameProject={() => setActiveSettingsDialog('rename')}
           onManageProjectPermissions={() =>
@@ -768,6 +772,11 @@ export function EditorPage() {
           onDuplicateProject={() => void duplicateCurrentProject()}
           onDeleteProject={() => void moveCurrentProjectToTrash()}
           onViewProjectVersions={() => setIsVersionsDialogOpen(true)}
+          onExportResearchData={() => {
+            if (projectId && loadedProject) {
+              void downloadProjectResearchEvents(projectId, loadedProject.name)
+            }
+          }}
           onBeforeImportProject={createPreImportVersion}
           onManageAiSettings={() => setActiveSettingsDialog('ai')}
           projectAction={projectAction}

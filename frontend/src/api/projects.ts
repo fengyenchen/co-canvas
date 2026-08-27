@@ -347,3 +347,24 @@ export async function removeProjectMember(
     return throwApiRequestError(response)
   }
 }
+
+export async function downloadProjectResearchEvents(
+  projectId: string,
+  projectName: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/research-events/export?format=csv`,
+    { headers: await createRequestHeaders() },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `${projectName}-research-events.csv`
+  anchor.click()
+  URL.revokeObjectURL(url)
+}

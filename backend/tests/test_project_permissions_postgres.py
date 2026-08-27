@@ -123,6 +123,22 @@ def get_project_state(
     return result
 
 
+def get_research_event_count(
+    database_url: str,
+    project_id: uuid.UUID,
+) -> int:
+    with psycopg.connect(database_url) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT count(*) FROM research_events WHERE project_id = %s",
+                (project_id,),
+            )
+            result = cursor.fetchone()
+
+    assert result is not None
+    return result[0]
+
+
 @contextmanager
 def authenticated_api_client() -> Iterator[
     tuple[TestClient, dict[str, AuthenticatedUser | None]]
@@ -236,5 +252,62 @@ def test_postgres_enforces_project_roles_through_api() -> None:
             )
             assert private_state[1] == "public"
             assert private_state[2] is not None
+    finally:
+        cleanup_permission_projects(TEST_DATABASE_URL)
+
+
+@pytest.mark.skipif(
+    TEST_DATABASE_URL is None,
+    reason="只在隔離的 PostgreSQL CI 資料庫執行",
+)
+def test_postgres_records_and_exports_research_events() -> None:
+    assert TEST_DATABASE_URL is not None
+    cleanup_permission_projects(TEST_DATABASE_URL)
+    seed_permission_projects(TEST_DATABASE_URL)
+    document = {
+        **EMPTY_DOCUMENT,
+        "suggestionEvents": [
+            {
+                "id": "decision-1",
+                "action": "accepted",
+                "contextNodeId": "node-1",
+                "aiMode": "gemini",
+                "edited": True,
+                "decisionTimeMs": 1234,
+                "nodeCount": 2,
+                "createdAt": "2026-08-27T04:00:00Z",
+            }
+        ],
+    }
+
+    try:
+        with authenticated_api_client() as (client, active_user):
+            first_save = client.patch(
+                f"/api/projects/{PRIVATE_PROJECT_ID}",
+                json={"document": document},
+            )
+            second_save = client.patch(
+                f"/api/projects/{PRIVATE_PROJECT_ID}",
+                json={"document": document},
+            )
+            export_response = client.get(
+                f"/api/projects/{PRIVATE_PROJECT_ID}/research-events/export"
+            )
+
+            assert first_save.status_code == 200
+            assert second_save.status_code == 200
+            assert get_research_event_count(
+                TEST_DATABASE_URL,
+                PRIVATE_PROJECT_ID,
+            ) == 1
+            assert export_response.status_code == 200
+            assert "decision-1" in export_response.text
+            assert export_response.content.startswith(b"\xef\xbb\xbf")
+
+            active_user["value"] = VIEWER
+            forbidden_export = client.get(
+                f"/api/projects/{PRIVATE_PROJECT_ID}/research-events/export"
+            )
+            assert forbidden_export.status_code == 404
     finally:
         cleanup_permission_projects(TEST_DATABASE_URL)
