@@ -164,4 +164,35 @@ describe('canvasStore node groups', () => {
             position: { x: 420, y: 240 },
         })
     })
+
+    it('自動排版時以群組內節點的對外連線排列整個群組', () => {
+        const groupId = useCanvasStore.getState().groupSelectedNodes()
+        const externalNode = createNode('external-node', 0, 0)
+
+        useCanvasStore.setState((state) => ({
+            nodes: [
+                ...state.nodes.map((node) => ({ ...node, selected: false })),
+                { ...externalNode, selected: false, parentId: undefined },
+            ],
+            edges: [
+                {
+                    id: 'external-to-group-member',
+                    source: 'external-node',
+                    target: 'node-1',
+                    data: { origin: 'user' },
+                },
+            ],
+        }))
+
+        useCanvasStore.getState().autoLayout()
+
+        const state = useCanvasStore.getState()
+        const group = state.nodes.find((node) => node.id === groupId)
+        const external = state.nodes.find((node) => node.id === 'external-node')
+
+        expect(group?.position.y).toBeGreaterThan(external?.position.y ?? Infinity)
+        expect(state.nodes.find((node) => node.id === 'node-1')?.parentId).toBe(
+            groupId,
+        )
+    })
 })

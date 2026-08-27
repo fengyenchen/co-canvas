@@ -127,6 +127,9 @@ function layoutNodes(
 
     const layoutNodes = nodes.filter((node) => !node.parentId)
     const layoutNodeIds = new Set(layoutNodes.map((node) => node.id))
+    const layoutNodeIdByNodeId = new Map(
+        nodes.map((node) => [node.id, node.parentId ?? node.id]),
+    )
 
     for (const node of layoutNodes) {
         const width =
@@ -144,8 +147,17 @@ function layoutNodes(
     }
 
     for (const edge of edges) {
-        if (layoutNodeIds.has(edge.source) && layoutNodeIds.has(edge.target)) {
-            graph.setEdge(edge.source, edge.target)
+        const source = layoutNodeIdByNodeId.get(edge.source)
+        const target = layoutNodeIdByNodeId.get(edge.target)
+
+        if (
+            source &&
+            target &&
+            source !== target &&
+            layoutNodeIds.has(source) &&
+            layoutNodeIds.has(target)
+        ) {
+            graph.setEdge(source, target)
         }
     }
 
