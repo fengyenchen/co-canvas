@@ -33,6 +33,7 @@ export type GroupNodeData = {
     height: number
     color?: ConceptNodeColor
     collapsed?: boolean
+    locked?: boolean
 }
 
 export type CanvasNodeData = ConceptNodeData | VideoNodeData | GroupNodeData

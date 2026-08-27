@@ -99,6 +99,7 @@ const groupNodeDataSchema = z.object({
   height: z.number().finite().min(160).max(10000),
   color: conceptNodeColorSchema.default('default'),
   collapsed: z.boolean().default(false),
+  locked: z.boolean().default(false),
 })
 
 const positionSchema = z.object({
@@ -475,6 +476,7 @@ export function createProjectDocument(
               ...node.data,
               color: node.data.color ?? 'default',
               collapsed: node.data.collapsed ?? false,
+              locked: node.data.locked ?? false,
             }
           : node.data,
     })) as CanvasNode[],

@@ -129,6 +129,7 @@ describe('projectFile', () => {
         height: 360,
         color: 'purple',
         collapsed: true,
+        locked: true,
       },
     }
     const groupedNode: ConceptCanvasNode = {
@@ -149,6 +150,7 @@ describe('projectFile', () => {
         height: 360,
         color: 'purple',
         collapsed: true,
+        locked: true,
       },
     })
     expect(imported.nodes[1]).toMatchObject({

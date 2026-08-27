@@ -478,6 +478,9 @@ function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
     const toggleGroupCollapsed = useCanvasStore(
         (state) => state.toggleGroupCollapsed,
     )
+    const toggleGroupLocked = useCanvasStore(
+        (state) => state.toggleGroupLocked,
+    )
     const ungroupNodes = useCanvasStore((state) => state.ungroupNodes)
     const memberCount = useCanvasStore(
         (state) =>
@@ -560,16 +563,28 @@ function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
                 </div>
             </fieldset>
 
-            <button
-                type="button"
-                onClick={() => toggleGroupCollapsed(selectedNode.id)}
-                className="mt-4 min-h-11 w-full cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground transition-colors hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-            >
-                {selectedNode.data.collapsed ? '展開群組' : '收合群組'}
-            </button>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                    type="button"
+                    onClick={() => toggleGroupCollapsed(selectedNode.id)}
+                    className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                    {selectedNode.data.collapsed ? '展開群組' : '收合群組'}
+                </button>
+                <button
+                    type="button"
+                    aria-pressed={Boolean(selectedNode.data.locked)}
+                    onClick={() => toggleGroupLocked(selectedNode.id)}
+                    className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                    {selectedNode.data.locked ? '解除鎖定' : '鎖定群組'}
+                </button>
+            </div>
 
             <p className="mt-4 text-sm leading-6 text-foreground/55">
-                拖曳框內空白處可移動整組；將節點拖到框外超過一半，即會移出群組。
+                {selectedNode.data.locked
+                    ? '群組已鎖定，框與成員節點都不會被手動移動。'
+                    : '拖曳框內空白處可移動整組；將節點拖到框外超過一半，即會移出群組。'}
             </p>
 
             <div className="mt-6 border-t border-border pt-4">

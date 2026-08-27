@@ -502,6 +502,7 @@ type CanvasState = {
         updates: Partial<Pick<GroupNodeData, 'title' | 'color'>>,
     ) => void
     toggleGroupCollapsed: (groupId: string) => void
+    toggleGroupLocked: (groupId: string) => void
     ungroupNodes: (groupId: string) => void
     reconcileNodeGroup: (nodeId: string) => void
     updateNode: (
@@ -662,6 +663,7 @@ export const useCanvasStore = create<CanvasState>()(
                     ),
                     color: 'default',
                     collapsed: false,
+                    locked: false,
                 },
             }
             const selectedIds = new Set(selectedNodes.map((node) => node.id))
@@ -744,6 +746,37 @@ export const useCanvasStore = create<CanvasState>()(
             }
         }),
 
+    toggleGroupLocked: (groupId) =>
+        set((state) => {
+            const group = state.nodes.find(
+                (node) => node.id === groupId && node.type === 'group',
+            )
+            if (!group || group.type !== 'group') return state
+
+            const locked = !group.data.locked
+            return {
+                nodes: state.nodes.map((node) => {
+                    if (node.id === groupId && node.type === 'group') {
+                        return {
+                            ...node,
+                            draggable: !locked,
+                            selected: true,
+                            data: { ...node.data, locked },
+                        }
+                    }
+                    if (node.parentId === groupId) {
+                        return { ...node, draggable: !locked, selected: false }
+                    }
+                    return { ...node, selected: false }
+                }),
+                edges: state.edges.map((edge) => ({ ...edge, selected: false })),
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
     ungroupNodes: (groupId) =>
         set((state) => {
             const group = state.nodes.find(
@@ -762,6 +795,7 @@ export const useCanvasStore = create<CanvasState>()(
                                 ...node,
                                 parentId: undefined,
                                 hidden: false,
+                                draggable: true,
                                 position: {
                                     x: group.position.x + node.position.x,
                                     y: group.position.y + node.position.y,
@@ -806,6 +840,7 @@ export const useCanvasStore = create<CanvasState>()(
                     ...node,
                     parentId: matchingGroup.id,
                     hidden: Boolean(matchingGroup.data.collapsed),
+                    draggable: !matchingGroup.data.locked,
                     position: {
                         x: node.position.x - matchingGroup.position.x,
                         y: node.position.y - matchingGroup.position.y,
@@ -850,6 +885,7 @@ export const useCanvasStore = create<CanvasState>()(
                             ...candidate,
                             parentId: undefined,
                             hidden: false,
+                            draggable: true,
                             position: {
                                 x: nodeRect.left,
                                 y: nodeRect.top,
@@ -1160,6 +1196,7 @@ export const useCanvasStore = create<CanvasState>()(
                         ? {
                             parentId: contextNode.id,
                             hidden: Boolean(contextNode.data.collapsed),
+                            draggable: !contextNode.data.locked,
                         }
                         : {}),
                     data: {
@@ -1454,16 +1491,30 @@ export const useCanvasStore = create<CanvasState>()(
                     )
                     .map((node) => node.id),
             )
+            const lockedGroupIds = new Set(
+                nodes
+                    .filter(
+                        (node) => node.type === 'group' && node.data.locked,
+                    )
+                    .map((node) => node.id),
+            )
 
             return {
                 nodes: nodes.map((node) => {
                     if (node.type === 'group') {
-                        return { ...node, deletable: false }
+                        return {
+                            ...node,
+                            deletable: false,
+                            draggable: !node.data.locked,
+                        }
                     }
                     return {
                         ...node,
                         hidden: Boolean(
                             node.parentId && collapsedGroupIds.has(node.parentId),
+                        ),
+                        draggable: !(
+                            node.parentId && lockedGroupIds.has(node.parentId)
                         ),
                     }
                 }),

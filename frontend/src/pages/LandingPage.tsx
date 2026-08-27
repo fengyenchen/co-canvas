@@ -231,7 +231,7 @@ export function LandingPage() {
                   <h3 className="text-lg font-semibold">選定對話上下文</h3>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-foreground/60">
-                  直接選取想延伸的節點或群組。群組可命名、著色與收合，系統也能帶入群組內的完整結構，讓大型畫布保持清楚，AI 回應更聚焦。
+                  直接選取想延伸的節點或群組。群組可命名、著色、收合與鎖定，系統也能帶入群組內的完整結構，讓大型畫布保持清楚，AI 回應更聚焦。
                 </p>
               </li>
 

@@ -95,6 +95,34 @@ describe('canvasStore node groups', () => {
         ).toMatchObject({ data: { color: 'blue' } })
     })
 
+    it('鎖定群組時禁止群組與所有成員拖曳', () => {
+        const groupId = useCanvasStore.getState().groupSelectedNodes()
+
+        useCanvasStore.getState().toggleGroupLocked(groupId!)
+        let state = useCanvasStore.getState()
+        expect(
+            state.nodes.find((node) => node.id === groupId && node.type === 'group'),
+        ).toMatchObject({ draggable: false, data: { locked: true } })
+        expect(
+            state.nodes.filter((node) => node.parentId === groupId),
+        ).toEqual([
+            expect.objectContaining({ id: 'node-1', draggable: false }),
+            expect.objectContaining({ id: 'node-2', draggable: false }),
+        ])
+
+        useCanvasStore.getState().toggleGroupLocked(groupId!)
+        state = useCanvasStore.getState()
+        expect(
+            state.nodes.find((node) => node.id === groupId && node.type === 'group'),
+        ).toMatchObject({ draggable: true, data: { locked: false } })
+        expect(
+            state.nodes.filter((node) => node.parentId === groupId),
+        ).toEqual([
+            expect.objectContaining({ id: 'node-1', draggable: true }),
+            expect.objectContaining({ id: 'node-2', draggable: true }),
+        ])
+    })
+
     it('節點移到群組框外超過一半時保留畫布位置並移出群組', () => {
         const groupId = useCanvasStore.getState().groupSelectedNodes()
         const group = useCanvasStore
@@ -287,6 +315,8 @@ describe('canvasStore node groups', () => {
             ? originalGroup.data.height
             : undefined
 
+        useCanvasStore.getState().toggleGroupLocked(groupId!)
+
         useCanvasStore.getState().applySuggestion({
             contextNodeId: groupId,
             prompt: '補充下一步',
@@ -319,6 +349,7 @@ describe('canvasStore node groups', () => {
 
         expect(aiNodes).toHaveLength(2)
         expect(aiNodes.every((node) => node.parentId === groupId)).toBe(true)
+        expect(aiNodes.every((node) => node.draggable === false)).toBe(true)
         const expandedGroupHeight = expandedGroup?.type === 'group'
             ? expandedGroup.data.height
             : undefined

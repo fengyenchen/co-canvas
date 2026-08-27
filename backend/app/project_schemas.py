@@ -80,6 +80,7 @@ class ProjectGroupNodeData(ApiModel):
     height: float = Field(ge=160, le=10000)
     color: Literal["default", "yellow", "pink", "blue", "green", "purple"] = "default"
     collapsed: bool = False
+    locked: bool = False
 
 
 class ProjectConceptNode(ApiModel):

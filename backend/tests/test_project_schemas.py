@@ -203,6 +203,7 @@ def test_accepts_group_node_and_member_parent_id() -> None:
             "height": 360,
             "color": "green",
             "collapsed": True,
+            "locked": True,
         },
     }
     concept = {
@@ -223,6 +224,7 @@ def test_accepts_group_node_and_member_parent_id() -> None:
     assert isinstance(document.nodes[0], ProjectGroupNode)
     assert document.nodes[0].data.color == "green"
     assert document.nodes[0].data.collapsed is True
+    assert document.nodes[0].data.locked is True
     assert document.nodes[1].parent_id == "group-1"
 
 
