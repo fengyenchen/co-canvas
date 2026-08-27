@@ -461,7 +461,7 @@ function CanvasContent({
                     to="/projects"
                     aria-label="返回專案列表"
                     title="返回專案列表"
-                    className="flex h-11 min-w-11 flex-1 items-center justify-center rounded-lg border border-border bg-background text-xl text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-11 sm:flex-none"
+                    className="flex h-11 min-w-11 flex-1 items-center justify-center rounded-lg border border-border bg-background text-xl text-foreground shadow-sm transition hover:border-primary/30 hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-11 sm:flex-none"
                 >
                     <span aria-hidden="true">←</span>
                 </Link>
@@ -526,7 +526,7 @@ function CanvasContent({
                             onClick={groupSelectedNodes}
                             disabled={selectedUngroupedNodeCount < 2}
                             title="框選至少兩個未分組節點後建立群組"
-                            className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-none sm:px-4"
+                            className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:border-border disabled:bg-background disabled:text-foreground/30 sm:flex-none sm:px-4"
                         >
                             <span className="sm:hidden">群組</span>
                             <span className="hidden sm:inline">建立群組</span>
@@ -536,7 +536,7 @@ function CanvasContent({
                             type="button"
                             onClick={handleAutoLayout}
                             disabled={nodes.length < 2}
-                            className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-none sm:px-4"
+                            className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:border-border disabled:bg-background disabled:text-foreground/30 sm:flex-none sm:px-4"
                         >
                             <span className="sm:hidden">排版</span>
                             <span className="hidden sm:inline">自動排版</span>
@@ -582,7 +582,7 @@ function CanvasContent({
                         onClick={() =>
                             setIsProjectMenuOpen((isOpen) => !isOpen)
                         }
-                        className="flex min-h-11 w-full cursor-pointer list-none items-center justify-center rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-3"
+                        className="flex min-h-11 w-full cursor-pointer list-none items-center justify-center rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-3"
                     >
                         專案
                     </button>
@@ -754,7 +754,7 @@ function CanvasContent({
                         setIsSearchOpen((isOpen) => !isOpen)
                         setSearchQuery('')
                     }}
-                    className="flex size-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    className="flex size-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background text-foreground shadow-sm transition hover:border-primary/30 hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 >
                     <svg
                         viewBox="0 0 24 24"
