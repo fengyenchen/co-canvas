@@ -68,4 +68,38 @@ describe('createAiContextNode', () => {
       },
     })
   })
+
+  it('建立包含成員與相關連線的群組上下文', () => {
+    const groupedNodes: CanvasNode[] = [
+      {
+        id: 'group-1',
+        type: 'group',
+        position: { x: 0, y: 0 },
+        data: { title: '研究發現', width: 600, height: 400 },
+      },
+      {
+        ...nodes[1],
+        parentId: 'group-1',
+        position: { x: 32, y: 64 },
+      },
+      nodes[0],
+    ]
+
+    expect(createAiContextNode(groupedNodes[0], groupedNodes, edges)).toEqual({
+      id: 'group-1',
+      title: '研究發現',
+      content: '',
+      nodeType: 'group',
+      groupMembers: [
+        expect.objectContaining({
+          id: 'concept-1',
+          title: '關鍵發現',
+          nodeType: 'concept',
+        }),
+      ],
+      groupRelations: [
+        { source: 'video-1', target: 'concept-1' },
+      ],
+    })
+  })
 })

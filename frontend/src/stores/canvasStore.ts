@@ -562,6 +562,8 @@ export const useCanvasStore = create<CanvasState>()(
             )
             if (!group || group.type !== 'group') return state
 
+            useChatStore.getState().removeContexts([groupId])
+
             return {
                 nodes: state.nodes
                     .filter((node) => node.id !== groupId)
@@ -914,16 +916,27 @@ export const useCanvasStore = create<CanvasState>()(
                 ]),
             )
 
+            const isGroupContext = contextNode?.type === 'group'
+            const groupMembers = isGroupContext
+                ? state.nodes.filter((node) => node.parentId === contextNode.id)
+                : []
             const baseX = contextNode?.position.x ?? 100
-            const startY = contextNode
-                ? getNodeRect(contextNode).bottom + CONTEXT_GAP
-                : 100
-            const startX = findAvailableStartX(
-                state.nodes,
-                baseX,
-                startY,
-                nodeEntries.length,
-            )
+            const startY = isGroupContext
+                ? Math.max(
+                    GROUP_PADDING_TOP,
+                    ...groupMembers.map((node) => getNodeRect(node).bottom + CONTEXT_GAP),
+                )
+                : contextNode
+                  ? getNodeRect(contextNode).bottom + CONTEXT_GAP
+                  : 100
+            const startX = isGroupContext
+                ? GROUP_PADDING_X
+                : findAvailableStartX(
+                    state.nodes,
+                    baseX,
+                    startY,
+                    nodeEntries.length,
+                )
 
             const newNodes: CanvasNode[] = nodeEntries.map(
                 ({ suggestedNode, id }, index) => ({
@@ -933,6 +946,7 @@ export const useCanvasStore = create<CanvasState>()(
                         x: startX,
                         y: startY + index * VERTICAL_STEP,
                     },
+                    ...(isGroupContext ? { parentId: contextNode.id } : {}),
                     data: {
                         title: suggestedNode.title,
                         content: suggestedNode.content,
@@ -978,7 +992,7 @@ export const useCanvasStore = create<CanvasState>()(
                 (node) => !relationTargets.has(node.tempId),
             )
 
-            const contextEdges: CanvasEdge[] = contextNode
+            const contextEdges: CanvasEdge[] = contextNode && !isGroupContext
                 ? rootSuggestedNodes.flatMap((node) => {
                     const target = idByTempId.get(node.tempId)
 
@@ -1001,8 +1015,30 @@ export const useCanvasStore = create<CanvasState>()(
                 })
                 : []
 
+            const lastNewNodeBottom = nodeEntries.length > 0
+                ? startY + (nodeEntries.length - 1) * VERTICAL_STEP +
+                    SUGGESTED_NODE_HEIGHT + GROUP_PADDING_BOTTOM
+                : 0
+            const existingNodes = isGroupContext
+                ? state.nodes.map((node) =>
+                    node.id === contextNode.id && node.type === 'group'
+                        ? {
+                            ...node,
+                            data: {
+                                ...node.data,
+                                width: Math.max(
+                                    node.data.width,
+                                    SUGGESTED_NODE_WIDTH + GROUP_PADDING_X * 2,
+                                ),
+                                height: Math.max(node.data.height, lastNewNodeBottom),
+                            },
+                        }
+                        : node,
+                )
+                : state.nodes
+
             return {
-                nodes: [...state.nodes, ...newNodes],
+                nodes: [...existingNodes, ...newNodes],
                 edges: [
                     ...state.edges,
                     ...contextEdges,

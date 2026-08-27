@@ -860,7 +860,7 @@ function CanvasContent({
                 onConnect={isReadOnly ? undefined : onConnect}
                 onNodeDragStop={(_, node) => reconcileNodeGroup(node.id)}
                 onNodeDoubleClick={(_, node) => {
-                    if (node.type === 'concept') {
+                    if (node.type === 'concept' || node.type === 'group') {
                         setActiveContextNodeId(node.id)
                     }
                 }}

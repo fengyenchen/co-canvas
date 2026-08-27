@@ -477,9 +477,24 @@ function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
         (state) =>
             state.nodes.filter((node) => node.parentId === selectedNode.id).length,
     )
+    const activeContextNodeId = useChatStore(
+        (state) => state.activeContextNodeId,
+    )
+    const setActiveContextNodeId = useChatStore(
+        (state) => state.setActiveContextNodeId,
+    )
+    const isActiveContext = activeContextNodeId === selectedNode.id
 
     return (
         <aside className="absolute right-4 top-18 z-20 max-h-[calc(100%-5.5rem)] w-50 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-background p-4 shadow-sm md:top-4 md:max-h-[calc(100%-2rem)] md:w-70 lg:w-80">
+            <button
+                type="button"
+                onClick={() => setActiveContextNodeId(selectedNode.id)}
+                className="mb-4 min-h-11 w-full cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground transition hover:border-primary/30 hover:bg-control-hover"
+            >
+                {isActiveContext ? '已設為群組對話上下文' : '前往群組對話'}
+            </button>
+
             <p className="mb-6 rounded-lg border border-border px-4 py-3 text-sm text-foreground/65">
                 群組內有 {memberCount} 個節點
             </p>

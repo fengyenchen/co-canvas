@@ -128,6 +128,10 @@ export function ChatPanel({
   const contextPayload = contextNode
     ? createAiContextNode(contextNode, nodes, edges)
     : null
+  const isGroupContext = contextNode?.type === 'group'
+  const contextGroupMemberNodes = isGroupContext
+    ? nodes.filter((node) => node.parentId === contextNode.id)
+    : []
   const attachedVideoClip =
     contextPayload?.startTimeMs !== undefined &&
     contextPayload.endTimeMs !== undefined &&
@@ -144,8 +148,27 @@ export function ChatPanel({
       message.contextNodeId === activeContextNodeId,
   )
 
+  const groupMemberNodeIds = new Set(
+    contextGroupMemberNodes.map((node) => node.id),
+  )
   const neighborNodeIds = new Set(
     edges.flatMap((edge) => {
+      if (isGroupContext) {
+        if (
+          groupMemberNodeIds.has(edge.source) &&
+          !groupMemberNodeIds.has(edge.target)
+        ) {
+          return [edge.target]
+        }
+        if (
+          groupMemberNodeIds.has(edge.target) &&
+          !groupMemberNodeIds.has(edge.source)
+        ) {
+          return [edge.source]
+        }
+        return []
+      }
+
       if (edge.source === activeContextNodeId) {
         return [edge.target]
       }
@@ -366,7 +389,7 @@ export function ChatPanel({
         projectId,
         signal: controller.signal,
         prompt: content,
-        selectedNode: createAiContextNode(contextNode, nodes, edges),
+        selectedNode: contextPayload!,
         neighborNodes: selectedContextNeighborNodes
           .map((node) => createAiContextNode(node, nodes, edges)),
         history: visibleMessages
@@ -440,7 +463,7 @@ export function ChatPanel({
         projectId,
         signal: controller.signal,
         prompt: `請將以下內容整理成適合畫布的節點：\n\n${sourceContent}`,
-        selectedNode: createAiContextNode(contextNode, nodes, edges),
+        selectedNode: contextPayload!,
         neighborNodes: selectedContextNeighborNodes
           .map((node) => createAiContextNode(node, nodes, edges)),
       }),
@@ -611,7 +634,7 @@ export function ChatPanel({
               onClick={() => {
                 if (
                   window.confirm(
-                    '確定要清除這個節點的所有對話嗎？',
+                    `確定要清除這個${isGroupContext ? '群組' : '節點'}的所有對話嗎？`,
                   )
                 ) {
                   clearMessagesByContext(contextNode.id)
@@ -654,7 +677,10 @@ export function ChatPanel({
       <details className="group shrink-0 border-b border-border bg-primary/3">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 text-sm text-foreground/70 transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30">
           <span>
-            AI 上下文：目前節點
+            AI 上下文：目前{isGroupContext ? '群組' : '節點'}
+            {isGroupContext
+              ? `（${contextGroupMemberNodes.length} 個成員）`
+              : ''}
             {contextNeighborNodes.length > 0
               ? `＋${selectedContextNeighborNodes.length}/${contextNeighborNodes.length} 個相鄰節點`
               : '（無相鄰節點）'}
@@ -672,11 +698,29 @@ export function ChatPanel({
 
         <div className="space-y-2 px-4 pb-3 text-sm">
           <div>
-            <div className="text-xs text-foreground/50">目前節點</div>
+            <div className="text-xs text-foreground/50">
+              目前{isGroupContext ? '群組' : '節點'}
+            </div>
             <div className="mt-0.5 font-medium text-foreground">
               {contextNode.data.title}
             </div>
           </div>
+
+          {isGroupContext && contextGroupMemberNodes.length > 0 && (
+            <div>
+              <div className="text-xs text-foreground/50">群組成員</div>
+              <ul className="mt-1 max-h-40 space-y-1 overflow-y-auto pr-1">
+                {contextGroupMemberNodes.map((node) => (
+                  <li
+                    key={node.id}
+                    className="rounded-lg bg-background px-2 py-2 text-sm text-foreground/70"
+                  >
+                    {node.data.title || '未命名節點'}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {attachedVideoClip && (
             <div className="rounded-lg border border-primary/15 bg-primary/5 px-3 py-2">
@@ -700,7 +744,7 @@ export function ChatPanel({
           {contextNeighborNodes.length > 0 && (
             <div>
               <div className="text-xs text-foreground/50">
-                選擇一層相鄰節點
+                選擇{isGroupContext ? '群組外相連節點' : '一層相鄰節點'}
               </div>
               <ul className="mt-1 space-y-1">
                 {contextNeighborNodes.map((node) => (
@@ -731,7 +775,9 @@ export function ChatPanel({
       >
         {visibleMessages.length === 0 ? (
           <div className="py-8 text-center text-sm text-foreground/50">
-            {isReadOnly ? '這個節點尚無對話' : '輸入指令來延伸這個節點'}
+            {isReadOnly
+              ? `這個${isGroupContext ? '群組' : '節點'}尚無對話`
+              : `輸入指令來整理或延伸這個${isGroupContext ? '群組' : '節點'}`}
           </div>
         ) : (
           visibleMessages.map((message) => (

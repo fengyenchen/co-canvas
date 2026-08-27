@@ -28,12 +28,17 @@ class ContextNode(ApiModel):
     id: str
     title: str = Field(min_length=1, max_length=120)
     content: str = Field(default="", max_length=2000)
-    node_type: Literal["concept", "video"] = "concept"
+    node_type: Literal["concept", "video", "group"] = "concept"
     start_time_ms: int | None = Field(default=None, ge=0)
     end_time_ms: int | None = Field(default=None, ge=0)
     video_provider: str | None = Field(default=None, max_length=40)
     video_duration_ms: int | None = Field(default=None, ge=0)
     linked_video: LinkedVideoContext | None = None
+    group_members: list["ContextNode"] = Field(default_factory=list, max_length=500)
+    group_relations: list["GroupContextRelation"] = Field(
+        default_factory=list,
+        max_length=1000,
+    )
 
     @model_validator(mode="after")
     def validate_time_range(self):
@@ -45,6 +50,15 @@ class ContextNode(ApiModel):
         if has_start and self.end_time_ms <= self.start_time_ms:
             raise ValueError("endTimeMs must be greater than startTimeMs")
         return self
+
+
+class GroupContextRelation(ApiModel):
+    source: str = Field(min_length=1)
+    target: str = Field(min_length=1)
+    label: str | None = Field(default=None, max_length=80)
+
+
+ContextNode.model_rebuild()
 
 
 class GenerateSuggestionRequest(ApiModel):

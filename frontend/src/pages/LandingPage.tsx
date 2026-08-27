@@ -231,7 +231,7 @@ export function LandingPage() {
                   <h3 className="text-lg font-semibold">選定對話上下文</h3>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-foreground/60">
-                  直接選取想延伸的節點。系統只帶入該節點及相鄰內容，讓 AI 回應更聚焦、更容易預測。
+                  直接選取想延伸的節點或群組。系統會帶入目前節點與相鄰內容，或群組內的完整結構，讓 AI 回應更聚焦、更容易預測。
                 </p>
               </li>
 
@@ -555,7 +555,7 @@ export function LandingPage() {
                     [
                       '指定上下文',
                       '重新描述或引用先前訊息',
-                      '直接選取想延伸的節點',
+                      '直接選取想延伸的節點或群組',
                     ],
                     [
                       '採用 AI 結果',

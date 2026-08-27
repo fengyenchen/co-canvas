@@ -41,6 +41,7 @@ SYSTEM_INSTRUCTION = """
 - 關係只能引用本次回覆中存在的 tempId。
 - 避免重複既有節點的內容。
 - nodeType、時間區間與 linkedVideo 都是使用者人工建立的畫布脈絡。
+- nodeType 為 group 時，groupMembers 是群組內節點，groupRelations 是與成員相關的連線。
 - 不得聲稱已觀看、聽取或分析影片，也不得推測上下文未提供的影片內容。
 """.strip()
 
@@ -50,6 +51,7 @@ CHAT_SYSTEM_INSTRUCTION = """
 畫布節點只作為對話上下文，不要假裝已經修改畫布，也不要主動輸出 JSON。
 若資訊不足，可以提出一個簡短且具體的追問。
 nodeType、時間區間與 linkedVideo 都是使用者人工建立的畫布脈絡。
+nodeType 為 group 時，請把 groupMembers 與 groupRelations 視為同一組的完整結構脈絡。
 若本次訊息附有影片片段，可以直接觀看與聽取該片段後回答。
 若未附影片片段，不得聲稱已觀看、聽取或分析影片，也不得推測未提供的影片內容。
 """.strip()

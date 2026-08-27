@@ -45,7 +45,36 @@ export function createAiContextNode(
   edges: CanvasEdge[],
 ): AiContextNode {
   if (node.type === 'group') {
-    throw new Error('群組框不能作為 AI 對話上下文')
+    const memberIds = new Set(
+      nodes
+        .filter((candidate) => candidate.parentId === node.id)
+        .map((candidate) => candidate.id),
+    )
+    const groupMembers = nodes
+      .filter(
+        (candidate) => candidate.parentId === node.id && candidate.type !== 'group',
+      )
+      .map((candidate) => createAiContextNode(candidate, nodes, edges))
+    const groupRelations = edges
+      .filter(
+        (edge) => memberIds.has(edge.source) || memberIds.has(edge.target),
+      )
+      .map((edge) => ({
+        source: edge.source,
+        target: edge.target,
+        ...(typeof edge.label === 'string' && edge.label
+          ? { label: edge.label }
+          : {}),
+      }))
+
+    return {
+      id: node.id,
+      title: node.data.title || '未命名群組',
+      content: '',
+      nodeType: 'group',
+      groupMembers,
+      groupRelations,
+    }
   }
 
   const base = {

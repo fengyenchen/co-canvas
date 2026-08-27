@@ -195,4 +195,53 @@ describe('canvasStore node groups', () => {
             groupId,
         )
     })
+
+    it('從群組對話加入的 AI 建議會成為群組成員並擴充框高', () => {
+        const groupId = useCanvasStore.getState().groupSelectedNodes()
+        const originalGroup = useCanvasStore
+            .getState()
+            .nodes.find((node) => node.id === groupId && node.type === 'group')
+        const originalGroupHeight = originalGroup?.type === 'group'
+            ? originalGroup.data.height
+            : undefined
+
+        useCanvasStore.getState().applySuggestion({
+            contextNodeId: groupId,
+            prompt: '補充下一步',
+            suggestion: {
+                nodes: [
+                    { tempId: 'new-1', title: '下一步一', content: '內容一' },
+                    { tempId: 'new-2', title: '下一步二', content: '內容二' },
+                ],
+                relations: [
+                    { sourceTempId: 'new-1', targetTempId: 'new-2', label: '接續' },
+                ],
+            },
+            latencyMs: 100,
+            aiMode: 'mock',
+            previewedAt: new Date().toISOString(),
+            edited: false,
+        })
+
+        const state = useCanvasStore.getState()
+        const aiNodes = state.nodes.filter(
+            (node) => node.type === 'concept' && node.data.origin === 'ai',
+        )
+        const expandedGroup = state.nodes.find(
+            (node) => node.id === groupId && node.type === 'group',
+        )
+
+        expect(aiNodes).toHaveLength(2)
+        expect(aiNodes.every((node) => node.parentId === groupId)).toBe(true)
+        const expandedGroupHeight = expandedGroup?.type === 'group'
+            ? expandedGroup.data.height
+            : undefined
+        expect(expandedGroupHeight).toBeGreaterThan(
+            originalGroupHeight ?? Infinity,
+        )
+        expect(state.edges).toContainEqual(
+            expect.objectContaining({ label: '接續' }),
+        )
+        expect(state.edges.some((edge) => edge.source === groupId)).toBe(false)
+    })
 })
