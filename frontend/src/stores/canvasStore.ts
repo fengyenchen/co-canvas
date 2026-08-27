@@ -34,6 +34,7 @@ const LAYOUT_RANK_GAP = 96
 const GROUP_PADDING_X = 32
 const GROUP_PADDING_TOP = 64
 const GROUP_PADDING_BOTTOM = 32
+const GROUP_LAYOUT_PADDING_TOP = 80
 const GROUP_MIN_WIDTH = 320
 const GROUP_MIN_HEIGHT = 220
 const GROUP_EXIT_RATIO = 0.5
@@ -110,10 +111,127 @@ function clearOrphanedTimeRanges(
     })
 }
 
+function getLayoutNodeSize(node: CanvasNode) {
+    if (node.type === 'group') {
+        return {
+            width: node.data.width,
+            height: node.data.height,
+        }
+    }
+
+    return {
+        width:
+            node.measured?.width ??
+            node.width ??
+            SUGGESTED_NODE_WIDTH,
+        height:
+            node.measured?.height ??
+            node.height ??
+            SUGGESTED_NODE_HEIGHT,
+    }
+}
+
+function layoutGroupContents(
+    nodes: CanvasNode[],
+    edges: CanvasEdge[],
+): CanvasNode[] {
+    const positionsByNodeId = new Map<string, XYPosition>()
+    const sizesByGroupId = new Map<string, { width: number; height: number }>()
+
+    for (const group of nodes) {
+        if (group.type !== 'group') continue
+
+        const members = nodes.filter((node) => node.parentId === group.id)
+        if (members.length === 0) continue
+
+        const memberIds = new Set(members.map((node) => node.id))
+        const graph = new dagre.graphlib.Graph()
+        graph.setDefaultEdgeLabel(() => ({}))
+        graph.setGraph({
+            rankdir: 'TB',
+            nodesep: LAYOUT_NODE_GAP,
+            ranksep: LAYOUT_RANK_GAP,
+            marginx: 0,
+            marginy: 0,
+        })
+
+        for (const member of members) {
+            graph.setNode(member.id, getLayoutNodeSize(member))
+        }
+
+        for (const edge of edges) {
+            if (memberIds.has(edge.source) && memberIds.has(edge.target)) {
+                graph.setEdge(edge.source, edge.target)
+            }
+        }
+
+        dagre.layout(graph)
+
+        const placements = members.map((member) => {
+            const layout = graph.node(member.id)
+            const { width, height } = getLayoutNodeSize(member)
+            return {
+                id: member.id,
+                width,
+                height,
+                x: layout.x - width / 2,
+                y: layout.y - height / 2,
+            }
+        })
+        const minX = Math.min(...placements.map((placement) => placement.x))
+        const minY = Math.min(...placements.map((placement) => placement.y))
+        const maxX = Math.max(
+            ...placements.map((placement) => placement.x + placement.width),
+        )
+        const maxY = Math.max(
+            ...placements.map((placement) => placement.y + placement.height),
+        )
+        const contentWidth = maxX - minX
+        const contentHeight = maxY - minY
+        const groupWidth = Math.max(
+            GROUP_MIN_WIDTH,
+            contentWidth + GROUP_PADDING_X * 2,
+        )
+        const groupHeight = Math.max(
+            GROUP_MIN_HEIGHT,
+            contentHeight + GROUP_LAYOUT_PADDING_TOP + GROUP_PADDING_BOTTOM,
+        )
+        const horizontalOffset =
+            GROUP_PADDING_X +
+            (groupWidth - GROUP_PADDING_X * 2 - contentWidth) / 2 -
+            minX
+        const verticalOffset = GROUP_LAYOUT_PADDING_TOP - minY
+
+        for (const placement of placements) {
+            positionsByNodeId.set(placement.id, {
+                x: placement.x + horizontalOffset,
+                y: placement.y + verticalOffset,
+            })
+        }
+        sizesByGroupId.set(group.id, {
+            width: groupWidth,
+            height: groupHeight,
+        })
+    }
+
+    return nodes.map((node) => {
+        const position = positionsByNodeId.get(node.id)
+        if (position) return { ...node, position }
+
+        if (node.type === 'group') {
+            const size = sizesByGroupId.get(node.id)
+            if (size) return { ...node, data: { ...node.data, ...size } }
+        }
+
+        return node
+    })
+}
+
 function layoutNodes(
     nodes: CanvasNode[],
     edges: CanvasEdge[],
 ): CanvasNode[] {
+    const nodesWithArrangedGroups = layoutGroupContents(nodes, edges)
     const graph = new dagre.graphlib.Graph()
 
     graph.setDefaultEdgeLabel(() => ({}))
@@ -125,23 +243,14 @@ function layoutNodes(
         marginy: 40,
     })
 
-    const layoutNodes = nodes.filter((node) => !node.parentId)
+    const layoutNodes = nodesWithArrangedGroups.filter((node) => !node.parentId)
     const layoutNodeIds = new Set(layoutNodes.map((node) => node.id))
     const layoutNodeIdByNodeId = new Map(
-        nodes.map((node) => [node.id, node.parentId ?? node.id]),
+        nodesWithArrangedGroups.map((node) => [node.id, node.parentId ?? node.id]),
     )
 
     for (const node of layoutNodes) {
-        const width =
-            node.measured?.width ??
-            node.width ??
-            (node.type === 'group' ? node.data.width : undefined) ??
-            SUGGESTED_NODE_WIDTH
-        const height =
-            node.measured?.height ??
-            node.height ??
-            (node.type === 'group' ? node.data.height : undefined) ??
-            SUGGESTED_NODE_HEIGHT
+        const { width, height } = getLayoutNodeSize(node)
 
         graph.setNode(node.id, { width, height })
     }
@@ -163,20 +272,11 @@ function layoutNodes(
 
     dagre.layout(graph)
 
-    return nodes.map((node) => {
+    return nodesWithArrangedGroups.map((node) => {
         if (node.parentId) return node
 
         const layout = graph.node(node.id)
-        const width =
-            node.measured?.width ??
-            node.width ??
-            (node.type === 'group' ? node.data.width : undefined) ??
-            SUGGESTED_NODE_WIDTH
-        const height =
-            node.measured?.height ??
-            node.height ??
-            (node.type === 'group' ? node.data.height : undefined) ??
-            SUGGESTED_NODE_HEIGHT
+        const { width, height } = getLayoutNodeSize(node)
 
         return {
             ...node,

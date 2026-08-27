@@ -196,6 +196,49 @@ describe('canvasStore node groups', () => {
         )
     })
 
+    it('自動排版時整理群組內節點並讓群組完整包住內容', () => {
+        const groupId = useCanvasStore.getState().groupSelectedNodes()
+        useCanvasStore.setState({
+            edges: [
+                {
+                    id: 'inside-group',
+                    source: 'node-1',
+                    target: 'node-2',
+                    data: { origin: 'user' },
+                },
+            ],
+        })
+
+        useCanvasStore.getState().autoLayout()
+
+        const state = useCanvasStore.getState()
+        const group = state.nodes.find(
+            (node) => node.id === groupId && node.type === 'group',
+        )
+        const first = state.nodes.find((node) => node.id === 'node-1')
+        const second = state.nodes.find((node) => node.id === 'node-2')
+
+        expect(group?.type).toBe('group')
+        expect(first?.position.y).toBeGreaterThanOrEqual(80)
+        expect(second?.position.y).toBeGreaterThan(
+            (first?.position.y ?? 0) + 120,
+        )
+        expect(first?.position.x).toBeGreaterThanOrEqual(32)
+        expect(second?.position.x).toBeGreaterThanOrEqual(32)
+
+        if (group?.type === 'group' && first && second) {
+            expect(first.position.x + 256).toBeLessThanOrEqual(
+                group.data.width - 32,
+            )
+            expect(second.position.x + 256).toBeLessThanOrEqual(
+                group.data.width - 32,
+            )
+            expect(second.position.y + 120).toBeLessThanOrEqual(
+                group.data.height - 32,
+            )
+        }
+    })
+
     it('從群組對話加入的 AI 建議會成為群組成員並擴充框高', () => {
         const groupId = useCanvasStore.getState().groupSelectedNodes()
         const originalGroup = useCanvasStore
