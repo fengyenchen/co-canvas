@@ -24,6 +24,9 @@ test('登入後可瀏覽首頁、以新分頁開啟手冊並從專案列表返�
       name: /GitHub Repository：fengyenchen\/co-canvas/,
     }),
   ).toHaveAttribute('href', 'https://github.com/fengyenchen/co-canvas')
+  await expect(
+    guidePage.getByRole('link', { name: '研究資料指南', exact: true }),
+  ).toHaveAttribute('target', '_blank')
 
   await guidePage.goto('/guide/research')
   await expect(

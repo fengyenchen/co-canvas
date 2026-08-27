@@ -20,7 +20,7 @@ const GuidePage = lazy(() =>
 )
 
 const ResearchGuidePage = lazy(() =>
-  import('./pages/GuidePage').then((module) => ({
+  import('./pages/ResearchGuidePage').then((module) => ({
     default: module.ResearchGuidePage,
   })),
 )
