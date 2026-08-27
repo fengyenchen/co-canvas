@@ -359,6 +359,87 @@ describe('canvasStore node groups', () => {
         ).toEqual(expect.arrayContaining([groupId, 'node-1', 'node-2']))
     })
 
+    it('複製貼上多選節點並保留彼此之間的連線', () => {
+        useCanvasStore.setState({
+            edges: [
+                {
+                    id: 'selected-edge',
+                    source: 'node-1',
+                    target: 'node-2',
+                    label: '延伸',
+                    data: { origin: 'user', label: '延伸' },
+                },
+            ],
+        })
+
+        expect(useCanvasStore.getState().copySelection()).toBe(true)
+        expect(useCanvasStore.getState().pasteSelection()).toBe(true)
+
+        const state = useCanvasStore.getState()
+        const pastedNodes = state.nodes.filter((node) => node.selected)
+        const pastedNodeIds = new Set(pastedNodes.map((node) => node.id))
+        const pastedEdge = state.edges.find(
+            (edge) =>
+                pastedNodeIds.has(edge.source) &&
+                pastedNodeIds.has(edge.target),
+        )
+
+        expect(pastedNodes).toHaveLength(2)
+        expect(pastedNodes.map((node) => node.position)).toEqual([
+            { x: 148, y: 148 },
+            { x: 468, y: 288 },
+        ])
+        expect(pastedEdge).toMatchObject({
+            label: '延伸',
+            data: { origin: 'user', label: '延伸' },
+        })
+        expect(state.canUndo).toBe(true)
+    })
+
+    it('複製貼上群組時包含所有成員與群組內部連線', () => {
+        const groupId = useCanvasStore.getState().groupSelectedNodes()
+        useCanvasStore.setState({
+            edges: [
+                {
+                    id: 'inside-group',
+                    source: 'node-1',
+                    target: 'node-2',
+                    data: { origin: 'user' },
+                },
+            ],
+        })
+
+        expect(useCanvasStore.getState().copySelection()).toBe(true)
+        expect(useCanvasStore.getState().pasteSelection()).toBe(true)
+
+        const state = useCanvasStore.getState()
+        const pastedGroup = state.nodes.find(
+            (node) =>
+                node.type === 'group' &&
+                node.id !== groupId &&
+                node.selected,
+        )
+        const pastedMembers = state.nodes.filter(
+            (node) => node.parentId === pastedGroup?.id,
+        )
+        const pastedMemberIds = new Set(
+            pastedMembers.map((node) => node.id),
+        )
+
+        expect(pastedGroup).toMatchObject({
+            position: { x: 116, y: 84 },
+            deletable: false,
+        })
+        expect(pastedMembers).toHaveLength(2)
+        expect(
+            state.edges.some(
+                (edge) =>
+                    pastedMemberIds.has(edge.source) &&
+                    pastedMemberIds.has(edge.target),
+            ),
+        ).toBe(true)
+    })
+
     it('自動排版時以群組內節點的對外連線排列整個群組', () => {
         const groupId = useCanvasStore.getState().groupSelectedNodes()
         const externalNode = createNode('external-node', 0, 0)

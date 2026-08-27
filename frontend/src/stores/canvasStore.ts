@@ -41,11 +41,18 @@ const GROUP_COLLAPSED_WIDTH = 320
 const GROUP_COLLAPSED_HEIGHT = 52
 const GROUP_DUPLICATE_GAP = 80
 const GROUP_EXIT_RATIO = 0.5
+const CLIPBOARD_PASTE_OFFSET = 48
 
 type CanvasSnapshot = {
     nodes: CanvasNode[]
     edges: CanvasEdge[]
 }
+
+type CanvasClipboard = CanvasSnapshot & {
+    pasteCount: number
+}
+
+let canvasClipboard: CanvasClipboard | null = null
 
 function createSnapshot(state: CanvasSnapshot): CanvasSnapshot {
     return {
@@ -535,6 +542,8 @@ type CanvasState = {
     duplicateGroup: (groupId: string) => string | null
     ungroupNodes: (groupId: string) => void
     deleteGroup: (groupId: string) => void
+    copySelection: () => boolean
+    pasteSelection: () => boolean
     reconcileNodeGroup: (nodeId: string) => void
     updateNode: (
         nodeId: string,
@@ -567,7 +576,7 @@ type CanvasState = {
 }
 
 export const useCanvasStore = create<CanvasState>()(
-    persist((set) => ({
+    persist((set, get) => ({
     nodes: [],
     edges: [],
     past: [],
@@ -962,6 +971,146 @@ export const useCanvasStore = create<CanvasState>()(
                 canRedo: false,
             }
         }),
+
+    copySelection: () => {
+        const state = get()
+        const selectedNodeIds = new Set(
+            state.nodes
+                .filter((node) => node.selected)
+                .map((node) => node.id),
+        )
+
+        for (const node of state.nodes) {
+            if (node.parentId && selectedNodeIds.has(node.parentId)) {
+                selectedNodeIds.add(node.id)
+            }
+        }
+
+        if (selectedNodeIds.size === 0) return false
+
+        const copiedNodes = state.nodes
+            .filter((node) => selectedNodeIds.has(node.id))
+            .map((node) => {
+                const keepsParent = Boolean(
+                    node.parentId && selectedNodeIds.has(node.parentId),
+                )
+                const absoluteRect = keepsParent
+                    ? undefined
+                    : getAbsoluteNodeRect(node, state.nodes)
+
+                return {
+                    ...node,
+                    parentId: keepsParent ? node.parentId : undefined,
+                    position: keepsParent
+                        ? { ...node.position }
+                        : {
+                            x: absoluteRect?.left ?? node.position.x,
+                            y: absoluteRect?.top ?? node.position.y,
+                        },
+                    selected: false,
+                    dragging: false,
+                    measured: undefined,
+                    width: undefined,
+                    height: undefined,
+                    hidden: keepsParent ? node.hidden : false,
+                    draggable: keepsParent || node.type === 'group'
+                        ? node.draggable
+                        : true,
+                    data: { ...node.data },
+                } as CanvasNode
+            })
+        const copiedEdges = state.edges
+            .filter(
+                (edge) =>
+                    selectedNodeIds.has(edge.source) &&
+                    selectedNodeIds.has(edge.target),
+            )
+            .map((edge) => ({
+                ...edge,
+                selected: false,
+                data: edge.data ? { ...edge.data } : edge.data,
+            }))
+
+        canvasClipboard = {
+            nodes: copiedNodes,
+            edges: copiedEdges,
+            pasteCount: 0,
+        }
+        return true
+    },
+
+    pasteSelection: () => {
+        if (!canvasClipboard || canvasClipboard.nodes.length === 0) {
+            return false
+        }
+
+        const clipboard = canvasClipboard
+        const pasteCount = clipboard.pasteCount + 1
+        const offset = CLIPBOARD_PASTE_OFFSET * pasteCount
+        const idByOriginalId = new Map(
+            clipboard.nodes.map((node) => [node.id, crypto.randomUUID()]),
+        )
+
+        set((state) => {
+            const pastedNodes = clipboard.nodes.map((node) => {
+                const parentId = node.parentId
+                    ? idByOriginalId.get(node.parentId)
+                    : undefined
+                const isTopLevel = !parentId
+
+                return {
+                    ...node,
+                    id: idByOriginalId.get(node.id)!,
+                    parentId,
+                    position: isTopLevel
+                        ? {
+                            x: node.position.x + offset,
+                            y: node.position.y + offset,
+                        }
+                        : { ...node.position },
+                    selected: isTopLevel,
+                    dragging: false,
+                    measured: undefined,
+                    width: undefined,
+                    height: undefined,
+                    hidden: parentId ? node.hidden : false,
+                    draggable: parentId || node.type === 'group'
+                        ? node.draggable
+                        : true,
+                    deletable: node.type === 'group' ? false : node.deletable,
+                    data: { ...node.data },
+                } as CanvasNode
+            })
+            const pastedEdges = clipboard.edges.map((edge) => ({
+                ...edge,
+                id: crypto.randomUUID(),
+                source: idByOriginalId.get(edge.source)!,
+                target: idByOriginalId.get(edge.target)!,
+                selected: false,
+                data: edge.data ? { ...edge.data } : edge.data,
+            }))
+            const nextEdges = [
+                ...state.edges.map((edge) => ({ ...edge, selected: false })),
+                ...pastedEdges,
+            ]
+            const nextNodes = [
+                ...state.nodes.map((node) => ({ ...node, selected: false })),
+                ...pastedNodes,
+            ]
+
+            return {
+                nodes: clearOrphanedTimeRanges(nextNodes, nextEdges),
+                edges: nextEdges,
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        })
+
+        canvasClipboard = { ...clipboard, pasteCount }
+        return true
+    },
 
     reconcileNodeGroup: (nodeId) =>
         set((state) => {

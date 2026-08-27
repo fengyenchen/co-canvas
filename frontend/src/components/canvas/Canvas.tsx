@@ -101,6 +101,8 @@ function CanvasContent({
     const onConnect = useCanvasStore((state) => state.onConnect)
     const undo = useCanvasStore((state) => state.undo)
     const redo = useCanvasStore((state) => state.redo)
+    const copySelection = useCanvasStore((state) => state.copySelection)
+    const pasteSelection = useCanvasStore((state) => state.pasteSelection)
     const autoLayout = useCanvasStore((state) => state.autoLayout)
     const canUndo = useCanvasStore((state) => state.canUndo)
     const canRedo = useCanvasStore((state) => state.canRedo)
@@ -323,6 +325,16 @@ function CanvasContent({
 
             const key = event.key.toLowerCase()
 
+            if (key === 'c' && copySelection()) {
+                event.preventDefault()
+                return
+            }
+
+            if (key === 'v' && pasteSelection()) {
+                event.preventDefault()
+                return
+            }
+
             if (key === 'z' && event.shiftKey) {
                 event.preventDefault()
                 redo()
@@ -346,7 +358,7 @@ function CanvasContent({
         return () => {
             window.removeEventListener('keydown', handleKeyDown)
         }
-    }, [isReadOnly, redo, undo])
+    }, [copySelection, isReadOnly, pasteSelection, redo, undo])
 
     return (
         <section
@@ -843,6 +855,8 @@ function CanvasContent({
                         <span>Space + 拖曳：移動畫布</span>
                         <span aria-hidden="true">·</span>
                         <span>雙擊節點：進入對話</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Ctrl/Cmd + C／V：複製貼上</span>
                     </>
                 )}
             </div>
