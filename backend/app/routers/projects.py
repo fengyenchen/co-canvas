@@ -4,6 +4,7 @@ import io
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import and_, delete, func, or_, select, update
@@ -43,6 +44,20 @@ DatabaseSession = Annotated[
 TRASH_RETENTION_DAYS = 30
 AUTOMATIC_VERSION_RETENTION_DAYS = 30
 AUTOMATIC_VERSION_LIMIT = 50
+
+
+def create_attachment_header(filename: str) -> str:
+    encoded_filename = quote(filename, safe="")
+    extension = filename.rsplit(".", 1)[-1].lower()
+    fallback_filename = (
+        f"research-events.{extension}"
+        if extension in {"csv", "json"}
+        else "research-events"
+    )
+    return (
+        f'attachment; filename="{fallback_filename}"; '
+        f"filename*=UTF-8''{encoded_filename}"
+    )
 
 
 async def sync_research_events(
@@ -369,7 +384,7 @@ async def export_project_research_events(
     )
     filename = f"{project.name}-research-events.{format}"
     headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Disposition": create_attachment_header(filename),
     }
 
     rows = [
