@@ -4,6 +4,7 @@ import { Play } from 'lucide-react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import type { ConceptCanvasNode } from '../../types/canvas'
 import { formatMediaTime } from '../../utils/mediaTime'
+import { getConceptNodeColor } from '../../utils/nodeColor'
 
 const handleClassName =
     'h-2.5! w-2.5! border-2! border-background! bg-primary!'
@@ -28,13 +29,14 @@ export function ConceptNode({
     )
     const hasTimeRange =
         data.startTimeMs !== undefined && data.endTimeMs !== undefined
+    const nodeColor = getConceptNodeColor(data.color)
 
     return (
         <div
-            className={`w-64 rounded-xl border bg-background px-4 py-3 shadow-sm
+            className={`w-64 rounded-xl border px-4 py-3 shadow-sm ${nodeColor.backgroundClassName}
             ${selected
                 ? 'border-primary ring-2 ring-primary/15'
-                : 'border-border'}`}
+                : nodeColor.borderClassName}`}
         >
             <Handle
                 id="top"

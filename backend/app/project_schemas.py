@@ -24,6 +24,14 @@ class ProjectConceptNodeData(ApiModel):
     title: str = Field(max_length=120)
     content: str = Field(default="", max_length=2000)
     origin: Literal["user", "ai"]
+    color: Literal[
+        "default",
+        "yellow",
+        "pink",
+        "blue",
+        "green",
+        "purple",
+    ] = "default"
     start_time_ms: int | None = Field(default=None, ge=0)
     end_time_ms: int | None = Field(default=None, ge=0)
 

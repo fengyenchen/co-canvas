@@ -157,6 +157,40 @@ def test_accepts_video_node_before_source_is_configured() -> None:
     assert document.nodes[0].data.source == ""
 
 
+def test_accepts_concept_node_color_and_defaults_legacy_nodes() -> None:
+    colored_document = ProjectDocument.model_validate(
+        {
+            "version": 4,
+            "nodes": [create_concept_node({"color": "pink"})],
+            "edges": [],
+            "messages": [],
+        }
+    )
+    legacy_document = ProjectDocument.model_validate(
+        {
+            "version": 4,
+            "nodes": [create_concept_node({})],
+            "edges": [],
+            "messages": [],
+        }
+    )
+
+    assert colored_document.nodes[0].data.color == "pink"
+    assert legacy_document.nodes[0].data.color == "default"
+
+
+def test_rejects_unknown_concept_node_color() -> None:
+    with pytest.raises(ValidationError):
+        ProjectDocument.model_validate(
+            {
+                "version": 4,
+                "nodes": [create_concept_node({"color": "orange"})],
+                "edges": [],
+                "messages": [],
+            }
+        )
+
+
 def test_upgrades_version_two_media_to_video_node() -> None:
     document = ProjectDocument.model_validate(
         {

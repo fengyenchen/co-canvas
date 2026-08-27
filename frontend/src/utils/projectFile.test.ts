@@ -101,6 +101,22 @@ describe('projectFile', () => {
     ).not.toThrow()
   })
 
+  it('保留文字節點顏色並相容舊專案', () => {
+    const coloredNode: ConceptCanvasNode = {
+      ...nodes[0],
+      data: { ...nodes[0].data, color: 'yellow' },
+    }
+    const imported = parseProjectFile(
+      JSON.parse(JSON.stringify(createProjectFile([coloredNode], [], []))),
+    )
+    const legacyImported = parseProjectFile(
+      JSON.parse(JSON.stringify(createProjectFile([nodes[1]], [], []))),
+    )
+
+    expect(imported.nodes[0]?.data).toMatchObject({ color: 'yellow' })
+    expect(legacyImported.nodes[0]?.data).toMatchObject({ color: 'default' })
+  })
+
   it('匯出時排除孤兒對話', () => {
     const project = createProjectFile(nodes, edges, messages)
 

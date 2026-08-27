@@ -96,6 +96,12 @@ export function LandingPage() {
           >
             介面比較
           </a>
+          <a
+            href="#use-cases"
+            className="hidden min-h-11 cursor-pointer items-center justify-center rounded-lg px-4 text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:inline-flex"
+          >
+            適用情境
+          </a>
           <Link
             to="/auth/sign-in?returnTo=%2Fprojects"
             className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"

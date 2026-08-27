@@ -1,6 +1,13 @@
 import type { Edge, Node } from '@xyflow/react'
 
 export type ContentOrigin = 'user' | 'ai'
+export type ConceptNodeColor =
+    | 'default'
+    | 'yellow'
+    | 'pink'
+    | 'blue'
+    | 'green'
+    | 'purple'
 
 export type CommonCanvasNodeData = {
     title: string
@@ -9,6 +16,7 @@ export type CommonCanvasNodeData = {
 }
 
 export type ConceptNodeData = CommonCanvasNodeData & {
+    color?: ConceptNodeColor
     startTimeMs?: number
     endTimeMs?: number
 }

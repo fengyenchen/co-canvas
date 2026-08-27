@@ -5,6 +5,14 @@ import type { ProjectDocument } from '../types/project'
 import type { SuggestionDecisionEvent } from '../types/suggestion'
 
 const originSchema = z.enum(['user', 'ai'])
+const conceptNodeColorSchema = z.enum([
+  'default',
+  'yellow',
+  'pink',
+  'blue',
+  'green',
+  'purple',
+])
 const nullToUndefined = (value: unknown) =>
   value === null ? undefined : value
 const optionalStringSchema = z.preprocess(
@@ -33,6 +41,7 @@ const commonNodeDataShape = {
 const conceptNodeDataSchema = z
   .object({
     ...commonNodeDataShape,
+    color: conceptNodeColorSchema.default('default'),
     startTimeMs: optionalNonnegativeIntegerSchema,
     endTimeMs: optionalNonnegativeIntegerSchema,
   })
@@ -425,7 +434,9 @@ export function createProjectDocument(
       id: node.id,
       type: node.type,
       position: node.position,
-      data: node.data,
+      data: node.type === 'concept'
+        ? { ...node.data, color: node.data.color ?? 'default' }
+        : node.data,
     })) as CanvasNode[],
     edges: edges.map((edge) => ({
       id: edge.id,

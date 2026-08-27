@@ -272,7 +272,7 @@ type CanvasState = {
     updateNode: (
         nodeId: string,
         updates: Partial<
-            Pick<CommonCanvasNodeData, 'title' | 'content'>
+            Pick<ConceptNodeData, 'title' | 'content' | 'color'>
         >,
     ) => void
     updateVideoNode: (
