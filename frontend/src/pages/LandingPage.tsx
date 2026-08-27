@@ -307,6 +307,17 @@ export function LandingPage() {
               </li>
               </ol>
             </Reveal>
+
+            <Reveal className="mt-6">
+              <aside className="rounded-2xl border border-border bg-background px-5 py-4 text-sm leading-6 text-foreground/60 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-8">
+                <strong className="block shrink-0 font-semibold text-foreground">
+                  支援人機協作研究
+                </strong>
+                <p className="mt-1 sm:mt-0">
+                  雲端專案擁有者可匯出 AI 建議的接受、取消、重新生成、編輯狀態與決策時間，作為互動行為分析資料。
+                </p>
+              </aside>
+            </Reveal>
           </div>
         </section>
 
