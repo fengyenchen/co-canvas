@@ -39,6 +39,7 @@ const GROUP_MIN_WIDTH = 320
 const GROUP_MIN_HEIGHT = 220
 const GROUP_COLLAPSED_WIDTH = 320
 const GROUP_COLLAPSED_HEIGHT = 52
+const GROUP_DUPLICATE_GAP = 80
 const GROUP_EXIT_RATIO = 0.5
 
 type CanvasSnapshot = {
@@ -135,6 +136,34 @@ function getLayoutNodeSize(node: CanvasNode) {
             node.height ??
             SUGGESTED_NODE_HEIGHT,
     }
+}
+
+function findDuplicateGroupPosition(
+    group: CanvasNode,
+    nodes: CanvasNode[],
+): XYPosition {
+    const { width, height } = getLayoutNodeSize(group)
+    let x = group.position.x + width + GROUP_DUPLICATE_GAP
+    const y = group.position.y
+    const topLevelNodes = nodes.filter(
+        (node) => !node.parentId && node.id !== group.id,
+    )
+
+    while (
+        topLevelNodes.some((node) => {
+            const rect = getAbsoluteNodeRect(node, nodes)
+            return (
+                x < rect.right + COLLISION_PADDING &&
+                x + width > rect.left - COLLISION_PADDING &&
+                y < rect.bottom + COLLISION_PADDING &&
+                y + height > rect.top - COLLISION_PADDING
+            )
+        })
+    ) {
+        x += width + GROUP_DUPLICATE_GAP
+    }
+
+    return { x, y }
 }
 
 function estimateSuggestedNodeHeight(title: string, content: string) {
@@ -503,6 +532,7 @@ type CanvasState = {
     ) => void
     toggleGroupCollapsed: (groupId: string) => void
     toggleGroupLocked: (groupId: string) => void
+    duplicateGroup: (groupId: string) => string | null
     ungroupNodes: (groupId: string) => void
     reconcileNodeGroup: (nodeId: string) => void
     updateNode: (
@@ -776,6 +806,91 @@ export const useCanvasStore = create<CanvasState>()(
                 canRedo: false,
             }
         }),
+
+    duplicateGroup: (groupId) => {
+        const duplicateGroupId = crypto.randomUUID()
+        let didDuplicate = false
+
+        set((state) => {
+            const group = state.nodes.find(
+                (node) => node.id === groupId && node.type === 'group',
+            )
+            if (!group || group.type !== 'group') return state
+
+            const members = state.nodes.filter(
+                (node) => node.parentId === groupId,
+            )
+            const memberIds = new Set(members.map((node) => node.id))
+            const idByOriginalId = new Map(
+                members.map((node) => [node.id, crypto.randomUUID()]),
+            )
+            const position = findDuplicateGroupPosition(group, state.nodes)
+            const duplicatedGroup: CanvasNode = {
+                ...group,
+                id: duplicateGroupId,
+                position,
+                selected: true,
+                dragging: false,
+                measured: undefined,
+                width: undefined,
+                height: undefined,
+                draggable: !group.data.locked,
+                data: {
+                    ...group.data,
+                    title: `${group.data.title || '未命名群組'} 副本`,
+                },
+            }
+            const duplicatedMembers: CanvasNode[] = members.map(
+                (node) => ({
+                    ...node,
+                    id: idByOriginalId.get(node.id)!,
+                    parentId: duplicateGroupId,
+                    position: { ...node.position },
+                    selected: false,
+                    dragging: false,
+                    measured: undefined,
+                    width: undefined,
+                    height: undefined,
+                    hidden: Boolean(group.data.collapsed),
+                    draggable: !group.data.locked,
+                    data: { ...node.data },
+                }) as CanvasNode,
+            )
+            const duplicatedEdges: CanvasEdge[] = state.edges.flatMap((edge) => {
+                if (!memberIds.has(edge.source) || !memberIds.has(edge.target)) {
+                    return []
+                }
+
+                return [{
+                    ...edge,
+                    id: crypto.randomUUID(),
+                    source: idByOriginalId.get(edge.source)!,
+                    target: idByOriginalId.get(edge.target)!,
+                    selected: false,
+                    data: edge.data ? { ...edge.data } : edge.data,
+                }]
+            })
+
+            didDuplicate = true
+            return {
+                nodes: [
+                    ...state.nodes.map((node) => ({ ...node, selected: false })),
+                    duplicatedGroup,
+                    ...duplicatedMembers,
+                ],
+                edges: [
+                    ...state.edges.map((edge) => ({ ...edge, selected: false })),
+                    ...duplicatedEdges,
+                ],
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        })
+
+        return didDuplicate ? duplicateGroupId : null
+    },
 
     ungroupNodes: (groupId) =>
         set((state) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import type {
@@ -481,6 +481,7 @@ function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
     const toggleGroupLocked = useCanvasStore(
         (state) => state.toggleGroupLocked,
     )
+    const duplicateGroup = useCanvasStore((state) => state.duplicateGroup)
     const ungroupNodes = useCanvasStore((state) => state.ungroupNodes)
     const memberCount = useCanvasStore(
         (state) =>
@@ -580,6 +581,15 @@ function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
                     {selectedNode.data.locked ? '解除鎖定' : '鎖定群組'}
                 </button>
             </div>
+
+            <button
+                type="button"
+                onClick={() => duplicateGroup(selectedNode.id)}
+                className="mt-2 flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground transition-colors hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+                <Copy aria-hidden="true" className="size-4" />
+                複製整個群組
+            </button>
 
             <p className="mt-4 text-sm leading-6 text-foreground/55">
                 {selectedNode.data.locked

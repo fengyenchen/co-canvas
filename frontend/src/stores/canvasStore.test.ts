@@ -123,6 +123,83 @@ describe('canvasStore node groups', () => {
         ])
     })
 
+    it('複製群組、所有成員與群組內部連線', () => {
+        const groupId = useCanvasStore.getState().groupSelectedNodes()
+        useCanvasStore.getState().updateGroup(groupId!, { color: 'purple' })
+        useCanvasStore.getState().toggleGroupLocked(groupId!)
+        useCanvasStore.getState().toggleGroupCollapsed(groupId!)
+        const externalNode = {
+            ...createNode('external-node', 1200, 100),
+            selected: false,
+        }
+        useCanvasStore.setState((state) => ({
+            nodes: [...state.nodes, externalNode],
+            edges: [
+                {
+                    id: 'inside-group',
+                    source: 'node-1',
+                    target: 'node-2',
+                    data: { origin: 'user' },
+                },
+                {
+                    id: 'outside-group',
+                    source: 'node-2',
+                    target: 'external-node',
+                    data: { origin: 'user' },
+                },
+            ],
+        }))
+
+        const duplicateId = useCanvasStore.getState().duplicateGroup(groupId!)
+        const state = useCanvasStore.getState()
+        const original = state.nodes.find(
+            (node) => node.id === groupId && node.type === 'group',
+        )
+        const duplicate = state.nodes.find(
+            (node) => node.id === duplicateId && node.type === 'group',
+        )
+        const duplicatedMembers = state.nodes.filter(
+            (node) => node.parentId === duplicateId,
+        )
+        const duplicatedMemberIds = new Set(
+            duplicatedMembers.map((node) => node.id),
+        )
+        const duplicatedInternalEdges = state.edges.filter(
+            (edge) =>
+                duplicatedMemberIds.has(edge.source) &&
+                duplicatedMemberIds.has(edge.target),
+        )
+
+        expect(duplicateId).not.toBeNull()
+        expect(duplicate).toMatchObject({
+            selected: true,
+            draggable: false,
+            data: {
+                title: '群組 1 副本',
+                color: 'purple',
+                collapsed: true,
+                locked: true,
+            },
+        })
+        expect(duplicate?.position.x).toBeGreaterThan(
+            (original?.position.x ?? 0) + 300,
+        )
+        expect(duplicatedMembers).toHaveLength(2)
+        expect(
+            duplicatedMembers.every(
+                (node) => node.hidden === true && node.draggable === false,
+            ),
+        ).toBe(true)
+        expect(duplicatedInternalEdges).toHaveLength(1)
+        expect(
+            state.edges.filter(
+                (edge) =>
+                    duplicatedMemberIds.has(edge.source) !==
+                    duplicatedMemberIds.has(edge.target),
+            ),
+        ).toHaveLength(0)
+    })
+
     it('節點移到群組框外超過一半時保留畫布位置並移出群組', () => {
         const groupId = useCanvasStore.getState().groupSelectedNodes()
         const group = useCanvasStore
