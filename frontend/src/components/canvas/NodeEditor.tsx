@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Check, Copy, Trash2 } from 'lucide-react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import type {
@@ -483,6 +483,7 @@ function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
     )
     const duplicateGroup = useCanvasStore((state) => state.duplicateGroup)
     const ungroupNodes = useCanvasStore((state) => state.ungroupNodes)
+    const deleteGroup = useCanvasStore((state) => state.deleteGroup)
     const memberCount = useCanvasStore(
         (state) =>
             state.nodes.filter((node) => node.parentId === selectedNode.id).length,
@@ -494,6 +495,35 @@ function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
         (state) => state.setActiveContextNodeId,
     )
     const isActiveContext = activeContextNodeId === selectedNode.id
+
+    useEffect(() => {
+        function handleDeleteShortcut(event: KeyboardEvent) {
+            if (
+                event.defaultPrevented ||
+                event.ctrlKey ||
+                event.metaKey ||
+                event.altKey ||
+                (event.key !== 'Delete' && event.key !== 'Backspace')
+            ) {
+                return
+            }
+
+            const target = event.target
+            if (
+                target instanceof HTMLInputElement ||
+                target instanceof HTMLTextAreaElement ||
+                (target instanceof HTMLElement && target.isContentEditable)
+            ) {
+                return
+            }
+
+            event.preventDefault()
+            deleteGroup(selectedNode.id)
+        }
+
+        window.addEventListener('keydown', handleDeleteShortcut, true)
+        return () => window.removeEventListener('keydown', handleDeleteShortcut, true)
+    }, [deleteGroup, selectedNode.id])
 
     return (
         <aside className="absolute right-4 top-18 z-20 max-h-[calc(100%-5.5rem)] w-50 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-background p-4 shadow-sm md:top-4 md:max-h-[calc(100%-2rem)] md:w-70 lg:w-80">
@@ -604,6 +634,19 @@ function GroupNodeEditor({ selectedNode }: { selectedNode: GroupCanvasNode }) {
                     className="min-h-11 w-full cursor-pointer rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                 >
                     解散群組
+                </button>
+                <button
+                    type="button"
+                    onClick={() => deleteGroup(selectedNode.id)}
+                    className="mt-2 flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+                >
+                    <span className="flex items-center gap-2">
+                        <Trash2 aria-hidden="true" className="size-4" />
+                        刪除整個群組
+                    </span>
+                    <kbd className="rounded border border-red-200 bg-background px-1.5 py-0.5 font-mono text-[11px] leading-none text-red-600/80">
+                        Del
+                    </kbd>
                 </button>
             </div>
         </aside>

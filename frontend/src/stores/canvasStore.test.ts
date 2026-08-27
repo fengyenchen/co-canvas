@@ -309,6 +309,56 @@ describe('canvasStore node groups', () => {
         })
     })
 
+    it('刪除整個群組時移除成員與所有相關連線', () => {
+        const groupId = useCanvasStore.getState().groupSelectedNodes()
+        const unrelatedNode = {
+            ...createNode('unrelated-node', 1200, 100),
+            selected: false,
+        }
+        const outsideNode = {
+            ...createNode('outside-node', 1500, 100),
+            selected: false,
+        }
+        useCanvasStore.setState((state) => ({
+            nodes: [...state.nodes, unrelatedNode, outsideNode],
+            edges: [
+                {
+                    id: 'inside-group',
+                    source: 'node-1',
+                    target: 'node-2',
+                    data: { origin: 'user' },
+                },
+                {
+                    id: 'from-group',
+                    source: 'node-2',
+                    target: 'unrelated-node',
+                    data: { origin: 'user' },
+                },
+                {
+                    id: 'unrelated-edge',
+                    source: 'unrelated-node',
+                    target: 'outside-node',
+                    data: { origin: 'user' },
+                },
+            ],
+        }))
+
+        useCanvasStore.getState().deleteGroup(groupId!)
+
+        const state = useCanvasStore.getState()
+        expect(state.nodes.map((node) => node.id)).toEqual([
+            'unrelated-node',
+            'outside-node',
+        ])
+        expect(state.edges.map((edge) => edge.id)).toEqual(['unrelated-edge'])
+        expect(state.canUndo).toBe(true)
+
+        useCanvasStore.getState().undo()
+        expect(
+            useCanvasStore.getState().nodes.map((node) => node.id),
+        ).toEqual(expect.arrayContaining([groupId, 'node-1', 'node-2']))
+    })
+
     it('自動排版時以群組內節點的對外連線排列整個群組', () => {
         const groupId = useCanvasStore.getState().groupSelectedNodes()
         const externalNode = createNode('external-node', 0, 0)

@@ -534,6 +534,7 @@ type CanvasState = {
     toggleGroupLocked: (groupId: string) => void
     duplicateGroup: (groupId: string) => string | null
     ungroupNodes: (groupId: string) => void
+    deleteGroup: (groupId: string) => void
     reconcileNodeGroup: (nodeId: string) => void
     updateNode: (
         nodeId: string,
@@ -918,6 +919,43 @@ export const useCanvasStore = create<CanvasState>()(
                             }
                             : node,
                     ),
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
+    deleteGroup: (groupId) =>
+        set((state) => {
+            const group = state.nodes.find(
+                (node) => node.id === groupId && node.type === 'group',
+            )
+            if (!group || group.type !== 'group') return state
+
+            const removedNodeIds = new Set([
+                groupId,
+                ...state.nodes
+                    .filter((node) => node.parentId === groupId)
+                    .map((node) => node.id),
+            ])
+
+            useChatStore
+                .getState()
+                .removeContexts([...removedNodeIds])
+
+            const remainingNodes = state.nodes.filter(
+                (node) => !removedNodeIds.has(node.id),
+            )
+            const remainingEdges = state.edges.filter(
+                (edge) =>
+                    !removedNodeIds.has(edge.source) &&
+                    !removedNodeIds.has(edge.target),
+            )
+
+            return {
+                nodes: clearOrphanedTimeRanges(remainingNodes, remainingEdges),
+                edges: remainingEdges,
                 past: addToHistory(state.past, createSnapshot(state)),
                 future: [],
                 canUndo: true,
