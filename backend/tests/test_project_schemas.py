@@ -146,6 +146,32 @@ def test_accepts_suggestion_decision_event() -> None:
     assert document.suggestion_events[0].edited is True
 
 
+def test_accepts_optional_chat_message_author() -> None:
+    document = ProjectDocument.model_validate(
+        {
+            "version": 4,
+            "nodes": [],
+            "edges": [],
+            "messages": [
+                {
+                    "id": "message-1",
+                    "role": "user",
+                    "content": "協作訊息",
+                    "contextNodeId": None,
+                    "createdAt": "2026-08-28T00:00:00.000Z",
+                    "authorId": "user-1",
+                    "authorEmail": "user@example.com",
+                    "authorName": "測試使用者",
+                }
+            ],
+        }
+    )
+
+    assert document.messages[0].author_id == "user-1"
+    assert document.messages[0].author_email == "user@example.com"
+    assert document.messages[0].author_name == "測試使用者"
+
+
 def test_accepts_video_node_before_source_is_configured() -> None:
     video_node = create_video_node()
     video_node["data"] = {**video_node["data"], "source": ""}

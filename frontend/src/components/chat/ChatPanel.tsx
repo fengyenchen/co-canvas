@@ -11,6 +11,7 @@ import { generateSuggestion } from '../../api/generateSuggestion'
 import { getHealth } from '../../api/health'
 import type { AiMode } from '../../api/health'
 import type { AiFallbackReason } from '../../types/ai'
+import type { ChatMessage } from '../../types/chat'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import { formatLatency } from '../../utils/formatLatency'
@@ -19,11 +20,36 @@ import { measureRequest } from '../../utils/measureRequest'
 import { MarkdownMessage } from './MarkdownMessage'
 import { SuggestionPreview } from './SuggestionPreview'
 
+type CurrentChatUser = {
+  id: string
+  email?: string | null
+  name?: string | null
+} | null
+
 type ChatPanelProps = {
   mobileHeightPercent: number
   isReadOnly?: boolean
   projectId?: string
   aiSettingsRevision?: number
+  currentUser?: CurrentChatUser
+}
+
+function getMessageAuthorLabel(
+  message: ChatMessage,
+  currentUser: CurrentChatUser,
+): string {
+  if (message.role === 'ai') return 'AI'
+
+  const isCurrentUser = message.authorId === currentUser?.id
+  const displayName = isCurrentUser
+    ? currentUser?.name ??
+      message.authorName ??
+      currentUser?.email ??
+      message.authorEmail ??
+      '協作者'
+    : message.authorName ?? message.authorEmail ?? '協作者'
+
+  return isCurrentUser ? `你 · ${displayName}` : displayName
 }
 
 function formatClipTime(timeMs: number): string {
@@ -49,6 +75,7 @@ export function ChatPanel({
   isReadOnly = false,
   projectId,
   aiSettingsRevision = 0,
+  currentUser = null,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('')
   const [aiMode, setAiMode] = useState<AiMode | 'offline'>('offline')
@@ -531,6 +558,9 @@ export function ChatPanel({
       role: 'user',
       content,
       contextNodeId: activeContextNodeId,
+      authorId: currentUser?.id,
+      authorEmail: currentUser?.email ?? undefined,
+      authorName: currentUser?.name ?? undefined,
     })
 
     setDraft('')
@@ -791,6 +821,14 @@ export function ChatPanel({
               }
             >
               <div className="max-w-[85%]">
+                <p
+                  className={`mb-1 truncate px-1 text-xs text-foreground/45 ${
+                    message.role === 'user' ? 'text-right' : 'text-left'
+                  }`}
+                  title={getMessageAuthorLabel(message, currentUser)}
+                >
+                  {getMessageAuthorLabel(message, currentUser)}
+                </p>
                 {!isReadOnly && editingMessageId === message.id ? (
                   <div className="rounded-xl border border-primary/30 bg-background p-2 shadow-sm">
                     <label

@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -5,6 +6,7 @@ from typing import Any
 import jwt
 import pytest
 from fastapi.testclient import TestClient
+from fastapi.security import HTTPAuthorizationCredentials
 
 import app.auth as auth_module
 from app.database import get_database_session
@@ -84,6 +86,33 @@ def test_token_without_subject_is_rejected(
         )
 
     assert_unauthorized(response, "登入憑證缺少使用者識別碼")
+
+
+def test_authenticated_user_includes_normalized_name_and_email(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        auth_module,
+        "decode_token",
+        lambda _token: {
+            "sub": "user-1",
+            "email": " USER@Example.COM ",
+            "name": " 測試使用者 ",
+        },
+    )
+
+    user = asyncio.run(
+        auth_module.get_current_user(
+            HTTPAuthorizationCredentials(
+                scheme="Bearer",
+                credentials="valid-token",
+            )
+        )
+    )
+
+    assert user.id == "user-1"
+    assert user.email == "user@example.com"
+    assert user.name == "測試使用者"
 
 
 def test_invalid_token_is_not_treated_as_anonymous_on_public_route(

@@ -128,6 +128,9 @@ class ProjectMessage(ApiModel):
     content: str = Field(max_length=4000)
     context_node_id: str | None = None
     created_at: str
+    author_id: str | None = Field(default=None, max_length=255)
+    author_email: str | None = Field(default=None, max_length=320)
+    author_name: str | None = Field(default=None, max_length=120)
     can_generate_nodes: bool | None = None
     latency_ms: float | None = Field(default=None, ge=0)
     is_error: bool | None = None

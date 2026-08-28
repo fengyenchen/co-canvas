@@ -4,6 +4,7 @@ import ResearchGuideContent from './guide/ResearchGuideContent.mdx'
 
 const sections = [
   ['research-export', '匯出方式'],
+  ['research-participants', '參與者與多人協作'],
   ['csv-fields', 'CSV 欄位字典'],
   ['analysis-workflow', '研究處理流程'],
   ['derived-metrics', '常用衍生指標'],

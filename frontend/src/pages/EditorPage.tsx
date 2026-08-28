@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import {
   Link,
@@ -40,8 +40,10 @@ import {
   type CloudProjectRecovery,
 } from '../utils/cloudProjectRecovery'
 import { createProjectDocument } from '../utils/projectFile'
+import { mergeProjectDocuments } from '../utils/mergeProjectDocuments'
 import type {
   Project,
+  ProjectDocument,
   ProjectRole,
   ProjectVersion,
 } from '../types/project'
@@ -51,16 +53,12 @@ const MAX_CHAT_HEIGHT_PERCENT = 75
 const DEFAULT_CHAT_HEIGHT_PERCENT = 55
 
 type ProjectLoadState = 'loading' | 'ready' | 'error'
-type ProjectSaveState = 'idle' | 'saving' | 'saved' | 'error'
+type ProjectSaveState = 'idle' | 'merging' | 'saving' | 'saved' | 'error'
 
 const SAVE_DELAY_MS = 800
+const LIVE_SYNC_INTERVAL_MS = 2_000
 const AUTOMATIC_VERSION_INTERVAL_MS = 10 * 60 * 1000
-const CONFLICT_COPY_SUFFIX = '（衝突副本）'
 const PROJECT_COPY_SUFFIX = '（副本）'
-
-function getConflictCopyName(name: string): string {
-  return `${name.slice(0, 120 - CONFLICT_COPY_SUFFIX.length)}${CONFLICT_COPY_SUFFIX}`
-}
 
 function getProjectCopyName(name: string): string {
   return `${name.slice(0, 120 - PROJECT_COPY_SUFFIX.length)}${PROJECT_COPY_SUFFIX}`
@@ -96,7 +94,11 @@ export function EditorPage() {
   const layoutRef = useRef<HTMLDivElement>(null)
   const resizingPointerIdRef = useRef<number | null>(null)
   const savedDocumentSignatureRef = useRef('')
+  const savedProjectDocumentRef = useRef<ProjectDocument | null>(null)
   const savedProjectUpdatedAtRef = useRef<string | null>(null)
+  const currentProjectDocumentRef = useRef<ProjectDocument | null>(null)
+  const cloudRequestInProgressRef = useRef(false)
+  const saveRetryTimeoutRef = useRef<number | null>(null)
   const versionActionInProgressRef = useRef(false)
   const automaticVersionInProgressRef = useRef(false)
   const currentDocumentSignatureRef = useRef('')
@@ -106,19 +108,20 @@ export function EditorPage() {
   const [projectLoadError, setProjectLoadError] = useState('')
   const [projectSaveState, setProjectSaveState] =
     useState<ProjectSaveState>('idle')
+  const [saveRetryRevision, setSaveRetryRevision] = useState(0)
   const [projectSaveRequiresLogin, setProjectSaveRequiresLogin] =
     useState(false)
   const [projectAccessRole, setProjectAccessRole] =
     useState<ProjectRole>('owner')
   const [loadedProject, setLoadedProject] = useState<Project | null>(null)
   const [recoveryUserId, setRecoveryUserId] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<{
+    id: string
+    email?: string | null
+    name?: string | null
+  } | null>(null)
   const [pendingRecovery, setPendingRecovery] =
     useState<CloudProjectRecovery | null>(null)
-  const [hasSaveConflict, setHasSaveConflict] = useState(false)
-  const [conflictAction, setConflictAction] = useState<
-    'idle' | 'reloading' | 'copying'
-  >('idle')
-  const [conflictActionError, setConflictActionError] = useState('')
   const [projectAction, setProjectAction] = useState<
     'idle' | 'duplicating' | 'deleting'
   >('idle')
@@ -198,7 +201,14 @@ export function EditorPage() {
 
   useEffect(() => {
     currentDocumentSignatureRef.current = projectDocumentSignature
-  }, [projectDocumentSignature])
+    currentProjectDocumentRef.current = projectDocument
+  }, [projectDocument, projectDocumentSignature])
+
+  useEffect(() => () => {
+    if (saveRetryTimeoutRef.current !== null) {
+      window.clearTimeout(saveRetryTimeoutRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     let isCancelled = false
@@ -211,16 +221,19 @@ export function EditorPage() {
       setProjectAccessRole('owner')
       setLoadedProject(null)
       setRecoveryUserId(null)
+      setCurrentUser(null)
       setPendingRecovery(null)
-      setHasSaveConflict(false)
-      setConflictAction('idle')
-      setConflictActionError('')
       setActiveSettingsDialog(null)
       setIsVersionsDialogOpen(false)
       versionActionInProgressRef.current = false
       automaticVersionInProgressRef.current = false
       lastAutomaticVersionSignatureRef.current = ''
       savedProjectUpdatedAtRef.current = null
+      savedProjectDocumentRef.current = null
+      if (saveRetryTimeoutRef.current !== null) {
+        window.clearTimeout(saveRetryTimeoutRef.current)
+        saveRetryTimeoutRef.current = null
+      }
 
       if (!projectId) {
         setProjectLoadState('error')
@@ -261,6 +274,13 @@ export function EditorPage() {
           const { authClient } = await import('../lib/auth')
           const { data: sessionData } = await authClient.getSession()
           currentRecoveryUserId = sessionData?.user.id ?? 'anonymous'
+          if (sessionData?.user.id) {
+            setCurrentUser({
+              id: sessionData.user.id,
+              email: sessionData.user.email,
+              name: sessionData.user.name,
+            })
+          }
         } catch {
           // Skip recovery if the account scope cannot be verified safely.
         }
@@ -281,6 +301,7 @@ export function EditorPage() {
         setProjectAccessRole(project.accessRole)
         setLoadedProject(project)
         savedProjectUpdatedAtRef.current = project.updatedAt
+        savedProjectDocumentRef.current = project.document
         setRecoveryUserId(currentRecoveryUserId)
         savedDocumentSignatureRef.current = JSON.stringify(
           project.document,
@@ -373,6 +394,116 @@ export function EditorPage() {
     return () => window.clearInterval(intervalId)
   }, [projectAccessRole, projectId, projectLoadState])
 
+  const applyRemoteProject = useCallback((
+    project: Project,
+    mergeCurrentChanges: boolean,
+  ) => {
+    const baseDocument = savedProjectDocumentRef.current ?? project.document
+    const localDocument = currentProjectDocumentRef.current ?? project.document
+    const nextDocument = mergeCurrentChanges
+      ? mergeProjectDocuments(baseDocument, localDocument, project.document)
+      : project.document
+    const remoteSignature = JSON.stringify(project.document)
+    const nextSignature = JSON.stringify(nextDocument)
+
+    savedProjectDocumentRef.current = project.document
+    savedProjectUpdatedAtRef.current = project.updatedAt
+    savedDocumentSignatureRef.current = remoteSignature
+    setLoadedProject(project)
+    setProjectAccessRole(project.accessRole)
+    const selectedNodeIds = new Set(
+      useCanvasStore
+        .getState()
+        .nodes.filter((node) => node.selected)
+        .map((node) => node.id),
+    )
+    replaceProject(
+      nextDocument.nodes.map((node) => ({
+        ...node,
+        selected: selectedNodeIds.has(node.id),
+      })),
+      nextDocument.edges,
+    )
+    replaceProjectMessages(
+      nextDocument.messages,
+      nextDocument.suggestionEvents,
+      true,
+    )
+
+    if (nextSignature === remoteSignature) {
+      if (recoveryUserId && projectId) {
+        clearCloudProjectRecovery(projectId, recoveryUserId)
+      }
+      setProjectSaveState('saved')
+      return
+    }
+
+    if (recoveryUserId && projectId) {
+      saveCloudProjectRecovery(projectId, recoveryUserId, nextDocument)
+    }
+    setProjectSaveState('merging')
+  }, [
+    projectId,
+    recoveryUserId,
+    replaceProject,
+    replaceProjectMessages,
+  ])
+
+  useEffect(() => {
+    if (
+      projectLoadState !== 'ready' ||
+      !projectId ||
+      projectId === LOCAL_PROJECT_ID
+    ) {
+      return
+    }
+
+    let isCancelled = false
+
+    const syncLatestProject = async () => {
+      if (
+        document.visibilityState === 'hidden' ||
+        cloudRequestInProgressRef.current ||
+        versionActionInProgressRef.current
+      ) {
+        return
+      }
+
+      cloudRequestInProgressRef.current = true
+      try {
+        const remoteProject = await getProject(projectId)
+        if (
+          isCancelled ||
+          remoteProject.updatedAt === savedProjectUpdatedAtRef.current
+        ) {
+          return
+        }
+
+        const hasLocalChanges =
+          currentDocumentSignatureRef.current !==
+          savedDocumentSignatureRef.current
+        applyRemoteProject(remoteProject, hasLocalChanges)
+      } catch {
+        // A temporary polling failure is retried on the next interval.
+      } finally {
+        cloudRequestInProgressRef.current = false
+      }
+    }
+
+    const intervalId = window.setInterval(
+      () => void syncLatestProject(),
+      LIVE_SYNC_INTERVAL_MS,
+    )
+    const handleFocus = () => void syncLatestProject()
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      isCancelled = true
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [applyRemoteProject, projectId, projectLoadState])
+
   useEffect(() => {
     if (
       projectLoadState !== 'ready' ||
@@ -380,7 +511,6 @@ export function EditorPage() {
       !projectId ||
       projectId === LOCAL_PROJECT_ID ||
       !recoveryUserId ||
-      hasSaveConflict ||
       projectDocumentSignature === savedDocumentSignatureRef.current
     ) {
       return
@@ -394,36 +524,87 @@ export function EditorPage() {
         return
       }
 
+      // The polling loop may have merged a collaborator's changes while this
+      // debounce timer was waiting. Always save the latest merged document,
+      // rather than the document captured when the timer was scheduled.
+      const documentToSave =
+        currentProjectDocumentRef.current ?? projectDocument
+      const documentSignatureToSave = JSON.stringify(documentToSave)
+
       setProjectSaveState('saving')
       setProjectSaveRequiresLogin(false)
+      cloudRequestInProgressRef.current = true
 
       try {
         const updatedProject = await updateProject(projectId, {
-          document: projectDocument,
+          document: documentToSave,
           expectedUpdatedAt: savedProjectUpdatedAtRef.current ?? undefined,
         })
 
         savedProjectUpdatedAtRef.current = updatedProject.updatedAt
+        savedProjectDocumentRef.current = updatedProject.document
 
         if (isCancelled) {
           return
         }
 
         setLoadedProject(updatedProject)
-        savedDocumentSignatureRef.current = projectDocumentSignature
+        savedDocumentSignatureRef.current = JSON.stringify(
+          updatedProject.document,
+        )
+        if (savedDocumentSignatureRef.current !== documentSignatureToSave) {
+          const selectedNodeIds = new Set(
+            useCanvasStore
+              .getState()
+              .nodes.filter((node) => node.selected)
+              .map((node) => node.id),
+          )
+          replaceProject(
+            updatedProject.document.nodes.map((node) => ({
+              ...node,
+              selected: selectedNodeIds.has(node.id),
+            })),
+            updatedProject.document.edges,
+          )
+          replaceProjectMessages(
+            updatedProject.document.messages,
+            updatedProject.document.suggestionEvents,
+            true,
+          )
+        }
         clearCloudProjectRecovery(projectId, recoveryUserId)
+        if (saveRetryTimeoutRef.current !== null) {
+          window.clearTimeout(saveRetryTimeoutRef.current)
+          saveRetryTimeoutRef.current = null
+        }
         setProjectSaveState('saved')
       } catch (error) {
         if (!isCancelled) {
           if (error instanceof ApiRequestError && error.status === 409) {
-            setHasSaveConflict(true)
-            setConflictActionError('')
+            try {
+              const remoteProject = await getProject(projectId)
+              applyRemoteProject(remoteProject, true)
+              return
+            } catch {
+              // Keep the local recovery copy and let polling retry the merge.
+            }
           }
           setProjectSaveState('error')
           setProjectSaveRequiresLogin(
             error instanceof ApiRequestError && error.status === 401,
           )
+          if (
+            !(error instanceof ApiRequestError && error.status === 401) &&
+            saveRetryTimeoutRef.current === null
+          ) {
+            saveRetryTimeoutRef.current = window.setTimeout(() => {
+              saveRetryTimeoutRef.current = null
+              setSaveRetryRevision((revision) => revision + 1)
+            }, LIVE_SYNC_INTERVAL_MS)
+          }
         }
+      } finally {
+        cloudRequestInProgressRef.current = false
       }
     }, SAVE_DELAY_MS)
 
@@ -438,65 +619,11 @@ export function EditorPage() {
     projectAccessRole,
     projectLoadState,
     recoveryUserId,
-    hasSaveConflict,
+    saveRetryRevision,
+    applyRemoteProject,
+    replaceProject,
+    replaceProjectMessages,
   ])
-
-  async function reloadCloudProjectAfterConflict() {
-    if (!projectId || projectId === LOCAL_PROJECT_ID || conflictAction !== 'idle') {
-      return
-    }
-
-    setConflictAction('reloading')
-    setConflictActionError('')
-
-    try {
-      const project = await getProject(projectId)
-      replaceProject(project.document.nodes, project.document.edges)
-      replaceProjectMessages(
-        project.document.messages,
-        project.document.suggestionEvents,
-      )
-      savedDocumentSignatureRef.current = JSON.stringify(project.document)
-      savedProjectUpdatedAtRef.current = project.updatedAt
-      setLoadedProject(project)
-      setProjectAccessRole(project.accessRole)
-      if (recoveryUserId) {
-        clearCloudProjectRecovery(projectId, recoveryUserId)
-      }
-      setPendingRecovery(null)
-      setHasSaveConflict(false)
-      setProjectSaveState('saved')
-    } catch (error) {
-      setConflictActionError(getProjectLoadErrorMessage(error))
-    } finally {
-      setConflictAction('idle')
-    }
-  }
-
-  async function keepConflictAsCopy() {
-    if (!projectId || conflictAction !== 'idle') {
-      return
-    }
-
-    setConflictAction('copying')
-    setConflictActionError('')
-
-    try {
-      const copy = await createProject({
-        name: getConflictCopyName(loadedProject?.name ?? '未命名專案'),
-        document: projectDocument,
-      })
-      if (recoveryUserId) {
-        clearCloudProjectRecovery(projectId, recoveryUserId)
-      }
-      setHasSaveConflict(false)
-      void navigate(`/projects/${copy.id}`, { replace: true })
-    } catch (error) {
-      setConflictActionError(getProjectLoadErrorMessage(error))
-    } finally {
-      setConflictAction('idle')
-    }
-  }
 
   async function duplicateCurrentProject() {
     if (
@@ -540,7 +667,10 @@ export function EditorPage() {
         expectedUpdatedAt: savedProjectUpdatedAtRef.current ?? undefined,
       })
       savedProjectUpdatedAtRef.current = updatedProject.updatedAt
-      savedDocumentSignatureRef.current = projectDocumentSignature
+      savedProjectDocumentRef.current = updatedProject.document
+      savedDocumentSignatureRef.current = JSON.stringify(
+        updatedProject.document,
+      )
       setLoadedProject(updatedProject)
       setProjectSaveState('saved')
 
@@ -600,13 +730,13 @@ export function EditorPage() {
       setLoadedProject(restoredProject)
       setProjectAccessRole(restoredProject.accessRole)
       savedProjectUpdatedAtRef.current = restoredProject.updatedAt
+      savedProjectDocumentRef.current = restoredProject.document
       savedDocumentSignatureRef.current = JSON.stringify(
         restoredProject.document,
       )
       lastAutomaticVersionSignatureRef.current =
         savedDocumentSignatureRef.current
       setPendingRecovery(null)
-      setHasSaveConflict(false)
       setProjectSaveState('saved')
 
       if (recoveryUserId) {
@@ -745,6 +875,7 @@ export function EditorPage() {
         isReadOnly={projectAccessRole === 'viewer'}
         projectId={projectId}
         aiSettingsRevision={aiSettingsRevision}
+        currentUser={currentUser}
       />
 
       {activeContextNodeId && (
@@ -870,59 +1001,6 @@ export function EditorPage() {
         />
       )}
 
-      {hasSaveConflict && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-[1px]">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="save-conflict-title"
-            aria-describedby="save-conflict-description"
-            className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-xl"
-          >
-            <h2
-              id="save-conflict-title"
-              className="text-xl font-semibold text-foreground"
-            >
-              偵測到編輯衝突
-            </h2>
-            <p
-              id="save-conflict-description"
-              className="mt-2 leading-7 text-muted-foreground"
-            >
-              此專案已在其他分頁或裝置更新，因此目前內容沒有覆蓋雲端版本。你可以重新載入最新版本，或將目前內容另存為私人副本。
-            </p>
-            {conflictActionError && (
-              <p role="alert" className="mt-3 text-sm text-red-600">
-                {conflictActionError}
-              </p>
-            )}
-            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => void reloadCloudProjectAfterConflict()}
-                disabled={conflictAction !== 'idle'}
-                className="min-h-11 cursor-pointer rounded-xl border border-border px-4 text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {conflictAction === 'reloading'
-                  ? '重新載入中…'
-                  : '重新載入雲端版本'}
-              </button>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => void keepConflictAsCopy()}
-                disabled={conflictAction !== 'idle'}
-                className="min-h-11 cursor-pointer rounded-xl bg-primary px-4 font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {conflictAction === 'copying'
-                  ? '建立副本中…'
-                  : '保留目前內容為副本'}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-
       {pendingRecovery && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-[1px]">
           <section
@@ -994,13 +1072,12 @@ export function EditorPage() {
           }`}
         >
           {projectSaveState === 'saving' && '儲存中…'}
-          {projectSaveState === 'saved' && '已儲存'}
+          {projectSaveState === 'merging' && '正在合併協作者更新…'}
+          {projectSaveState === 'saved' && '已同步'}
           {projectSaveState === 'error' &&
             (projectSaveRequiresLogin
               ? '登入已過期，尚未儲存'
-              : hasSaveConflict
-                ? '偵測到編輯衝突'
-                : '儲存失敗')}
+              : '同步暫時失敗，將自動重試')}
           {projectSaveRequiresLogin && (
             <Link
               to={`/auth/sign-in?returnTo=${encodeURIComponent(

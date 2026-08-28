@@ -162,6 +162,9 @@ const chatMessageSchema = z.object({
     .optional()
     .transform((value) => value ?? null),
   createdAt: z.string(),
+  authorId: optionalStringSchema,
+  authorEmail: optionalStringSchema,
+  authorName: optionalStringSchema,
   canGenerateNodes: optionalBooleanSchema,
   latencyMs: optionalNonnegativeNumberSchema,
   isError: optionalBooleanSchema,

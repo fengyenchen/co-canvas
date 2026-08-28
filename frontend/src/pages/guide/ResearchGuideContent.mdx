@@ -19,7 +19,22 @@
 
 本機畫布、編輯者與檢視者不能匯出研究資料。若專案尚未產生任何接受、取消或重新生成事件，CSV 只有欄位標題。
 
-<SectionTitle id="csv-fields">02 · CSV 欄位字典</SectionTitle>
+一般聊天訊息、手動新增或編輯節點、拖曳、群組與影片播放不會形成研究事件。只有使用者對 AI 建議預覽執行「接受」、「取消」或「重新生成」時才會新增一列。
+
+<SectionTitle id="research-participants">02 · 參與者辨識與多人協作</SectionTitle>
+
+`actorId` 由後端在接收研究事件時，依當下登入憑證寫入，不依賴瀏覽器、localStorage、裝置名稱或前端送出的作者欄位。因此：
+
+- 同一帳號即使使用不同瀏覽器或裝置，仍計為同一位參與者。
+- 不同登入帳號會得到不同 `actorId`，在分析工具中計為不同參與者。
+- 同一位真人若使用兩個帳號，系統仍會視為兩位；研究者需用外部對照表自行合併。
+- 兩位真人共用同一帳號時，系統只能視為一位，因此正式研究應為每位參與者準備獨立帳號。
+
+雲端畫布與對話使用約 2 秒同步及三方合併；研究事件則透過獨立端點追加寫入，並以 `clientEventId` 去重，不會因畫布合併而互相覆蓋。只有後端成功接收的事件會出現在匯出 CSV；網路中斷期間前端會保留尚待同步的事件，恢復連線後再傳送。
+
+對話介面中的姓名／Email 與研究 CSV 是兩套不同資料。姓名只用於讓協作者辨識訊息發送者，研究 CSV 不匯出姓名、Email 或完整聊天內容。較舊資料若沒有有效 `actorId`，分析工具會將該列列為無效資料，不應把空白值當成一位參與者。
+
+<SectionTitle id="csv-fields">03 · CSV 欄位字典</SectionTitle>
 
 | 欄位 | 意義 | 常見用途 |
 | --- | --- | --- |
@@ -35,7 +50,7 @@
 | `occurredAt` | 使用者裝置記錄的事件時間 | 事件順序與任務歷程 |
 | `recordedAt` | 後端寫入資料庫的時間 | 檢查同步延遲與資料完整性 |
 
-<SectionTitle id="analysis-workflow">03 · 建議的研究處理流程</SectionTitle>
+<SectionTitle id="analysis-workflow">04 · 建議的研究處理流程</SectionTitle>
 
 1. **定義分析單位。** 決定以事件、參與者、任務或專案為單位。若一位參與者做多個任務，另外保存 participantId、taskId 與專案 ID 的對照表。
 2. **保留原始檔。** 下載後先複製一份唯讀 CSV，不直接覆寫原始檔。記錄匯出日期、專案版本與實驗條件。
@@ -47,7 +62,9 @@
 
 ### 使用內建分析工具
 
-在「研究資料分析工具」中可為每個 CSV 指定實驗條件與任務名稱，並下載包含多個檔案的完整 ZIP 報表。工具會直接輸出全部描述統計，並將資料彙整到「參與者 × 條件」層級，同時計算組間與組內假設下適用的 Fisher 精確檢定、卡方檢定、Mann–Whitney U、Kruskal–Wallis、Wilcoxon signed-rank 或 Friedman 檢定，附上效果量與接受率的 Wilson 95% 信賴區間。研究者應依實際研究設計選用對應結果。
+在「研究資料分析工具」中匯入一個或多個 CSV 後，系統會立即產生全部描述統計。每個檔案的實驗條件會先以檔名自動填入，任務名稱可留空；只有需要比較自訂條件或任務時才必須修改，不需要先選擇研究設計、指標或統計方法。
+
+工具會將資料彙整到「參與者 × 條件」層級，並同時輸出組間與組內假設下可計算的 Fisher 精確檢定、卡方檢定、Mann–Whitney U、Kruskal–Wallis、Wilcoxon signed-rank 或 Friedman 檢定，以及效果量與接受率的 Wilson 95% 信賴區間。這不表示所有結果都適用；研究者仍須依實際招募與條件分派方式採用對應分析。
 
 「下載完整分析包」包含：
 
@@ -58,7 +75,7 @@
 
 預設會將 `actorId` 穩定轉為 `P001` 等代碼，但 eventId、clientEventId 與 contextNodeId 仍應在公開前再次審查。內建 p 值適合探索與初步檢查；論文或正式報告應以 R、Python 或其他專業統計軟體複核假設、樣本完整性與多重比較校正。
 
-<SectionTitle id="derived-metrics">04 · 常用衍生指標</SectionTitle>
+<SectionTitle id="derived-metrics">05 · 常用衍生指標</SectionTitle>
 
 | 指標 | 計算方式 | 解讀注意事項 |
 | --- | --- | --- |
@@ -70,7 +87,7 @@
 | 建議規模 | nodeCount 的平均或中位數 | 可作為模型輸出複雜度控制變項 |
 | 同步延遲 | recordedAt − occurredAt | 主要用於資料品質，不是使用者決策時間 |
 
-<SectionTitle id="analysis-tools">05 · Python、Excel 與 Google Sheets</SectionTitle>
+<SectionTitle id="analysis-tools">06 · Python、Excel 與 Google Sheets</SectionTitle>
 
 ### Python／pandas 範例
 
@@ -102,7 +119,7 @@ print(summary)
 4. 將 accepted 次數除以該參與者全部 action 次數得到接受率。
 5. decisionTimeSec 建議使用 MEDIAN，不要只報告容易受極端值影響的平均數。
 
-<SectionTitle id="research-limits">06 · 資料限制與研究倫理</SectionTitle>
+<SectionTitle id="research-limits">07 · 資料限制與研究倫理</SectionTitle>
 
 研究事件 CSV 不包含完整聊天文字、節點標題或內容、影片內容、游標軌跡、任務完成時間、答案品質、正確率、主觀量表或訪談內容。因此它能描述「使用者如何處理 AI 建議」，不能單獨證明系統提升了表現，也不能從較長決策時間直接推論認知負荷較高。
 

@@ -37,7 +37,7 @@ test('登入後可瀏覽首頁、以新分頁開啟手冊並從專案列表返�
   ).toHaveAttribute('href', '/research/analyze')
   await guidePage.getByRole('link', { name: 'CSV 欄位字典', exact: true }).click()
   const researchHeading = guidePage.getByRole('heading', {
-    name: '02 · CSV 欄位字典',
+    name: '03 · CSV 欄位字典',
   })
   await expect(researchHeading).toBeInViewport()
   const headingBox = await researchHeading.boundingBox()

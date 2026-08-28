@@ -50,6 +50,7 @@ type ChatState = {
   replaceProjectMessages: (
     messages: ChatMessage[],
     suggestionEvents?: SuggestionDecisionEvent[],
+    preserveTransientState?: boolean,
   ) => void
 }
 
@@ -192,14 +193,24 @@ export const useChatStore = create<ChatState>()(
         }
       }),
 
-    replaceProjectMessages: (messages, suggestionEvents = []) =>
-      set({
+    replaceProjectMessages: (
+      messages,
+      suggestionEvents = [],
+      preserveTransientState = false,
+    ) =>
+      set((state) => ({
         messages,
         suggestionEvents,
-        activeContextNodeId: null,
-        generationMode: null,
-        pendingSuggestion: null,
-      }),
+        activeContextNodeId: preserveTransientState
+          ? state.activeContextNodeId
+          : null,
+        generationMode: preserveTransientState
+          ? state.generationMode
+          : null,
+        pendingSuggestion: preserveTransientState
+          ? state.pendingSuggestion
+          : null,
+      })),
   }), {
     name: 'co-canvas-chat',
     version: 1,

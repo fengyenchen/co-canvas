@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test'
 import {
-  COPY_PROJECT_ID,
   PROJECT_ID,
   VERSION_ID,
   createProject,
@@ -85,7 +84,7 @@ test('檢視者可查看版本內容但不能建立或恢復版本', async ({ pa
   await expect(page.getByRole('complementary').locator('dd').first()).toHaveText('1')
 })
 
-test('雲端更新衝突時可重新載入且不覆蓋伺服器內容', async ({ page }) => {
+test('同時編輯時自動合併本機與雲端的不同欄位', async ({ page }) => {
   const state = await installE2eMocks(page, {
     projects: [projectWithNode()],
     updateConflictCount: 1,
@@ -94,18 +93,27 @@ test('雲端更新衝突時可重新載入且不覆蓋伺服器內容', async ({
 
   await page.locator('.react-flow__node').filter({ hasText: '雲端原始標題' }).click()
   await page.getByLabel('標題').fill('本機衝突標題')
+  const remoteNode = state.projects[0].document.nodes[0]
+  remoteNode.data = {
+    ...(remoteNode.data as Record<string, unknown>),
+    content: '另一位協作者更新的內容',
+  }
+  state.projects[0].updatedAt = '2026-01-01T00:00:10.000Z'
 
   const conflictDialog = page.getByRole('dialog', { name: '偵測到編輯衝突' })
-  await expect(conflictDialog).toBeVisible()
-  await conflictDialog.getByRole('button', { name: '重新載入雲端版本' }).click()
-
   await expect(conflictDialog).toHaveCount(0)
-  await expect(page.getByText('雲端原始標題', { exact: true })).toBeVisible()
-  await expect(page.getByText('本機衝突標題', { exact: true })).toHaveCount(0)
-  expect(state.projectUpdates).toHaveLength(0)
+  await expect.poll(() => state.projectUpdates.length).toBeGreaterThan(0)
+  expect(state.projects[0].document.nodes[0]).toMatchObject({
+    data: {
+      title: '本機衝突標題',
+      content: '另一位協作者更新的內容',
+    },
+  })
+  await expect(page.getByLabel('標題')).toHaveValue('本機衝突標題')
+  await expect(page.getByLabel('內容')).toHaveValue('另一位協作者更新的內容')
 })
 
-test('雲端更新衝突時可將本機內容保留為私人副本', async ({ page }) => {
+test('同欄位競爭時保留目前輸入並自動重試', async ({ page }) => {
   const state = await installE2eMocks(page, {
     projects: [projectWithNode()],
     updateConflictCount: 1,
@@ -115,15 +123,34 @@ test('雲端更新衝突時可將本機內容保留為私人副本', async ({ pa
   await page.locator('.react-flow__node').filter({ hasText: '雲端原始標題' }).click()
   await page.getByLabel('標題').fill('需要保留的本機內容')
   const conflictDialog = page.getByRole('dialog', { name: '偵測到編輯衝突' })
-  await expect(conflictDialog).toBeVisible()
-  await conflictDialog.getByRole('button', { name: '保留目前內容為副本' }).click()
+  await expect(conflictDialog).toHaveCount(0)
+  await expect.poll(() => state.projectUpdates.length).toBeGreaterThan(0)
+  await expect(page).toHaveURL(new RegExp(`/projects/${PROJECT_ID}$`))
+  expect(state.projects[0].document.nodes[0]).toMatchObject({
+    data: { title: '需要保留的本機內容' },
+  })
+})
 
-  await expect(page).toHaveURL(new RegExp(`/projects/${COPY_PROJECT_ID}$`))
-  expect(state.projects).toContainEqual(
-    expect.objectContaining({
-      id: COPY_PROJECT_ID,
-      name: 'E2E 專案（衝突副本）',
-      visibility: 'private',
-    }),
-  )
+test('無本機修改時會即時套用另一位協作者的更新', async ({ page }) => {
+  const state = await installE2eMocks(page, {
+    projects: [projectWithNode()],
+  })
+  await page.goto(`/projects/${PROJECT_ID}`)
+  await expect(page.getByText('雲端原始標題', { exact: true })).toBeVisible()
+
+  state.projects[0].document.nodes.push({
+    id: 'remote-node',
+    type: 'concept',
+    position: { x: 240, y: 0 },
+    data: {
+      title: '協作者新增節點',
+      content: '即時同步內容',
+      origin: 'user',
+    },
+  })
+  state.projects[0].updatedAt = '2026-01-01T00:00:20.000Z'
+
+  await expect(
+    page.getByText('協作者新增節點', { exact: true }),
+  ).toBeVisible({ timeout: 5_000 })
 })

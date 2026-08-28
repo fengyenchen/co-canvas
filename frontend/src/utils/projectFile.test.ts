@@ -67,6 +67,9 @@ const messages: ChatMessage[] = [
     content: '如何規劃？',
     contextNodeId: 'node-1',
     createdAt: '2026-08-14T00:00:00.000Z',
+    authorId: 'user-1',
+    authorEmail: 'user@example.com',
+    authorName: '測試使用者',
   },
   {
     id: 'orphan-message',
@@ -176,6 +179,11 @@ describe('projectFile', () => {
 
     expect(project.version).toBe(4)
     expect(project.messages.map((message) => message.id)).toEqual(['message-1'])
+    expect(project.messages[0]).toMatchObject({
+      authorId: 'user-1',
+      authorEmail: 'user@example.com',
+      authorName: '測試使用者',
+    })
   })
 
   it('保留 AI 建議決策紀錄與已刪除節點的歷史參照', () => {

@@ -14,6 +14,7 @@ from app.settings import get_settings
 class AuthenticatedUser(BaseModel):
     id: str
     email: str | None = None
+    name: str | None = None
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -74,6 +75,10 @@ async def get_current_user(
 
     user_id = payload.get("sub")
     email = payload.get("email")
+    user_metadata = payload.get("user_metadata")
+    name = payload.get("name") or payload.get("display_name")
+    if not isinstance(name, str) and isinstance(user_metadata, dict):
+        name = user_metadata.get("name") or user_metadata.get("display_name")
 
     if not isinstance(user_id, str) or not user_id:
         raise HTTPException(
@@ -88,7 +93,17 @@ async def get_current_user(
         else None
     )
 
-    return AuthenticatedUser(id=user_id, email=normalized_email)
+    normalized_name = (
+        name.strip()
+        if isinstance(name, str) and name.strip()
+        else None
+    )
+
+    return AuthenticatedUser(
+        id=user_id,
+        email=normalized_email,
+        name=normalized_name,
+    )
 
 
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]

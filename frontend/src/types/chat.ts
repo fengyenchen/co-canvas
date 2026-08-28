@@ -6,6 +6,9 @@ export type ChatMessage = {
   content: string
   contextNodeId: string | null
   createdAt: string
+  authorId?: string
+  authorEmail?: string
+  authorName?: string
   canGenerateNodes?: boolean
   latencyMs?: number
   isError?: boolean
@@ -18,6 +21,9 @@ export type NewChatMessage = Pick<
   | 'role'
   | 'content'
   | 'contextNodeId'
+  | 'authorId'
+  | 'authorEmail'
+  | 'authorName'
   | 'canGenerateNodes'
   | 'latencyMs'
   | 'isError'

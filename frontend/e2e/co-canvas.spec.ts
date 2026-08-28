@@ -134,6 +134,8 @@ test('影片片段會隨對話送往分析 API', async ({ page }) => {
   await page.getByPlaceholder(/想問什麼/).fill('整理這段影片的重點')
   await page.getByRole('button', { name: '送出' }).click()
 
+  await expect(page.getByText('你 · E2E 使用者')).toBeVisible()
+  await expect(page.getByText('AI', { exact: true })).toBeVisible()
   await expect(page.getByText('影片分析完成')).toBeVisible()
   await expect.poll(() => state.lastChatRequest).not.toBeNull()
   expect(state.lastChatRequest).toMatchObject({

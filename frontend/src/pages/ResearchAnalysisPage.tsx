@@ -252,7 +252,7 @@ export function ResearchAnalysisPage() {
 
         <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-start">
           <div className="space-y-6 lg:sticky lg:top-24">
-            <SectionCard title="1 · 匯入研究資料" description="可同時選擇多個由 Co-Canvas 匯出的 CSV。檔名會保留在清理後的資料中。">
+            <SectionCard title="1 · 匯入研究資料" description="可同時選擇多個由 Co-Canvas 匯出的 CSV。匯入後會直接產生全部結果，不需先選擇研究設計或指標。">
               <input ref={inputRef} type="file" accept=".csv,text/csv" multiple onChange={handleInput} className="sr-only" />
               <div
                 onDragEnter={() => setIsDragging(true)}
@@ -293,10 +293,10 @@ export function ResearchAnalysisPage() {
                         </button>
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <label className="text-xs text-foreground/55">實驗條件
+                        <label className="text-xs text-foreground/55">實驗條件（選填，預設使用檔名）
                           <input value={fileMetadata[item.fileName]?.condition ?? ''} onChange={(event) => setFileMetadata((current) => ({ ...current, [item.fileName]: { ...(current[item.fileName] ?? { task: '' }), condition: event.target.value } }))} placeholder="例如：Co-Canvas" className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
                         </label>
-                        <label className="text-xs text-foreground/55">任務名稱
+                        <label className="text-xs text-foreground/55">任務名稱（選填）
                           <input value={fileMetadata[item.fileName]?.task ?? ''} onChange={(event) => setFileMetadata((current) => ({ ...current, [item.fileName]: { ...(current[item.fileName] ?? { condition: '' }), task: event.target.value } }))} placeholder="例如：影片摘要" className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
                         </label>
                       </div>
@@ -322,7 +322,7 @@ export function ResearchAnalysisPage() {
               <div className="rounded-2xl border border-dashed border-border bg-background px-6 py-16 text-center">
                 <BarChart3 aria-hidden="true" className="mx-auto size-8 text-foreground/30" />
                 <h2 className="mt-4 text-lg font-semibold">匯入 CSV 後顯示分析結果</h2>
-                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-foreground/50">系統會先驗證欄位與資料型別，再依左側設定清理資料並計算所選指標。</p>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-foreground/50">系統會先驗證欄位與資料型別，再依左側設定清理資料並計算全部指標。</p>
               </div>
             ) : (
               <>
@@ -330,7 +330,7 @@ export function ResearchAnalysisPage() {
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <MetricCard label="匯入原始列數" value={formatNumber(totalRows, 0)} />
                     <MetricCard label="進入分析事件" value={formatNumber(summary.total, 0)} />
-                    <MetricCard label="參與者" value={formatNumber(summary.actorCount, 0)} detail="依 actorId 計算" />
+                    <MetricCard label="參與者" value={formatNumber(summary.actorCount, 0)} detail="依唯一 actorId 計算；同一帳號跨瀏覽器仍為一人" />
                     <MetricCard label="無效資料列" value={formatNumber(invalidRows, 0)} />
                     <MetricCard label="重複資料列" value={formatNumber(preparation.duplicateRows, 0)} />
                     <MetricCard label="排除事件" value={formatNumber(preparation.excludedMockRows + preparation.excludedOutlierRows, 0)} detail={`Mock ${preparation.excludedMockRows} 筆；離群值 ${preparation.excludedOutlierRows} 筆`} />
@@ -462,7 +462,7 @@ export function ResearchAnalysisPage() {
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <button type="button" disabled={isPackaging} onClick={() => void downloadPackage()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-45 cursor-pointer"><Download aria-hidden="true" className="size-4" />{isPackaging ? '正在建立 ZIP 報表…' : '下載完整 ZIP 報表'}</button>
                     </div>
-                    <div className="mt-4 flex gap-3 rounded-xl bg-canvas/55 p-4 text-xs leading-5 text-foreground/55"><CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />這些數值是描述性統計，不能單獨證明 Co-Canvas 提升任務表現；正式研究仍需結合實驗條件、任務結果、問卷或訪談。</div>
+                    <div className="mt-4 flex gap-3 rounded-xl bg-canvas/55 p-4 text-xs leading-5 text-foreground/55"><CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />這些分析結果不能單獨證明 Co-Canvas 提升任務表現；正式研究仍需依研究設計選用檢定，並結合任務結果、問卷或訪談。</div>
                   </SectionCard>
                 )}
               </>

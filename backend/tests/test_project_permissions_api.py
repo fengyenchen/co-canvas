@@ -17,9 +17,21 @@ from app.models import Project
 
 
 PROJECT_ID = uuid.UUID("11111111-1111-4111-8111-111111111111")
-OWNER = AuthenticatedUser(id="owner-user", email="owner@example.com")
-EDITOR = AuthenticatedUser(id="editor-user", email="editor@example.com")
-VIEWER = AuthenticatedUser(id="viewer-user", email="viewer@example.com")
+OWNER = AuthenticatedUser(
+    id="owner-user",
+    email="owner@example.com",
+    name="Owner User",
+)
+EDITOR = AuthenticatedUser(
+    id="editor-user",
+    email="editor@example.com",
+    name="Editor User",
+)
+VIEWER = AuthenticatedUser(
+    id="viewer-user",
+    email="viewer@example.com",
+    name="Viewer User",
+)
 
 
 class FakeProjectSession:
@@ -171,6 +183,84 @@ def test_editor_can_patch_content_but_cannot_change_permissions() -> None:
     }
     assert project.visibility == "private"
     assert session.commit_count == 1
+
+
+def test_backend_stamps_and_preserves_chat_message_author() -> None:
+    project = create_project()
+    session = FakeProjectSession(project, member_role="editor")
+    document = {
+        **project.document,
+        "messages": [
+            {
+                "id": "message-1",
+                "role": "user",
+                "content": "協作者訊息",
+                "contextNodeId": None,
+                "createdAt": "2026-08-28T00:00:00.000Z",
+                "authorId": "spoofed-user",
+                "authorEmail": "spoofed@example.com",
+                "authorName": "Spoofed User",
+            }
+        ],
+    }
+
+    with api_client(session, EDITOR) as client:
+        first_response = client.patch(
+            f"/api/projects/{PROJECT_ID}",
+            json={"document": document},
+        )
+        document["messages"][0]["content"] = "編輯後訊息"
+        document["messages"][0]["authorId"] = OWNER.id
+        document["messages"][0]["authorEmail"] = OWNER.email
+        document["messages"][0]["authorName"] = OWNER.name
+        second_response = client.patch(
+            f"/api/projects/{PROJECT_ID}",
+            json={"document": document},
+        )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    saved_message = second_response.json()["document"]["messages"][0]
+    assert saved_message["id"] == "message-1"
+    assert saved_message["content"] == "編輯後訊息"
+    assert saved_message["authorId"] == EDITOR.id
+    assert saved_message["authorEmail"] == EDITOR.email
+    assert saved_message["authorName"] == EDITOR.name
+
+
+def test_anonymous_public_editor_cannot_spoof_chat_author() -> None:
+    project = create_project(
+        visibility="public",
+        public_access_role="editor",
+    )
+    session = FakeProjectSession(project)
+    document = {
+        **project.document,
+        "messages": [
+            {
+                "id": "anonymous-message",
+                "role": "user",
+                "content": "公開協作者訊息",
+                "contextNodeId": None,
+                "createdAt": "2026-08-29T00:00:00.000Z",
+                "authorId": OWNER.id,
+                "authorEmail": OWNER.email,
+                "authorName": OWNER.name,
+            }
+        ],
+    }
+
+    with api_client(session, None) as client:
+        response = client.patch(
+            f"/api/projects/{PROJECT_ID}",
+            json={"document": document},
+        )
+
+    assert response.status_code == 200
+    saved_message = project.document["messages"][0]
+    assert "authorId" not in saved_message
+    assert "authorEmail" not in saved_message
+    assert "authorName" not in saved_message
 
 
 def test_owner_can_patch_and_delete_project() -> None:

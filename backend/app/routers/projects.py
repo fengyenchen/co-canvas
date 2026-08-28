@@ -97,6 +97,47 @@ async def sync_research_events(
     )
 
 
+def stamp_message_authorship(
+    document: dict,
+    existing_document: dict,
+    user: AuthenticatedUser | None,
+) -> None:
+    existing_messages = {
+        message.get("id"): message
+        for message in existing_document.get("messages", [])
+        if isinstance(message, dict) and isinstance(message.get("id"), str)
+    }
+
+    for message in document.get("messages", []):
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+
+        existing_message = existing_messages.get(message.get("id"))
+        if existing_message is not None:
+            for field in ("authorId", "authorEmail", "authorName"):
+                if field in existing_message:
+                    message[field] = existing_message[field]
+                else:
+                    message.pop(field, None)
+            continue
+
+        if user is None:
+            message.pop("authorId", None)
+            message.pop("authorEmail", None)
+            message.pop("authorName", None)
+            continue
+
+        message["authorId"] = user.id
+        if user.email is not None:
+            message["authorEmail"] = user.email
+        else:
+            message.pop("authorEmail", None)
+        if user.name is not None:
+            message["authorName"] = user.name
+        else:
+            message.pop("authorName", None)
+
+
 async def get_project_or_404(
     project_id: uuid.UUID,
     session: AsyncSession,
@@ -673,10 +714,16 @@ async def update_project(
         update_values["name"] = request.name
 
     if request.document is not None:
-        update_values["document"] = request.document.model_dump(
+        document = request.document.model_dump(
             by_alias=True,
             mode="json",
         )
+        stamp_message_authorship(
+            document,
+            project.document,
+            user,
+        )
+        update_values["document"] = document
 
     if request.visibility is not None:
         update_values["visibility"] = request.visibility
@@ -802,10 +849,12 @@ async def create_project(
     session: DatabaseSession,
     user: CurrentUser,
 ) -> ProjectResponse:
+    document = request.document.model_dump(by_alias=True, mode="json")
+    stamp_message_authorship(document, {"messages": []}, user)
     project = Project(
         owner_id=user.id,
         name=request.name.strip(),
-        document=request.document.model_dump(by_alias=True, mode="json"),
+        document=document,
         visibility=request.visibility,
         public_access_role=request.public_access_role,
     )
