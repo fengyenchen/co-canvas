@@ -22,6 +22,10 @@ import {
   type ResearchCsvImport,
   type ResearchFilterOptions,
 } from '../features/research/researchAnalysis'
+import {
+  createResearchPackage,
+  type ResearchFileMetadata,
+} from '../features/research/researchPackage'
 
 const analysisChoices = [
   { id: 'actions', label: '行為比例', description: '接受、取消與重新生成比例' },
@@ -60,6 +64,19 @@ function downloadText(content: string, fileName: string) {
   anchor.download = fileName
   anchor.click()
   URL.revokeObjectURL(url)
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+function defaultCondition(fileName: string) {
+  return fileName.replace(/\.csv$/i, '').replace(/[-_]+/g, ' ')
 }
 
 function OptionToggle({
@@ -120,6 +137,9 @@ export function ResearchAnalysisPage() {
     removeDuplicates: true,
   })
   const [selected, setSelected] = useState(defaultSelected)
+  const [fileMetadata, setFileMetadata] = useState<Record<string, ResearchFileMetadata>>({})
+  const [anonymizeActors, setAnonymizeActors] = useState(true)
+  const [isPackaging, setIsPackaging] = useState(false)
 
   const preparation = useMemo(
     () => prepareResearchRecords(imports, filters),
@@ -163,7 +183,35 @@ export function ResearchAnalysisPage() {
       ),
       ...nextImports,
     ])
+    setFileMetadata((current) => {
+      const next = { ...current }
+      nextImports.forEach((item) => {
+        next[item.fileName] ??= { condition: defaultCondition(item.fileName), task: '' }
+      })
+      return next
+    })
     setErrors(nextErrors)
+  }
+
+  async function downloadPackage() {
+    setIsPackaging(true)
+    try {
+      const blob = await createResearchPackage({
+        records: preparation.records,
+        options: { anonymizeActors, fileMetadata, filters },
+        quality: {
+          analyzedRows: summary.total,
+          duplicateRows: preparation.duplicateRows,
+          excludedMockRows: preparation.excludedMockRows,
+          excludedOutlierRows: preparation.excludedOutlierRows,
+          importedRows: totalRows,
+          invalidRows,
+        },
+      })
+      downloadBlob(blob, 'co-canvas-research-package.zip')
+    } finally {
+      setIsPackaging(false)
+    }
   }
 
   function handleInput(event: ChangeEvent<HTMLInputElement>) {
@@ -220,7 +268,7 @@ export function ResearchAnalysisPage() {
               >
                 <Upload aria-hidden="true" className="mx-auto size-6 text-primary" />
                 <p className="mt-3 text-sm font-medium">拖曳 CSV 到這裡，或選擇檔案</p>
-                <button type="button" onClick={() => inputRef.current?.click()} className="mt-4 min-h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                <button type="button" onClick={() => inputRef.current?.click()} className="mt-4 min-h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer">
                   選擇 CSV
                 </button>
                 <div className="mt-4 flex items-center justify-center gap-2 text-xs text-foreground/50">
@@ -238,15 +286,25 @@ export function ResearchAnalysisPage() {
               {imports.length > 0 && (
                 <ul aria-label="已匯入檔案" className="mt-4 space-y-2">
                   {imports.map((item) => (
-                    <li key={item.fileName} className="flex items-center gap-3 rounded-lg border border-border px-3 py-3">
-                      <FileSpreadsheet aria-hidden="true" className="size-4 shrink-0 text-primary" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{item.fileName}</span>
-                        <span className="block text-xs text-foreground/50">{item.records.length} 筆有效事件{item.invalidRows > 0 ? `，${item.invalidRows} 筆無效` : ''}</span>
-                      </span>
-                      <button type="button" aria-label={`移除 ${item.fileName}`} onClick={() => setImports((current) => current.filter((entry) => entry.fileName !== item.fileName))} className="inline-flex size-11 items-center justify-center rounded-lg text-foreground/55 transition hover:bg-control-hover hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-                        <Trash2 aria-hidden="true" className="size-4" />
-                      </button>
+                    <li key={item.fileName} className="rounded-xl border border-border p-3">
+                      <div className="flex items-center gap-3">
+                        <FileSpreadsheet aria-hidden="true" className="size-4 shrink-0 text-primary" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{item.fileName}</span>
+                          <span className="block text-xs text-foreground/50">{item.records.length} 筆有效事件{item.invalidRows > 0 ? `，${item.invalidRows} 筆無效` : ''}</span>
+                        </span>
+                        <button type="button" aria-label={`移除 ${item.fileName}`} onClick={() => setImports((current) => current.filter((entry) => entry.fileName !== item.fileName))} className="inline-flex size-11 items-center justify-center rounded-lg text-foreground/55 transition hover:bg-control-hover hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer">
+                          <Trash2 aria-hidden="true" className="size-4" />
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <label className="text-xs text-foreground/55">實驗條件
+                          <input value={fileMetadata[item.fileName]?.condition ?? ''} onChange={(event) => setFileMetadata((current) => ({ ...current, [item.fileName]: { ...(current[item.fileName] ?? { task: '' }), condition: event.target.value } }))} placeholder="例如：Co-Canvas" className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
+                        </label>
+                        <label className="text-xs text-foreground/55">任務名稱
+                          <input value={fileMetadata[item.fileName]?.task ?? ''} onChange={(event) => setFileMetadata((current) => ({ ...current, [item.fileName]: { ...(current[item.fileName] ?? { condition: '' }), task: event.target.value } }))} placeholder="例如：影片摘要" className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
+                        </label>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -258,6 +316,7 @@ export function ResearchAnalysisPage() {
                 <OptionToggle checked={filters.removeDuplicates} label="依 clientEventId 去除重複" description="避免同步或合併檔案造成重複計數。" onChange={(checked) => setFilters((current) => ({ ...current, removeDuplicates: checked }))} />
                 <OptionToggle checked={filters.includeMock} label="納入 Mock 模式" description="預設排除測試模式，只分析 Gemini 事件。" onChange={(checked) => setFilters((current) => ({ ...current, includeMock: checked }))} />
                 <OptionToggle checked={filters.excludeDecisionTimeOutliers} label="排除決策時間離群值" description="使用 1.5 × IQR 規則；結果會顯示排除筆數。" onChange={(checked) => setFilters((current) => ({ ...current, excludeDecisionTimeOutliers: checked }))} />
+                <OptionToggle checked={anonymizeActors} label="匿名化參與者代碼" description="匯出時將 actorId 穩定轉換為 P001、P002；畫面仍顯示原始資料。" onChange={setAnonymizeActors} />
               </div>
             </SectionCard>
           </div>
@@ -354,10 +413,11 @@ export function ResearchAnalysisPage() {
                 )}
 
                 {summary.total > 0 && (
-                  <SectionCard title="匯出分析結果" description="摘要 CSV 適合報告；清理後資料包含 sourceFile，方便後續合併分析。">
+                  <SectionCard title="匯出分析結果" description="完整分析包包含清理資料、多層級摘要、品質報告、欄位字典、設定檔及 Python／R 範例。">
                     <div className="flex flex-col gap-3 sm:flex-row">
-                      <button type="button" onClick={() => downloadText(createResearchSummaryCsv(summary), 'co-canvas-research-summary.csv')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><Download aria-hidden="true" className="size-4" />下載分析摘要</button>
-                      <button type="button" onClick={() => downloadText(createCleanedResearchCsv(preparation.records), 'co-canvas-research-cleaned.csv')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><Download aria-hidden="true" className="size-4" />下載清理後資料</button>
+                      <button type="button" disabled={isPackaging} onClick={() => void downloadPackage()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-60 cursor-pointer"><Download aria-hidden="true" className="size-4" />{isPackaging ? '正在建立分析包…' : '下載完整分析包'}</button>
+                      <button type="button" onClick={() => downloadText(createResearchSummaryCsv(summary), 'co-canvas-research-summary.csv')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"><Download aria-hidden="true" className="size-4" />下載分析摘要</button>
+                      <button type="button" onClick={() => downloadText(createCleanedResearchCsv(preparation.records), 'co-canvas-research-cleaned.csv')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"><Download aria-hidden="true" className="size-4" />下載原格式清理資料</button>
                     </div>
                     <div className="mt-4 flex gap-3 rounded-xl bg-canvas/55 p-4 text-xs leading-5 text-foreground/55"><CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />這些數值是描述性統計，不能單獨證明 Co-Canvas 提升任務表現；正式研究仍需結合實驗條件、任務結果、問卷或訪談。</div>
                   </SectionCard>
