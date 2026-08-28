@@ -45,6 +45,19 @@
 6. **結合其他資料。** 用外部對照表連結任務完成時間、正確率、問卷與訪談。CSV 本身沒有這些結果變項。
 7. **匿名化與報告。** 把 actorId、contextNodeId 重新編碼或刪除，保存資料字典與分析腳本，再產出統計與圖表。
 
+### 使用內建分析工具
+
+在「研究資料分析工具」中可為每個 CSV 指定實驗條件與任務名稱，並選擇組間或組內研究設計。工具會先彙整到「參與者 × 條件」層級，再依條件數自動使用 Fisher 精確檢定、卡方檢定、Mann–Whitney U、Kruskal–Wallis、Wilcoxon signed-rank 或 Friedman 檢定，並附上效果量與接受率的 Wilson 95% 信賴區間。
+
+「下載完整分析包」包含：
+
+- 清理後事件、參與者摘要、條件／任務摘要、時間趨勢與決策轉移 CSV
+- 資料品質報告、分析設定 JSON 與統計結果 JSON
+- 可直接開啟的 HTML 報告，以及 SVG 圖表
+- 欄位字典與 Python／R 分析範例
+
+預設會將 `actorId` 穩定轉為 `P001` 等代碼，但 eventId、clientEventId 與 contextNodeId 仍應在公開前再次審查。內建 p 值適合探索與初步檢查；論文或正式報告應以 R、Python 或其他專業統計軟體複核假設、樣本完整性與多重比較校正。
+
 <SectionTitle id="derived-metrics">04 · 常用衍生指標</SectionTitle>
 
 | 指標 | 計算方式 | 解讀注意事項 |
