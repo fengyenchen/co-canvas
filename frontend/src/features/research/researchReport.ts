@@ -1,5 +1,10 @@
 import { summarizeResearchRecords, type ResearchEventRecord } from './researchAnalysis'
 import type { ResearchFileMetadata } from './researchPackage'
+import {
+  analyzeActionDistribution,
+  analyzeAllOutcomes,
+  type StatisticalResult,
+} from './researchStatistics'
 
 const colors = { accepted: '#585762', rejected: '#8b8a93', regenerated: '#c7c6cc' }
 
@@ -66,7 +71,25 @@ export function createResearchHtmlReport(input: {
     const conditionSummary = summarizeResearchRecords(records)
     return `<tr><th scope="row">${escapeHtml(condition)}</th><td>${conditionSummary.total}</td><td>${conditionSummary.actorCount}</td><td>${(conditionSummary.actionRates.accepted * 100).toFixed(1)}%</td><td>${(conditionSummary.editRate * 100).toFixed(1)}%</td><td>${(conditionSummary.decisionTime.median / 1000).toFixed(1)} 秒</td></tr>`
   }).join('')
-  const participantRows = summary.participants.slice(0, 20).map((participant) => `<tr><th scope="row"><code>${escapeHtml(participant.actorId)}</code></th><td>${participant.total}</td><td>${participant.accepted}</td><td>${(participant.editRate * 100).toFixed(1)}%</td><td>${(participant.medianDecisionTimeMs / 1000).toFixed(1)} 秒</td></tr>`).join('')
+  const actorAliases = new Map(
+    [...new Set(input.records.map((record) => record.actorId))]
+      .sort()
+      .map((actorId, index) => [
+        actorId,
+        `P${String(index + 1).padStart(3, '0')}`,
+      ]),
+  )
+  const participantRows = summary.participants.slice(0, 20).map((participant) => `<tr><th scope="row"><code>${actorAliases.get(participant.actorId) ?? 'P---'}</code></th><td>${participant.total}</td><td>${participant.accepted}</td><td>${(participant.editRate * 100).toFixed(1)}%</td><td>${(participant.medianDecisionTimeMs / 1000).toFixed(1)} 秒</td></tr>`).join('')
+  const formatStatisticalResult = (result: StatisticalResult | null) => result
+    ? `${escapeHtml(result.name)}；統計量 ${result.statistic.toFixed(3)}；p = ${result.pValue.toFixed(4)}；${escapeHtml(result.effectName)} = ${Number.isFinite(result.effectSize) ? result.effectSize.toFixed(3) : '∞'}`
+    : '資料不足，無法計算'
+  const statisticalRows = analyzeAllOutcomes(input.records, input.fileMetadata)
+    .map((analysis) => `<tr><th scope="row">${escapeHtml(analysis.label)}</th><td>${formatStatisticalResult(analysis.between)}</td><td>${formatStatisticalResult(analysis.within)}</td></tr>`)
+    .join('')
+  const actionDistribution = analyzeActionDistribution(
+    input.records,
+    input.fileMetadata,
+  )
   const generatedAt = new Date().toLocaleString('zh-TW')
   return `<!doctype html>
 <html lang="zh-Hant">
@@ -89,13 +112,14 @@ export function createResearchHtmlReport(input: {
 </head>
 <body><main>
   <header><p class="eyebrow">CO-CANVAS RESEARCH</p><h1>研究分析報告</h1><p class="lead">AI 建議決策行為的描述性摘要、條件比較與資料品質檢查。</p><p class="meta">產生時間：${generatedAt}</p></header>
-  <nav aria-label="報告章節"><a href="#overview">研究摘要</a><a href="#actions">決策分布</a><a href="#conditions">條件比較</a><a href="#participants">參與者</a><a href="#quality">資料品質</a><a href="#notes">解讀提醒</a></nav>
+  <nav aria-label="報告章節"><a href="#overview">研究摘要</a><a href="#actions">決策分布</a><a href="#conditions">條件比較</a><a href="#participants">參與者</a><a href="#statistics">統計檢定</a><a href="#quality">資料品質</a><a href="#notes">解讀提醒</a></nav>
   <section id="overview"><div class="section-head"><div><p class="eyebrow">01</p><h2>研究摘要</h2></div><p>目前清理與篩選後的資料</p></div><div class="metrics"><div class="metric"><span>分析事件</span><strong>${summary.total}</strong></div><div class="metric"><span>參與者</span><strong>${summary.actorCount}</strong></div><div class="metric"><span>接受率</span><strong>${(summary.actionRates.accepted * 100).toFixed(1)}%</strong></div><div class="metric"><span>修改率</span><strong>${(summary.editRate * 100).toFixed(1)}%</strong></div><div class="metric"><span>決策時間中位數</span><strong>${(summary.decisionTime.median / 1000).toFixed(1)} 秒</strong></div><div class="metric"><span>平均建議節點數</span><strong>${summary.nodeCount.mean.toFixed(1)}</strong></div></div></section>
   <section id="actions"><div class="section-head"><div><p class="eyebrow">02</p><h2>決策分布</h2></div><p>接受、取消與重新生成</p></div><div class="chart">${actionChart}</div></section>
   <section id="conditions"><div class="section-head"><div><p class="eyebrow">03</p><h2>條件比較</h2></div><p>依匯入檔案的條件標籤彙整</p></div><div class="chart">${conditionChart}</div><h3>條件摘要</h3><div class="table-wrap"><table><thead><tr><th>條件</th><th>事件</th><th>參與者</th><th>接受率</th><th>修改率</th><th>決策中位數</th></tr></thead><tbody>${conditionRows}</tbody></table></div></section>
   <section id="participants"><div class="section-head"><div><p class="eyebrow">04</p><h2>參與者摘要</h2></div><p>依事件數排序，最多顯示 20 位</p></div><div class="table-wrap"><table><thead><tr><th>參與者</th><th>事件</th><th>接受</th><th>修改率</th><th>決策中位數</th></tr></thead><tbody>${participantRows}</tbody></table></div></section>
-  <section id="quality"><div class="section-head"><div><p class="eyebrow">05</p><h2>資料品質</h2></div><p>匯入、驗證與排除結果</p></div><div class="table-wrap"><table><tbody>${qualityRows}</tbody></table></div></section>
-  <section id="notes"><div class="section-head"><div><p class="eyebrow">06</p><h2>解讀提醒</h2></div></div><div class="notice">本報告以描述性統計呈現目前資料，不單獨代表因果效果。正式報告應同時說明研究設計、樣本數、排除規則、任務表現，以及問卷或訪談結果。</div></section>
+  <section id="statistics"><div class="section-head"><div><p class="eyebrow">05</p><h2>完整統計檢定</h2></div><p>同時輸出組間與組內假設，請依實際研究設計採用</p></div><div class="table-wrap"><table><thead><tr><th>主要指標</th><th>組間假設</th><th>組內假設</th></tr></thead><tbody>${statisticalRows}</tbody></table></div><div class="notice" style="margin-top:16px">決策分布：${formatStatisticalResult(actionDistribution)}</div></section>
+  <section id="quality"><div class="section-head"><div><p class="eyebrow">06</p><h2>資料品質</h2></div><p>匯入、驗證與排除結果</p></div><div class="table-wrap"><table><tbody>${qualityRows}</tbody></table></div></section>
+  <section id="notes"><div class="section-head"><div><p class="eyebrow">07</p><h2>解讀提醒</h2></div></div><div class="notice">本報告同時提供組間與組內假設下的檢定結果，不代表兩者都適用。正式報告必須依實際研究設計選用，並同時說明樣本數、排除規則、任務表現，以及問卷或訪談結果。</div></section>
   <footer>由 Co-Canvas 研究資料分析工具產生</footer>
 </main></body></html>`
 }

@@ -6,7 +6,12 @@ import {
   type ResearchFilterOptions,
 } from './researchAnalysis'
 import { createResearchHtmlReport } from './researchReport'
-import { analyzeActionDistribution, analyzeOutcome, analyzeSequences, conditionEstimates, type ResearchOutcome, type StudyDesign } from './researchStatistics'
+import {
+  analyzeActionDistribution,
+  analyzeAllOutcomes,
+  analyzeSequences,
+  conditionEstimates,
+} from './researchStatistics'
 
 export type ResearchFileMetadata = {
   condition: string
@@ -17,8 +22,6 @@ export type ResearchPackageOptions = {
   anonymizeActors: boolean
   fileMetadata: Record<string, ResearchFileMetadata>
   filters: ResearchFilterOptions
-  outcome: ResearchOutcome
-  studyDesign: StudyDesign | null
 }
 
 type EnrichedRecord = ResearchEventRecord & ResearchFileMetadata & { participantId: string }
@@ -174,10 +177,16 @@ export async function createResearchPackage(input: {
   zip.file('data-quality.csv', createDataQualityCsv(input.quality))
   const estimates = conditionEstimates(input.records, input.options.fileMetadata)
   zip.file('condition-confidence-intervals.csv', toCsv(['condition', 'events', 'participants', 'acceptanceRate', 'ci95Low', 'ci95High'], estimates.map((item) => [item.condition, item.events, item.participants, item.acceptanceRate, item.ciLow, item.ciHigh])))
-  const statistics = input.options.studyDesign
-    ? analyzeOutcome(input.records, input.options.fileMetadata, input.options.studyDesign, input.options.outcome)
-    : null
-  zip.file('statistical-tests.json', JSON.stringify({ actionDistribution: analyzeActionDistribution(input.records, input.options.fileMetadata), primaryOutcome: statistics }, null, 2))
+  zip.file('statistical-tests.json', JSON.stringify({
+    actionDistribution: analyzeActionDistribution(
+      input.records,
+      input.options.fileMetadata,
+    ),
+    outcomes: analyzeAllOutcomes(
+      input.records,
+      input.options.fileMetadata,
+    ),
+  }, null, 2))
   const sequences = analyzeSequences(input.records)
   zip.file('sequence-transitions.csv', toCsv(['transition', 'count'], sequences.transitions.map((item) => [item.transition, item.count])))
   zip.file('report.html', createResearchHtmlReport({ records: input.records, fileMetadata: input.options.fileMetadata, quality: input.quality }))

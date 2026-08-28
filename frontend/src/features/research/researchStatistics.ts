@@ -4,6 +4,20 @@ import type { ResearchFileMetadata } from './researchPackage'
 export type StudyDesign = 'between' | 'within'
 export type ResearchOutcome = 'acceptanceRate' | 'editRate' | 'medianDecisionTimeMs' | 'meanNodeCount'
 
+export const researchOutcomeLabels: Record<ResearchOutcome, string> = {
+  acceptanceRate: '接受率',
+  editRate: '修改率',
+  meanNodeCount: '平均建議節點數',
+  medianDecisionTimeMs: '決策時間中位數',
+}
+
+export type CompleteOutcomeAnalysis = {
+  between: StatisticalResult | null
+  label: string
+  outcome: ResearchOutcome
+  within: StatisticalResult | null
+}
+
 export type StatisticalResult = {
   effectName: string
   effectSize: number
@@ -184,6 +198,21 @@ export function analyzeOutcome(records: ResearchEventRecord[], metadata: Record<
   if (!complete.length) return null
   if (conditions.length === 2) return wilcoxon(complete.map((row) => [row.get(conditions[0])!, row.get(conditions[1])!]))
   return friedman(complete.map((row) => conditions.map((condition) => row.get(condition)!)))
+}
+
+export function analyzeAllOutcomes(
+  records: ResearchEventRecord[],
+  metadata: Record<string, ResearchFileMetadata>,
+): CompleteOutcomeAnalysis[] {
+  return (Object.entries(researchOutcomeLabels) as Array<[
+    ResearchOutcome,
+    string,
+  ]>).map(([outcome, label]) => ({
+    between: analyzeOutcome(records, metadata, 'between', outcome),
+    label,
+    outcome,
+    within: analyzeOutcome(records, metadata, 'within', outcome),
+  }))
 }
 
 function logCombination(n: number, k: number) {

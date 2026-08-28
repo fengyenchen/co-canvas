@@ -26,34 +26,10 @@ import {
 } from '../features/research/researchPackage'
 import {
   analyzeActionDistribution,
-  analyzeOutcome,
+  analyzeAllOutcomes,
   analyzeSequences,
   conditionEstimates,
-  type ResearchOutcome,
-  type StudyDesign,
 } from '../features/research/researchStatistics'
-
-const analysisChoices = [
-  { id: 'actions', label: '行為比例', description: '接受、取消與重新生成比例' },
-  { id: 'editing', label: '建議修改率', description: '檢視人類介入建議的比例' },
-  { id: 'decisionTime', label: '決策時間', description: '中位數、四分位距與平均值' },
-  { id: 'nodeCount', label: '建議規模', description: '每次預覽的建議節點數量' },
-  { id: 'participants', label: '參與者比較', description: '依 actorId 比較主要指標' },
-  { id: 'timeline', label: '時間趨勢', description: '依日期彙整決策事件' },
-] as const
-
-type AnalysisChoice = typeof analysisChoices[number]['id']
-
-const defaultSelected = Object.fromEntries(
-  analysisChoices.map((choice) => [choice.id, true]),
-) as Record<AnalysisChoice, boolean>
-
-const outcomeLabels: Record<ResearchOutcome, string> = {
-  acceptanceRate: '接受率',
-  editRate: '修改率',
-  meanNodeCount: '平均建議節點數',
-  medianDecisionTimeMs: '決策時間中位數',
-}
 
 function formatPercent(value: number) {
   return new Intl.NumberFormat('zh-TW', {
@@ -140,12 +116,8 @@ export function ResearchAnalysisPage() {
     includeMock: false,
     removeDuplicates: true,
   })
-  const [selected, setSelected] = useState(defaultSelected)
   const [fileMetadata, setFileMetadata] = useState<Record<string, ResearchFileMetadata>>({})
-  const [anonymizeActors, setAnonymizeActors] = useState(true)
   const [isPackaging, setIsPackaging] = useState(false)
-  const [studyDesign, setStudyDesign] = useState<StudyDesign | ''>('')
-  const [outcome, setOutcome] = useState<ResearchOutcome>('acceptanceRate')
 
   const preparation = useMemo(
     () => prepareResearchRecords(imports, filters),
@@ -155,13 +127,13 @@ export function ResearchAnalysisPage() {
     () => summarizeResearchRecords(preparation.records),
     [preparation.records],
   )
-  const statisticalResult = useMemo(
-    () => studyDesign ? analyzeOutcome(preparation.records, fileMetadata, studyDesign, outcome) : null,
-    [fileMetadata, outcome, preparation.records, studyDesign],
+  const statisticalResults = useMemo(
+    () => analyzeAllOutcomes(preparation.records, fileMetadata),
+    [fileMetadata, preparation.records],
   )
   const actionDistributionResult = useMemo(
-    () => studyDesign ? analyzeActionDistribution(preparation.records, fileMetadata) : null,
-    [fileMetadata, preparation.records, studyDesign],
+    () => analyzeActionDistribution(preparation.records, fileMetadata),
+    [fileMetadata, preparation.records],
   )
   const estimates = useMemo(
     () => conditionEstimates(preparation.records, fileMetadata),
@@ -217,7 +189,7 @@ export function ResearchAnalysisPage() {
     try {
       const blob = await createResearchPackage({
         records: preparation.records,
-        options: { anonymizeActors, fileMetadata, filters, outcome, studyDesign: studyDesign || null },
+        options: { anonymizeActors: true, fileMetadata, filters },
         quality: qualityMetrics(),
       })
       downloadBlob(blob, 'co-canvas-research-package.zip')
@@ -274,7 +246,7 @@ export function ResearchAnalysisPage() {
           <p className="text-sm font-semibold tracking-[0.16em] text-primary">CO-CANVAS RESEARCH</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">研究資料分析工具</h1>
           <p className="mt-4 text-base leading-7 text-foreground/60">
-            匯入 Co-Canvas 研究事件 CSV，選擇要檢視的指標並產生可重現的描述性統計。所有處理都在目前瀏覽器完成，檔案不會上傳至伺服器。
+            匯入 Co-Canvas 研究事件 CSV，即可查看全部描述統計、組間與組內檢定，並產生可重現的完整報表。所有處理都在目前瀏覽器完成，檔案不會上傳至伺服器。
           </p>
         </div>
 
@@ -334,42 +306,18 @@ export function ResearchAnalysisPage() {
               )}
             </SectionCard>
 
-            <SectionCard title="2 · 資料處理選項">
+            <SectionCard title="2 · 資料處理" description="系統會自動去除重複事件並匿名化參與者；只有會改變分析母體的規則需要手動調整。">
               <div className="space-y-3">
-                <OptionToggle checked={filters.removeDuplicates} label="依 clientEventId 去除重複" description="避免同步或合併檔案造成重複計數。" onChange={(checked) => setFilters((current) => ({ ...current, removeDuplicates: checked }))} />
                 <OptionToggle checked={filters.includeMock} label="納入 Mock 模式" description="預設排除測試模式，只分析 Gemini 事件。" onChange={(checked) => setFilters((current) => ({ ...current, includeMock: checked }))} />
                 <OptionToggle checked={filters.excludeDecisionTimeOutliers} label="排除決策時間離群值" description="使用 1.5 × IQR 規則；結果會顯示排除筆數。" onChange={(checked) => setFilters((current) => ({ ...current, excludeDecisionTimeOutliers: checked }))} />
-                <OptionToggle checked={anonymizeActors} label="匿名化參與者代碼" description="匯出時將 actorId 穩定轉換為 P001、P002；畫面仍顯示原始資料。" onChange={setAnonymizeActors} />
+                <div className="rounded-xl border border-border bg-canvas/55 p-4 text-xs leading-5 text-foreground/55">
+                  固定套用：依 clientEventId 去重；ZIP 內的參與者代碼匿名化為 P001、P002。
+                </div>
               </div>
             </SectionCard>
           </div>
 
           <div className="space-y-6">
-            <SectionCard title="3 · 選擇分析項目" description="取消勾選不需要的區塊；資料品質摘要會固定顯示。">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {analysisChoices.map((choice) => (
-                  <OptionToggle key={choice.id} checked={selected[choice.id]} label={choice.label} description={choice.description} onChange={(checked) => setSelected((current) => ({ ...current, [choice.id]: checked }))} />
-                ))}
-              </div>
-            </SectionCard>
-
-            <SectionCard title="4 · 進階統計（選填）" description="不選也能輸出完整 ZIP 報表；需要推論統計時，再指定研究設計與主要結果指標。">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-medium">研究設計
-                  <select value={studyDesign} onChange={(event) => setStudyDesign(event.target.value as StudyDesign)} className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary">
-                    <option value="">不指定（只做完整描述分析）</option>
-                    <option value="between">組間設計（每人一個條件）</option>
-                    <option value="within">組內設計（每人多個條件）</option>
-                  </select>
-                </label>
-                <label className="text-sm font-medium">主要結果指標
-                  <select disabled={!studyDesign} value={outcome} onChange={(event) => setOutcome(event.target.value as ResearchOutcome)} className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-canvas disabled:text-foreground/40">
-                    {Object.entries(outcomeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
-                </label>
-              </div>
-            </SectionCard>
-
             {!hasData ? (
               <div className="rounded-2xl border border-dashed border-border bg-background px-6 py-16 text-center">
                 <BarChart3 aria-hidden="true" className="mx-auto size-8 text-foreground/30" />
@@ -395,7 +343,7 @@ export function ResearchAnalysisPage() {
                   )}
                 </SectionCard>
 
-                {summary.total > 0 && selected.actions && (
+                {summary.total > 0 && (
                   <SectionCard title="行為比例" description="分母為目前篩選後的全部決策事件。">
                     <div className="space-y-5">
                       {([
@@ -417,18 +365,18 @@ export function ResearchAnalysisPage() {
                   </SectionCard>
                 )}
 
-                {summary.total > 0 && (selected.editing || selected.decisionTime || selected.nodeCount) && (
+                {summary.total > 0 && (
                   <SectionCard title="核心指標">
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {selected.editing && <MetricCard label="建議修改率" value={formatPercent(summary.editRate)} detail="edited=true ÷ 分析事件" />}
-                      {selected.decisionTime && <MetricCard label="決策時間中位數" value={formatDuration(summary.decisionTime.median)} detail={`Q1 ${formatDuration(summary.decisionTime.q1)} · Q3 ${formatDuration(summary.decisionTime.q3)}`} />}
-                      {selected.decisionTime && <MetricCard label="平均決策時間" value={formatDuration(summary.decisionTime.mean)} detail="容易受極端值影響，建議搭配中位數解讀" />}
-                      {selected.nodeCount && <MetricCard label="平均建議節點數" value={formatNumber(summary.nodeCount.mean, 2)} detail={`中位數 ${formatNumber(summary.nodeCount.median, 1)}`} />}
+                      <MetricCard label="建議修改率" value={formatPercent(summary.editRate)} detail="edited=true ÷ 分析事件" />
+                      <MetricCard label="決策時間中位數" value={formatDuration(summary.decisionTime.median)} detail={`Q1 ${formatDuration(summary.decisionTime.q1)} · Q3 ${formatDuration(summary.decisionTime.q3)}`} />
+                      <MetricCard label="平均決策時間" value={formatDuration(summary.decisionTime.mean)} detail="容易受極端值影響，建議搭配中位數解讀" />
+                      <MetricCard label="平均建議節點數" value={formatNumber(summary.nodeCount.mean, 2)} detail={`中位數 ${formatNumber(summary.nodeCount.median, 1)}`} />
                     </div>
                   </SectionCard>
                 )}
 
-                {summary.total > 0 && selected.participants && (
+                {summary.total > 0 && (
                   <SectionCard title="參與者比較" description="actorId 可能具有可識別性，分享結果前請重新編碼。">
                     <div className="overflow-x-auto rounded-xl border border-border">
                       <table className="w-full min-w-176 text-left text-sm">
@@ -441,7 +389,7 @@ export function ResearchAnalysisPage() {
                   </SectionCard>
                 )}
 
-                {summary.total > 0 && selected.timeline && (
+                {summary.total > 0 && (
                   <SectionCard title="時間趨勢" description="依 occurredAt 日期彙整；跨時區研究應先統一時區。">
                     <div className="space-y-3">
                       {summary.timeline.map((day) => {
@@ -453,25 +401,38 @@ export function ResearchAnalysisPage() {
                 )}
 
                 {summary.total > 0 && (
-                  <SectionCard title="條件比較與不確定性" description="接受率使用 Wilson 95% 信賴區間；檢定依研究設計與條件數自動選擇。">
+                  <SectionCard title="條件比較與不確定性" description="接受率使用 Wilson 95% 信賴區間；所有主要指標會同時計算組間與組內檢定，請依實際研究設計採用。">
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       {estimates.map((estimate) => (
                         <MetricCard key={estimate.condition} label={estimate.condition} value={formatPercent(estimate.acceptanceRate)} detail={`95% CI ${formatPercent(estimate.ciLow)}–${formatPercent(estimate.ciHigh)} · ${estimate.participants} 人／${estimate.events} 事件`} />
                       ))}
                     </div>
-                    {!studyDesign ? (
-                      <div role="status" className="mt-4 flex items-start gap-3 rounded-xl border border-border bg-canvas/55 p-4 text-sm text-foreground/60">
-                        <LockKeyhole aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                        目前採用完整描述分析。若需要 p 值與效果量，可在「進階統計（選填）」指定組間或組內設計。
-                      </div>
-                    ) : statisticalResult ? (
-                      <div className="mt-4 rounded-xl border border-border bg-canvas/55 p-4">
-                        <div className="flex flex-wrap items-baseline justify-between gap-2"><strong>{statisticalResult.name}</strong><span className="text-sm tabular-nums">統計量 {formatNumber(statisticalResult.statistic, 3)} · p = {formatNumber(statisticalResult.pValue, 4)}</span></div>
-                        <p className="mt-2 text-sm text-foreground/60">{statisticalResult.effectName} = {formatNumber(statisticalResult.effectSize, 3)}；納入 {statisticalResult.participants} 個參與者條件資料。{statisticalResult.note}</p>
-                      </div>
-                    ) : (
-                      <div role="status" className="mt-4 rounded-xl border border-border bg-canvas/55 p-4 text-sm text-foreground/60">至少需要兩個條件；組內設計還需要有參與者完成所有條件。</div>
-                    )}
+                    <div className="mt-4 space-y-3">
+                      {statisticalResults.map((analysis) => (
+                        <div key={analysis.outcome} className="rounded-xl border border-border bg-canvas/55 p-4">
+                          <strong className="text-sm">{analysis.label}</strong>
+                          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                            {([
+                              ['組間假設', analysis.between],
+                              ['組內假設', analysis.within],
+                            ] as const).map(([assumption, result]) => (
+                              <div key={assumption} className="rounded-lg bg-background p-3 text-sm">
+                                <p className="font-medium text-foreground/70">{assumption}</p>
+                                {result ? (
+                                  <>
+                                    <p className="mt-1 font-semibold">{result.name}</p>
+                                    <p className="mt-1 tabular-nums text-foreground/60">統計量 {formatNumber(result.statistic, 3)} · p = {formatNumber(result.pValue, 4)}</p>
+                                    <p className="mt-1 text-xs leading-5 text-foreground/55">{result.effectName} = {Number.isFinite(result.effectSize) ? formatNumber(result.effectSize, 3) : '∞'}；{result.note}</p>
+                                  </>
+                                ) : (
+                                  <p className="mt-1 text-foreground/50">資料不足，無法計算。</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                     {actionDistributionResult && (
                       <div className="mt-3 rounded-xl border border-border bg-canvas/55 p-4">
                         <div className="flex flex-wrap items-baseline justify-between gap-2"><strong>{actionDistributionResult.name}（決策分布）</strong><span className="text-sm tabular-nums">統計量 {formatNumber(actionDistributionResult.statistic, 3)} · p = {formatNumber(actionDistributionResult.pValue, 4)}</span></div>
@@ -491,7 +452,7 @@ export function ResearchAnalysisPage() {
                 )}
 
                 {summary.total > 0 && (
-                  <SectionCard title="匯出完整分析報表" description="產生包含分析資料、HTML 報告與重現範例的 ZIP。">
+                  <SectionCard title="匯出完整分析報表" description="一次產生全部描述統計、組間與組內檢定、分析資料、HTML 報告與重現範例。">
                     <div className="mb-4 grid gap-2 text-xs leading-5 text-foreground/60 sm:grid-cols-2">
                       <p className="rounded-lg bg-canvas/55 px-3 py-2">CSV：清理資料、參與者、條件、時間、品質與決策序列</p>
                       <p className="rounded-lg bg-canvas/55 px-3 py-2">報告：易讀 HTML、欄位字典與分析設定</p>

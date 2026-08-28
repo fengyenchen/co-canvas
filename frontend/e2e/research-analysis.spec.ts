@@ -7,7 +7,7 @@ event-1,client-1,actor-a,accepted,node-1,gemini,true,1000,3,2026-08-01T00:00:00Z
 event-2,client-2,actor-a,rejected,node-1,gemini,false,3000,1,2026-08-01T00:01:00Z,2026-08-01T00:01:01Z
 event-3,client-3,actor-b,regenerated,node-2,mock,false,5000,2,2026-08-02T00:00:00Z,2026-08-02T00:00:01Z`
 
-test('可匯入研究 CSV、調整篩選並顯示分析結果', async ({ page }) => {
+test('可匯入研究 CSV、自動顯示完整分析並下載報表', async ({ page }) => {
   await page.goto('/research/analyze')
 
   await expect(
@@ -22,9 +22,10 @@ test('可匯入研究 CSV、調整篩選並顯示分析結果', async ({ page })
   const analyzedMetric = page.getByText('進入分析事件').locator('..')
   await expect(analyzedMetric.getByText('4', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '行為比例' })).toBeVisible()
-  await expect(page.getByText(/目前採用完整描述分析/)).toBeVisible()
+  await expect(page.getByText('接受率', { exact: true })).toBeVisible()
+  await expect(page.getByText('組間假設', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('組內假設', { exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: '下載完整 ZIP 報表' })).toBeEnabled()
-  await page.getByLabel('研究設計').selectOption('between')
   await expect(page.getByText("Fisher's exact test（決策分布）")).toBeVisible()
 
   await page.getByRole('checkbox', { name: /納入 Mock 模式/ }).check()
@@ -40,6 +41,12 @@ test('可匯入研究 CSV、調整篩選並顯示分析結果', async ({ page })
   expect(zipPath).not.toBeNull()
   const archive = await JSZip.loadAsync(await readFile(zipPath!))
   expect(archive.file('report.html')).not.toBeNull()
+  const statisticalTests = JSON.parse(
+    await archive.file('statistical-tests.json')!.async('string'),
+  ) as { outcomes: Array<{ between: unknown; within: unknown }> }
+  expect(statisticalTests.outcomes).toHaveLength(4)
+  expect(statisticalTests.outcomes[0]).toHaveProperty('between')
+  expect(statisticalTests.outcomes[0]).toHaveProperty('within')
   expect(Object.keys(archive.files).some((name) => name.endsWith('.svg'))).toBe(false)
   expect(Object.keys(archive.files).some((name) => name.endsWith('.png'))).toBe(false)
 })

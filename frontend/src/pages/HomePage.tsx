@@ -1399,7 +1399,7 @@ export function HomePage() {
               專案可見範圍
             </legend>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+              <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-checked:border-primary has-checked:bg-primary/5">
                 <input
                   type="radio"
                   name="project-visibility"
@@ -1428,7 +1428,7 @@ export function HomePage() {
                   </span>
                 </span>
               </label>
-              <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+              <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-checked:border-primary has-checkedq:bg-primary/5">
                 <input
                   type="radio"
                   name="project-visibility"
@@ -1456,7 +1456,7 @@ export function HomePage() {
                 公開訪客權限
               </legend>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-checked:border-primary has-checked:bg-primary/5">
                   <input
                     type="radio"
                     name="public-access-role"
@@ -1475,7 +1475,7 @@ export function HomePage() {
                     </span>
                   </span>
                 </label>
-                <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition has-checked:border-primary has-checked:bg-primary/5">
                   <input
                     type="radio"
                     name="public-access-role"

@@ -727,7 +727,7 @@ export function LandingPage() {
                         {labelIndex > 0 && (
                           <span className="h-px min-w-3 flex-1 bg-foreground/20" />
                         )}
-                        <span className="max-w-[8rem] shrink-0 truncate rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground/65 shadow-sm">
+                        <span className="max-w-32 shrink-0 truncate rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground/65 shadow-sm">
                           {label}
                         </span>
                       </div>
