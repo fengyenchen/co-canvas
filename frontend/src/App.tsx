@@ -25,6 +25,12 @@ const ResearchGuidePage = lazy(() =>
   })),
 )
 
+const ResearchAnalysisPage = lazy(() =>
+  import('./pages/ResearchAnalysisPage').then((module) => ({
+    default: module.ResearchAnalysisPage,
+  })),
+)
+
 const EditorPage = lazy(() =>
   import('./pages/EditorPage').then((module) => ({
     default: module.EditorPage,
@@ -90,6 +96,14 @@ function App() {
         element={
           <LazyPage message="正在載入研究資料指南…">
             <ResearchGuidePage />
+          </LazyPage>
+        }
+      />
+      <Route
+        path="/research/analyze"
+        element={
+          <LazyPage message="正在載入研究分析工具…">
+            <ResearchAnalysisPage />
           </LazyPage>
         }
       />

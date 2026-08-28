@@ -358,15 +358,26 @@ export function LandingPage() {
                   <strong className="block shrink-0 font-semibold text-foreground">支援人機協作研究</strong>
                   <p className="mt-1">雲端專案擁有者可匯出 AI 建議的接受、取消、重新生成、編輯狀態與決策時間，作為互動行為分析資料。</p>
                 </div>
-                <Link
-                  to="/guide/research"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-border px-4 font-medium text-foreground transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:mt-0"
-                >
-                  查看研究資料指南
-                  <ExternalLink aria-hidden="true" className="size-4" />
-                </Link>
+                <div className="mt-3 flex shrink-0 flex-col gap-2 sm:mt-0 sm:flex-row">
+                  <Link
+                    to="/guide/research"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 font-medium text-foreground transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  >
+                    研究資料指南
+                    <ExternalLink aria-hidden="true" className="size-4" />
+                  </Link>
+                  <Link
+                    to="/research/analyze"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  >
+                    分析 CSV
+                    <ExternalLink aria-hidden="true" className="size-4" />
+                  </Link>
+                </div>
               </aside>
             </Reveal>
           </div>
