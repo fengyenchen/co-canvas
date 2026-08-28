@@ -26,6 +26,11 @@ import {
   createResearchPackage,
   type ResearchFileMetadata,
 } from '../features/research/researchPackage'
+import {
+  createActionChartSvg,
+  createConditionChartSvg,
+  createResearchHtmlReport,
+} from '../features/research/researchReport'
 
 const analysisChoices = [
   { id: 'actions', label: '行為比例', description: '接受、取消與重新生成比例' },
@@ -57,8 +62,8 @@ function formatDuration(milliseconds: number) {
   return `${formatNumber(milliseconds / 1000, 1)} 秒`
 }
 
-function downloadText(content: string, fileName: string) {
-  const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }))
+function downloadText(content: string, fileName: string, mimeType = 'text/csv;charset=utf-8') {
+  const url = URL.createObjectURL(new Blob([content], { type: mimeType }))
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = fileName
@@ -73,6 +78,28 @@ function downloadBlob(blob: Blob, fileName: string) {
   anchor.download = fileName
   anchor.click()
   URL.revokeObjectURL(url)
+}
+
+async function svgToPng(svg: string) {
+  const image = new Image()
+  const source = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
+  try {
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve()
+      image.onerror = () => reject(new Error('無法產生 PNG 圖表。'))
+      image.src = source
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth * 2
+    canvas.height = image.naturalHeight * 2
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('瀏覽器不支援圖表轉換。')
+    context.scale(2, 2)
+    context.drawImage(image, 0, 0)
+    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('無法產生 PNG 圖表。')), 'image/png'))
+  } finally {
+    URL.revokeObjectURL(source)
+  }
 }
 
 function defaultCondition(fileName: string) {
@@ -199,18 +226,37 @@ export function ResearchAnalysisPage() {
       const blob = await createResearchPackage({
         records: preparation.records,
         options: { anonymizeActors, fileMetadata, filters },
-        quality: {
-          analyzedRows: summary.total,
-          duplicateRows: preparation.duplicateRows,
-          excludedMockRows: preparation.excludedMockRows,
-          excludedOutlierRows: preparation.excludedOutlierRows,
-          importedRows: totalRows,
-          invalidRows,
-        },
+        quality: qualityMetrics(),
       })
       downloadBlob(blob, 'co-canvas-research-package.zip')
     } finally {
       setIsPackaging(false)
+    }
+  }
+
+  function qualityMetrics() {
+    return {
+      analyzedRows: summary.total,
+      duplicateRows: preparation.duplicateRows,
+      excludedMockRows: preparation.excludedMockRows,
+      excludedOutlierRows: preparation.excludedOutlierRows,
+      importedRows: totalRows,
+      invalidRows,
+    }
+  }
+
+  function downloadHtmlReport() {
+    downloadText(createResearchHtmlReport({ records: preparation.records, fileMetadata, quality: qualityMetrics() }), 'co-canvas-research-report.html', 'text/html;charset=utf-8')
+  }
+
+  async function downloadCharts() {
+    const charts = [
+      ['action-distribution', createActionChartSvg(preparation.records)],
+      ['condition-acceptance', createConditionChartSvg(preparation.records, fileMetadata)],
+    ] as const
+    for (const [name, svg] of charts) {
+      downloadText(svg, `${name}.svg`, 'image/svg+xml;charset=utf-8')
+      downloadBlob(await svgToPng(svg), `${name}.png`)
     }
   }
 
@@ -418,6 +464,10 @@ export function ResearchAnalysisPage() {
                       <button type="button" disabled={isPackaging} onClick={() => void downloadPackage()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-60 cursor-pointer"><Download aria-hidden="true" className="size-4" />{isPackaging ? '正在建立分析包…' : '下載完整分析包'}</button>
                       <button type="button" onClick={() => downloadText(createResearchSummaryCsv(summary), 'co-canvas-research-summary.csv')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"><Download aria-hidden="true" className="size-4" />下載分析摘要</button>
                       <button type="button" onClick={() => downloadText(createCleanedResearchCsv(preparation.records), 'co-canvas-research-cleaned.csv')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"><Download aria-hidden="true" className="size-4" />下載原格式清理資料</button>
+                    </div>
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                      <button type="button" onClick={downloadHtmlReport} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"><Download aria-hidden="true" className="size-4" />下載 HTML 報告</button>
+                      <button type="button" onClick={() => void downloadCharts()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"><Download aria-hidden="true" className="size-4" />下載 SVG／PNG 圖表</button>
                     </div>
                     <div className="mt-4 flex gap-3 rounded-xl bg-canvas/55 p-4 text-xs leading-5 text-foreground/55"><CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />這些數值是描述性統計，不能單獨證明 Co-Canvas 提升任務表現；正式研究仍需結合實驗條件、任務結果、問卷或訪談。</div>
                   </SectionCard>

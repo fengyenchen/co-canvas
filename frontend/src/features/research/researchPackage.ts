@@ -5,6 +5,7 @@ import {
   type ResearchEventRecord,
   type ResearchFilterOptions,
 } from './researchAnalysis'
+import { createActionChartSvg, createConditionChartSvg, createResearchHtmlReport } from './researchReport'
 
 export type ResearchFileMetadata = {
   condition: string
@@ -168,6 +169,9 @@ export async function createResearchPackage(input: {
   zip.file('condition-summary.csv', createConditionSummaryCsv(enriched))
   zip.file('timeline.csv', createTimelineCsv(enriched))
   zip.file('data-quality.csv', createDataQualityCsv(input.quality))
+  zip.file('report.html', createResearchHtmlReport({ records: input.records, fileMetadata: input.options.fileMetadata, quality: input.quality }))
+  zip.file('charts/action-distribution.svg', createActionChartSvg(input.records))
+  zip.file('charts/condition-acceptance.svg', createConditionChartSvg(input.records, input.options.fileMetadata))
   zip.file('codebook.md', researchCodebook)
   zip.file('analysis-config.json', JSON.stringify({ generatedAt: new Date().toISOString(), ...input.options }, null, 2))
   zip.file('scripts/analyze.py', pythonAnalysisScript)
