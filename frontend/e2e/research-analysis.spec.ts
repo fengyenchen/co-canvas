@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
+import JSZip from 'jszip'
 
 const csv = `eventId,clientEventId,actorId,action,contextNodeId,aiMode,edited,decisionTimeMs,nodeCount,occurredAt,recordedAt
 event-1,client-1,actor-a,accepted,node-1,gemini,true,1000,3,2026-08-01T00:00:00Z,2026-08-01T00:00:01Z
@@ -20,20 +22,26 @@ test('可匯入研究 CSV、調整篩選並顯示分析結果', async ({ page })
   const analyzedMetric = page.getByText('進入分析事件').locator('..')
   await expect(analyzedMetric.getByText('4', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '行為比例' })).toBeVisible()
+  await expect(page.getByText(/目前採用完整描述分析/)).toBeVisible()
+  await expect(page.getByRole('button', { name: '下載完整 ZIP 報表' })).toBeEnabled()
+  await page.getByLabel('研究設計').selectOption('between')
   await expect(page.getByText("Fisher's exact test（決策分布）")).toBeVisible()
 
   await page.getByRole('checkbox', { name: /納入 Mock 模式/ }).check()
   await expect(analyzedMetric.getByText('6', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '參與者比較' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '下載分析摘要' })).toBeVisible()
-
-  const htmlDownload = page.waitForEvent('download')
-  await page.getByRole('button', { name: '下載 HTML 報告' }).click()
-  await expect((await htmlDownload).suggestedFilename()).toBe('co-canvas-research-report.html')
+  await expect(page.getByRole('button', { name: '下載完整 ZIP 報表' })).toBeVisible()
 
   const zipDownload = page.waitForEvent('download')
-  await page.getByRole('button', { name: '下載完整分析包' }).click()
-  await expect((await zipDownload).suggestedFilename()).toBe('co-canvas-research-package.zip')
+  await page.getByRole('button', { name: '下載完整 ZIP 報表' }).click()
+  const downloadedZip = await zipDownload
+  await expect(downloadedZip.suggestedFilename()).toBe('co-canvas-research-package.zip')
+  const zipPath = await downloadedZip.path()
+  expect(zipPath).not.toBeNull()
+  const archive = await JSZip.loadAsync(await readFile(zipPath!))
+  expect(archive.file('report.html')).not.toBeNull()
+  expect(Object.keys(archive.files).some((name) => name.endsWith('.svg'))).toBe(false)
+  expect(Object.keys(archive.files).some((name) => name.endsWith('.png'))).toBe(false)
 })
 
 test('研究分析頁在手機寬度不產生整頁水平捲動', async ({ page }) => {

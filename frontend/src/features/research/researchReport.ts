@@ -45,6 +45,57 @@ export function createResearchHtmlReport(input: {
   const summary = summarizeResearchRecords(input.records)
   const actionChart = createActionChartSvg(input.records)
   const conditionChart = createConditionChartSvg(input.records, input.fileMetadata)
-  const rows = Object.entries(input.quality).map(([metric, value]) => `<tr><th>${escapeHtml(metric)}</th><td>${value}</td></tr>`).join('')
-  return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Co-Canvas 研究分析報告</title><style>body{margin:0;background:#f5f5f7;color:#20202a;font:16px/1.65 system-ui,sans-serif}main{max-width:960px;margin:auto;padding:48px 24px}section{background:#fff;border:1px solid #dedee3;border-radius:18px;padding:24px;margin:20px 0}h1{font-size:36px;margin:0 0 8px}h2{font-size:21px}small,p{color:#62616b}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.metric{background:#f5f5f7;border-radius:12px;padding:16px}.metric strong{display:block;font-size:26px}svg{max-width:100%;height:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid #eee;padding:10px}</style></head><body><main><h1>Co-Canvas 研究分析報告</h1><p>產生時間：${new Date().toLocaleString('zh-TW')}</p><section><h2>摘要</h2><div class="metrics"><div class="metric"><small>分析事件</small><strong>${summary.total}</strong></div><div class="metric"><small>參與者</small><strong>${summary.actorCount}</strong></div><div class="metric"><small>接受率</small><strong>${(summary.actionRates.accepted * 100).toFixed(1)}%</strong></div><div class="metric"><small>修改率</small><strong>${(summary.editRate * 100).toFixed(1)}%</strong></div><div class="metric"><small>決策時間中位數</small><strong>${(summary.decisionTime.median / 1000).toFixed(1)} 秒</strong></div></div></section><section>${actionChart}</section><section>${conditionChart}</section><section><h2>資料品質</h2><table>${rows}</table></section><section><h2>解讀提醒</h2><p>本報告以描述性統計呈現目前資料，不單獨代表因果效果。正式報告應同時說明研究設計、樣本數、排除規則、任務與問卷／訪談結果。</p></section></main></body></html>`
+  const qualityLabels: Record<string, string> = {
+    analyzedRows: '進入分析事件',
+    duplicateRows: '移除重複資料',
+    excludedMockRows: '排除 Mock 事件',
+    excludedOutlierRows: '排除決策時間離群值',
+    importedRows: '匯入原始資料列',
+    invalidRows: '無效資料列',
+  }
+  const qualityRows = Object.entries(input.quality)
+    .map(([metric, value]) => `<tr><th scope="row">${escapeHtml(qualityLabels[metric] ?? metric)}</th><td>${value}</td></tr>`)
+    .join('')
+  const conditionGroups = new Map<string, ResearchEventRecord[]>()
+  input.records.forEach((record) => {
+    const metadata = input.fileMetadata[record.sourceFile]
+    const condition = metadata?.condition.trim() || '未指定'
+    conditionGroups.set(condition, [...(conditionGroups.get(condition) ?? []), record])
+  })
+  const conditionRows = [...conditionGroups.entries()].map(([condition, records]) => {
+    const conditionSummary = summarizeResearchRecords(records)
+    return `<tr><th scope="row">${escapeHtml(condition)}</th><td>${conditionSummary.total}</td><td>${conditionSummary.actorCount}</td><td>${(conditionSummary.actionRates.accepted * 100).toFixed(1)}%</td><td>${(conditionSummary.editRate * 100).toFixed(1)}%</td><td>${(conditionSummary.decisionTime.median / 1000).toFixed(1)} 秒</td></tr>`
+  }).join('')
+  const participantRows = summary.participants.slice(0, 20).map((participant) => `<tr><th scope="row"><code>${escapeHtml(participant.actorId)}</code></th><td>${participant.total}</td><td>${participant.accepted}</td><td>${(participant.editRate * 100).toFixed(1)}%</td><td>${(participant.medianDecisionTimeMs / 1000).toFixed(1)} 秒</td></tr>`).join('')
+  const generatedAt = new Date().toLocaleString('zh-TW')
+  return `<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Co-Canvas 研究分析報告</title>
+  <style>
+    :root{color-scheme:light;--ink:#171721;--muted:#62616b;--line:#dedee3;--surface:#fff;--canvas:#f5f5f7;--primary:#585762}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--canvas);color:var(--ink);font:16px/1.7 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{width:min(100% - 32px,1040px);margin:auto;padding:56px 0 72px}.eyebrow{margin:0;color:var(--primary);font-size:13px;font-weight:700;letter-spacing:.14em}.lead{max-width:720px;font-size:18px;color:var(--muted)}
+    h1{max-width:760px;margin:8px 0 6px;font-size:clamp(32px,6vw,52px);line-height:1.15;letter-spacing:-.035em}h2{margin:0;font-size:23px;letter-spacing:-.015em}h3{margin:0 0 12px;font-size:17px}.meta{margin:0;color:var(--muted);font-size:14px}
+    nav{display:flex;flex-wrap:wrap;gap:8px;margin:28px 0}nav a{border:1px solid var(--line);border-radius:999px;background:var(--surface);padding:8px 13px;color:var(--ink);font-size:13px;text-decoration:none}
+    section{margin:20px 0;padding:28px;border:1px solid var(--line);border-radius:18px;background:var(--surface);box-shadow:0 8px 24px rgba(28,28,36,.035)}.section-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:20px}.section-head p{margin:0;color:var(--muted);font-size:14px}
+    .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.metric{min-height:112px;padding:17px;border-radius:12px;background:var(--canvas)}.metric span{display:block;color:var(--muted);font-size:13px}.metric strong{display:block;margin-top:7px;font-size:28px;line-height:1.2;font-variant-numeric:tabular-nums}
+    .chart{overflow-x:auto}.chart svg{display:block;width:100%;min-width:620px;height:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:12px 14px;border-bottom:1px solid #ececf0;text-align:right;font-variant-numeric:tabular-nums}th:first-child,td:first-child{text-align:left}thead th{background:var(--canvas);color:var(--muted);font-size:12px;letter-spacing:.04em}tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}code{font-size:12px}.notice{border-left:4px solid var(--primary);background:var(--canvas);padding:16px 18px;border-radius:0 10px 10px 0;color:var(--muted)}
+    footer{padding-top:18px;text-align:center;color:var(--muted);font-size:12px}@media(max-width:640px){main{width:min(100% - 20px,1040px);padding-top:32px}section{padding:20px}.section-head{display:block}.section-head p{margin-top:6px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media print{body{background:#fff}main{width:100%;padding:0}nav{display:none}section{break-inside:avoid;border-color:#bbb;box-shadow:none}.chart{overflow:visible}.chart svg{min-width:0}footer{display:none}}
+  </style>
+</head>
+<body><main>
+  <header><p class="eyebrow">CO-CANVAS RESEARCH</p><h1>研究分析報告</h1><p class="lead">AI 建議決策行為的描述性摘要、條件比較與資料品質檢查。</p><p class="meta">產生時間：${generatedAt}</p></header>
+  <nav aria-label="報告章節"><a href="#overview">研究摘要</a><a href="#actions">決策分布</a><a href="#conditions">條件比較</a><a href="#participants">參與者</a><a href="#quality">資料品質</a><a href="#notes">解讀提醒</a></nav>
+  <section id="overview"><div class="section-head"><div><p class="eyebrow">01</p><h2>研究摘要</h2></div><p>目前清理與篩選後的資料</p></div><div class="metrics"><div class="metric"><span>分析事件</span><strong>${summary.total}</strong></div><div class="metric"><span>參與者</span><strong>${summary.actorCount}</strong></div><div class="metric"><span>接受率</span><strong>${(summary.actionRates.accepted * 100).toFixed(1)}%</strong></div><div class="metric"><span>修改率</span><strong>${(summary.editRate * 100).toFixed(1)}%</strong></div><div class="metric"><span>決策時間中位數</span><strong>${(summary.decisionTime.median / 1000).toFixed(1)} 秒</strong></div><div class="metric"><span>平均建議節點數</span><strong>${summary.nodeCount.mean.toFixed(1)}</strong></div></div></section>
+  <section id="actions"><div class="section-head"><div><p class="eyebrow">02</p><h2>決策分布</h2></div><p>接受、取消與重新生成</p></div><div class="chart">${actionChart}</div></section>
+  <section id="conditions"><div class="section-head"><div><p class="eyebrow">03</p><h2>條件比較</h2></div><p>依匯入檔案的條件標籤彙整</p></div><div class="chart">${conditionChart}</div><h3>條件摘要</h3><div class="table-wrap"><table><thead><tr><th>條件</th><th>事件</th><th>參與者</th><th>接受率</th><th>修改率</th><th>決策中位數</th></tr></thead><tbody>${conditionRows}</tbody></table></div></section>
+  <section id="participants"><div class="section-head"><div><p class="eyebrow">04</p><h2>參與者摘要</h2></div><p>依事件數排序，最多顯示 20 位</p></div><div class="table-wrap"><table><thead><tr><th>參與者</th><th>事件</th><th>接受</th><th>修改率</th><th>決策中位數</th></tr></thead><tbody>${participantRows}</tbody></table></div></section>
+  <section id="quality"><div class="section-head"><div><p class="eyebrow">05</p><h2>資料品質</h2></div><p>匯入、驗證與排除結果</p></div><div class="table-wrap"><table><tbody>${qualityRows}</tbody></table></div></section>
+  <section id="notes"><div class="section-head"><div><p class="eyebrow">06</p><h2>解讀提醒</h2></div></div><div class="notice">本報告以描述性統計呈現目前資料，不單獨代表因果效果。正式報告應同時說明研究設計、樣本數、排除規則、任務表現，以及問卷或訪談結果。</div></section>
+  <footer>由 Co-Canvas 研究資料分析工具產生</footer>
+</main></body></html>`
 }

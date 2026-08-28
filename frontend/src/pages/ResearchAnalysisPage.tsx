@@ -14,8 +14,6 @@ import {
 import { Link } from 'react-router'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 import {
-  createCleanedResearchCsv,
-  createResearchSummaryCsv,
   parseResearchCsv,
   prepareResearchRecords,
   summarizeResearchRecords,
@@ -26,11 +24,6 @@ import {
   createResearchPackage,
   type ResearchFileMetadata,
 } from '../features/research/researchPackage'
-import {
-  createActionChartSvg,
-  createConditionChartSvg,
-  createResearchHtmlReport,
-} from '../features/research/researchReport'
 import {
   analyzeActionDistribution,
   analyzeOutcome,
@@ -77,15 +70,6 @@ function formatDuration(milliseconds: number) {
   return `${formatNumber(milliseconds / 1000, 1)} 秒`
 }
 
-function downloadText(content: string, fileName: string, mimeType = 'text/csv;charset=utf-8') {
-  const url = URL.createObjectURL(new Blob([content], { type: mimeType }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(url)
-}
-
 function downloadBlob(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -93,28 +77,6 @@ function downloadBlob(blob: Blob, fileName: string) {
   anchor.download = fileName
   anchor.click()
   URL.revokeObjectURL(url)
-}
-
-async function svgToPng(svg: string) {
-  const image = new Image()
-  const source = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
-  try {
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve()
-      image.onerror = () => reject(new Error('無法產生 PNG 圖表。'))
-      image.src = source
-    })
-    const canvas = document.createElement('canvas')
-    canvas.width = image.naturalWidth * 2
-    canvas.height = image.naturalHeight * 2
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('瀏覽器不支援圖表轉換。')
-    context.scale(2, 2)
-    context.drawImage(image, 0, 0)
-    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('無法產生 PNG 圖表。')), 'image/png'))
-  } finally {
-    URL.revokeObjectURL(source)
-  }
 }
 
 function defaultCondition(fileName: string) {
@@ -182,7 +144,7 @@ export function ResearchAnalysisPage() {
   const [fileMetadata, setFileMetadata] = useState<Record<string, ResearchFileMetadata>>({})
   const [anonymizeActors, setAnonymizeActors] = useState(true)
   const [isPackaging, setIsPackaging] = useState(false)
-  const [studyDesign, setStudyDesign] = useState<StudyDesign>('between')
+  const [studyDesign, setStudyDesign] = useState<StudyDesign | ''>('')
   const [outcome, setOutcome] = useState<ResearchOutcome>('acceptanceRate')
 
   const preparation = useMemo(
@@ -194,12 +156,12 @@ export function ResearchAnalysisPage() {
     [preparation.records],
   )
   const statisticalResult = useMemo(
-    () => analyzeOutcome(preparation.records, fileMetadata, studyDesign, outcome),
+    () => studyDesign ? analyzeOutcome(preparation.records, fileMetadata, studyDesign, outcome) : null,
     [fileMetadata, outcome, preparation.records, studyDesign],
   )
   const actionDistributionResult = useMemo(
-    () => analyzeActionDistribution(preparation.records, fileMetadata),
-    [fileMetadata, preparation.records],
+    () => studyDesign ? analyzeActionDistribution(preparation.records, fileMetadata) : null,
+    [fileMetadata, preparation.records, studyDesign],
   )
   const estimates = useMemo(
     () => conditionEstimates(preparation.records, fileMetadata),
@@ -255,7 +217,7 @@ export function ResearchAnalysisPage() {
     try {
       const blob = await createResearchPackage({
         records: preparation.records,
-        options: { anonymizeActors, fileMetadata, filters, outcome, studyDesign },
+        options: { anonymizeActors, fileMetadata, filters, outcome, studyDesign: studyDesign || null },
         quality: qualityMetrics(),
       })
       downloadBlob(blob, 'co-canvas-research-package.zip')
@@ -272,21 +234,6 @@ export function ResearchAnalysisPage() {
       excludedOutlierRows: preparation.excludedOutlierRows,
       importedRows: totalRows,
       invalidRows,
-    }
-  }
-
-  function downloadHtmlReport() {
-    downloadText(createResearchHtmlReport({ records: preparation.records, fileMetadata, quality: qualityMetrics() }), 'co-canvas-research-report.html', 'text/html;charset=utf-8')
-  }
-
-  async function downloadCharts() {
-    const charts = [
-      ['action-distribution', createActionChartSvg(preparation.records)],
-      ['condition-acceptance', createConditionChartSvg(preparation.records, fileMetadata)],
-    ] as const
-    for (const [name, svg] of charts) {
-      downloadText(svg, `${name}.svg`, 'image/svg+xml;charset=utf-8')
-      downloadBlob(await svgToPng(svg), `${name}.png`)
     }
   }
 
@@ -406,16 +353,17 @@ export function ResearchAnalysisPage() {
               </div>
             </SectionCard>
 
-            <SectionCard title="4 · 研究設計與主要指標" description="統計檢定會先彙整到參與者 × 條件層級，避免把每筆事件誤當成獨立樣本。">
+            <SectionCard title="4 · 進階統計（選填）" description="不選也能輸出完整 ZIP 報表；需要推論統計時，再指定研究設計與主要結果指標。">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-medium">研究設計
                   <select value={studyDesign} onChange={(event) => setStudyDesign(event.target.value as StudyDesign)} className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary">
+                    <option value="">不指定（只做完整描述分析）</option>
                     <option value="between">組間設計（每人一個條件）</option>
                     <option value="within">組內設計（每人多個條件）</option>
                   </select>
                 </label>
                 <label className="text-sm font-medium">主要結果指標
-                  <select value={outcome} onChange={(event) => setOutcome(event.target.value as ResearchOutcome)} className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary">
+                  <select disabled={!studyDesign} value={outcome} onChange={(event) => setOutcome(event.target.value as ResearchOutcome)} className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-canvas disabled:text-foreground/40">
                     {Object.entries(outcomeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </label>
@@ -511,7 +459,12 @@ export function ResearchAnalysisPage() {
                         <MetricCard key={estimate.condition} label={estimate.condition} value={formatPercent(estimate.acceptanceRate)} detail={`95% CI ${formatPercent(estimate.ciLow)}–${formatPercent(estimate.ciHigh)} · ${estimate.participants} 人／${estimate.events} 事件`} />
                       ))}
                     </div>
-                    {statisticalResult ? (
+                    {!studyDesign ? (
+                      <div role="status" className="mt-4 flex items-start gap-3 rounded-xl border border-border bg-canvas/55 p-4 text-sm text-foreground/60">
+                        <LockKeyhole aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                        目前採用完整描述分析。若需要 p 值與效果量，可在「進階統計（選填）」指定組間或組內設計。
+                      </div>
+                    ) : statisticalResult ? (
                       <div className="mt-4 rounded-xl border border-border bg-canvas/55 p-4">
                         <div className="flex flex-wrap items-baseline justify-between gap-2"><strong>{statisticalResult.name}</strong><span className="text-sm tabular-nums">統計量 {formatNumber(statisticalResult.statistic, 3)} · p = {formatNumber(statisticalResult.pValue, 4)}</span></div>
                         <p className="mt-2 text-sm text-foreground/60">{statisticalResult.effectName} = {formatNumber(statisticalResult.effectSize, 3)}；納入 {statisticalResult.participants} 個參與者條件資料。{statisticalResult.note}</p>
@@ -538,15 +491,15 @@ export function ResearchAnalysisPage() {
                 )}
 
                 {summary.total > 0 && (
-                  <SectionCard title="匯出分析結果" description="完整分析包包含清理資料、多層級摘要、品質報告、欄位字典、設定檔及 Python／R 範例。">
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <button type="button" disabled={isPackaging} onClick={() => void downloadPackage()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-60 cursor-pointer"><Download aria-hidden="true" className="size-4" />{isPackaging ? '正在建立分析包…' : '下載完整分析包'}</button>
-                      <button type="button" onClick={() => downloadText(createResearchSummaryCsv(summary), 'co-canvas-research-summary.csv')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"><Download aria-hidden="true" className="size-4" />下載分析摘要</button>
-                      <button type="button" onClick={() => downloadText(createCleanedResearchCsv(preparation.records), 'co-canvas-research-cleaned.csv')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"><Download aria-hidden="true" className="size-4" />下載原格式清理資料</button>
+                  <SectionCard title="匯出完整分析報表" description="產生包含分析資料、HTML 報告與重現範例的 ZIP。">
+                    <div className="mb-4 grid gap-2 text-xs leading-5 text-foreground/60 sm:grid-cols-2">
+                      <p className="rounded-lg bg-canvas/55 px-3 py-2">CSV：清理資料、參與者、條件、時間、品質與決策序列</p>
+                      <p className="rounded-lg bg-canvas/55 px-3 py-2">報告：易讀 HTML、欄位字典與分析設定</p>
+                      <p className="rounded-lg bg-canvas/55 px-3 py-2">視覺化：直接在 HTML 報告查看或自行截圖</p>
+                      <p className="rounded-lg bg-canvas/55 px-3 py-2">程式：Python 與 R 重現分析範例</p>
                     </div>
-                    <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                      <button type="button" onClick={downloadHtmlReport} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"><Download aria-hidden="true" className="size-4" />下載 HTML 報告</button>
-                      <button type="button" onClick={() => void downloadCharts()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"><Download aria-hidden="true" className="size-4" />下載 SVG／PNG 圖表</button>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <button type="button" disabled={isPackaging} onClick={() => void downloadPackage()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-45 cursor-pointer"><Download aria-hidden="true" className="size-4" />{isPackaging ? '正在建立 ZIP 報表…' : '下載完整 ZIP 報表'}</button>
                     </div>
                     <div className="mt-4 flex gap-3 rounded-xl bg-canvas/55 p-4 text-xs leading-5 text-foreground/55"><CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />這些數值是描述性統計，不能單獨證明 Co-Canvas 提升任務表現；正式研究仍需結合實驗條件、任務結果、問卷或訪談。</div>
                   </SectionCard>
