@@ -41,6 +41,8 @@ describe('research package', () => {
         anonymizeActors: true,
         fileMetadata: { 'condition-a.csv': { condition: 'A', task: '摘要' } },
         filters,
+        outcome: 'acceptanceRate',
+        studyDesign: 'between',
       },
       quality: { analyzedRows: 2, duplicateRows: 0, excludedMockRows: 0, excludedOutlierRows: 0, importedRows: 2, invalidRows: 0 },
     })
