@@ -1072,7 +1072,7 @@ export function EditorPage() {
           }`}
         >
           {projectSaveState === 'saving' && '儲存中…'}
-          {projectSaveState === 'merging' && '正在合併協作者更新…'}
+          {projectSaveState === 'merging' && '正在合併其他使用者的更新…'}
           {projectSaveState === 'saved' && '已同步'}
           {projectSaveState === 'error' &&
             (projectSaveRequiresLogin

@@ -123,6 +123,16 @@ test('影片片段會隨對話送往分析 API', async ({ page }) => {
     data: { origin: 'user', label: '片段' },
     label: '片段',
   })
+  document.messages.push({
+    id: 'other-user-message',
+    role: 'user',
+    content: '另一位使用者的既有訊息',
+    contextNodeId: 'clip-note',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    authorId: 'other-user',
+    authorEmail: 'other@example.com',
+    authorName: '王小明',
+  })
   const state = await installE2eMocks(page, {
     projects: [createProject({ document })],
   })
@@ -134,7 +144,8 @@ test('影片片段會隨對話送往分析 API', async ({ page }) => {
   await page.getByPlaceholder(/想問什麼/).fill('整理這段影片的重點')
   await page.getByRole('button', { name: '送出' }).click()
 
-  await expect(page.getByText('你 · E2E 使用者')).toBeVisible()
+  await expect(page.getByText('我', { exact: true })).toBeVisible()
+  await expect(page.getByText('王小明', { exact: true })).toBeVisible()
   await expect(page.getByText('AI', { exact: true })).toBeVisible()
   await expect(page.getByText('影片分析完成')).toBeVisible()
   await expect.poll(() => state.lastChatRequest).not.toBeNull()

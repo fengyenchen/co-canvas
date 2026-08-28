@@ -96,7 +96,7 @@ test('同時編輯時自動合併本機與雲端的不同欄位', async ({ page 
   const remoteNode = state.projects[0].document.nodes[0]
   remoteNode.data = {
     ...(remoteNode.data as Record<string, unknown>),
-    content: '另一位協作者更新的內容',
+    content: '另一位使用者更新的內容',
   }
   state.projects[0].updatedAt = '2026-01-01T00:00:10.000Z'
 
@@ -106,11 +106,11 @@ test('同時編輯時自動合併本機與雲端的不同欄位', async ({ page 
   expect(state.projects[0].document.nodes[0]).toMatchObject({
     data: {
       title: '本機衝突標題',
-      content: '另一位協作者更新的內容',
+      content: '另一位使用者更新的內容',
     },
   })
   await expect(page.getByLabel('標題')).toHaveValue('本機衝突標題')
-  await expect(page.getByLabel('內容')).toHaveValue('另一位協作者更新的內容')
+  await expect(page.getByLabel('內容')).toHaveValue('另一位使用者更新的內容')
 })
 
 test('同欄位競爭時保留目前輸入並自動重試', async ({ page }) => {
@@ -131,7 +131,7 @@ test('同欄位競爭時保留目前輸入並自動重試', async ({ page }) => 
   })
 })
 
-test('無本機修改時會即時套用另一位協作者的更新', async ({ page }) => {
+test('無本機修改時會即時套用另一位使用者的更新', async ({ page }) => {
   const state = await installE2eMocks(page, {
     projects: [projectWithNode()],
   })
@@ -143,7 +143,7 @@ test('無本機修改時會即時套用另一位協作者的更新', async ({ pa
     type: 'concept',
     position: { x: 240, y: 0 },
     data: {
-      title: '協作者新增節點',
+      title: '其他使用者新增節點',
       content: '即時同步內容',
       origin: 'user',
     },
@@ -151,6 +151,6 @@ test('無本機修改時會即時套用另一位協作者的更新', async ({ pa
   state.projects[0].updatedAt = '2026-01-01T00:00:20.000Z'
 
   await expect(
-    page.getByText('協作者新增節點', { exact: true }),
+    page.getByText('其他使用者新增節點', { exact: true }),
   ).toBeVisible({ timeout: 5_000 })
 })

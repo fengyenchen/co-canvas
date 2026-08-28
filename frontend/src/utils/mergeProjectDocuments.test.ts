@@ -63,7 +63,7 @@ describe('mergeProjectDocuments', () => {
     })
   })
 
-  it('合併兩位協作者各自新增的對話', () => {
+  it('合併兩位使用者各自新增的對話', () => {
     const base = document()
     const local = structuredClone(base)
     const remote = structuredClone(base)
@@ -75,7 +75,7 @@ describe('mergeProjectDocuments', () => {
       createdAt: '2026-08-28T00:00:00.000Z',
       authorId: 'local-user',
       authorEmail: 'local@example.com',
-      authorName: '本機協作者',
+      authorName: '本機使用者',
     })
     remote.messages.push({
       id: 'message-remote',
@@ -85,7 +85,7 @@ describe('mergeProjectDocuments', () => {
       createdAt: '2026-08-28T00:00:01.000Z',
       authorId: 'remote-user',
       authorEmail: 'remote@example.com',
-      authorName: '遠端協作者',
+      authorName: '遠端使用者',
     })
 
     const merged = mergeProjectDocuments(base, local, remote)

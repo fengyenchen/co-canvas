@@ -40,16 +40,9 @@ function getMessageAuthorLabel(
 ): string {
   if (message.role === 'ai') return 'AI'
 
-  const isCurrentUser = message.authorId === currentUser?.id
-  const displayName = isCurrentUser
-    ? currentUser?.name ??
-      message.authorName ??
-      currentUser?.email ??
-      message.authorEmail ??
-      '協作者'
-    : message.authorName ?? message.authorEmail ?? '協作者'
+  if (message.authorId === currentUser?.id) return '我'
 
-  return isCurrentUser ? `你 · ${displayName}` : displayName
+  return message.authorName ?? message.authorEmail ?? '使用者'
 }
 
 function formatClipTime(timeMs: number): string {

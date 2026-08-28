@@ -194,7 +194,7 @@ def test_backend_stamps_and_preserves_chat_message_author() -> None:
             {
                 "id": "message-1",
                 "role": "user",
-                "content": "協作者訊息",
+                "content": "其他使用者訊息",
                 "contextNodeId": None,
                 "createdAt": "2026-08-28T00:00:00.000Z",
                 "authorId": "spoofed-user",
@@ -240,7 +240,7 @@ def test_anonymous_public_editor_cannot_spoof_chat_author() -> None:
             {
                 "id": "anonymous-message",
                 "role": "user",
-                "content": "公開協作者訊息",
+                "content": "公開使用者訊息",
                 "contextNodeId": None,
                 "createdAt": "2026-08-29T00:00:00.000Z",
                 "authorId": OWNER.id,
