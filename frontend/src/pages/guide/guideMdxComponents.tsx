@@ -4,9 +4,8 @@ import type { MDXComponents } from 'mdx/types'
 
 function GuideHero({ children }: { children?: ReactNode }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-canvas/65 px-6 py-8 shadow-sm sm:px-9 sm:py-10">
-      <div aria-hidden="true" className="absolute -right-16 -top-20 size-52 rounded-full bg-primary/10 blur-3xl" />
-      <div className="relative">{children}</div>
+    <div className="rounded-2xl border border-border bg-canvas/65 px-6 py-8 shadow-sm sm:px-9 sm:py-10">
+      {children}
     </div>
   )
 }
