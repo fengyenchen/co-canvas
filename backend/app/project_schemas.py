@@ -146,6 +146,13 @@ class ProjectSuggestionDecisionEvent(ApiModel):
     created_at: datetime
 
 
+class ProjectResearchEventsSync(ApiModel):
+    events: list[ProjectSuggestionDecisionEvent] = Field(
+        min_length=1,
+        max_length=5000,
+    )
+
+
 class ProjectDocument(ApiModel):
     version: Literal[4] = 4
     nodes: list[ProjectNode] = Field(default_factory=list, max_length=500)

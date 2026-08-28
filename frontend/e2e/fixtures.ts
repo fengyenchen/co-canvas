@@ -55,6 +55,10 @@ export type E2eState = {
   trashedProjects: E2eTrashedProject[]
   versions: Map<string, E2eVersion[]>
   projectUpdates: Array<Record<string, unknown>>
+  researchEventSyncs: Array<{
+    projectId: string
+    events: Array<Record<string, unknown>>
+  }>
   lastChatRequest: Record<string, unknown> | null
 }
 
@@ -126,6 +130,7 @@ export async function installE2eMocks(
       : [],
     versions: options.versions ?? new Map(),
     projectUpdates: [],
+    researchEventSyncs: [],
     lastChatRequest: null,
   }
   let updateSequence = 0
@@ -364,6 +369,21 @@ export async function installE2eMocks(
         await json(route, version, 201)
         return
       }
+    }
+
+    const researchEventsMatch = path.match(
+      /^\/api\/projects\/([^/]+)\/research-events$/,
+    )
+    if (researchEventsMatch && method === 'POST') {
+      const input = request.postDataJSON() as {
+        events: Array<Record<string, unknown>>
+      }
+      state.researchEventSyncs.push({
+        projectId: researchEventsMatch[1],
+        events: input.events,
+      })
+      await route.fulfill({ status: 204 })
+      return
     }
 
     const projectMatch = path.match(/^\/api\/projects\/([^/]+)$/)

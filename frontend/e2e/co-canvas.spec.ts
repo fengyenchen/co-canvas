@@ -147,3 +147,28 @@ test('影片片段會隨對話送往分析 API', async ({ page }) => {
     },
   })
 })
+
+test('研究事件會透過獨立端點同步', async ({ page }) => {
+  const document = emptyDocument()
+  document.suggestionEvents.push({
+    id: 'decision-e2e',
+    action: 'accepted',
+    contextNodeId: 'node-e2e',
+    aiMode: 'gemini',
+    edited: false,
+    decisionTimeMs: 1500,
+    nodeCount: 2,
+    createdAt: '2026-08-28T04:00:00.000Z',
+  })
+  const state = await installE2eMocks(page, {
+    projects: [createProject({ document })],
+  })
+
+  await page.goto(`/projects/${PROJECT_ID}`)
+
+  await expect.poll(() => state.researchEventSyncs.length).toBeGreaterThan(0)
+  expect(state.researchEventSyncs.at(-1)).toMatchObject({
+    projectId: PROJECT_ID,
+    events: [{ id: 'decision-e2e', action: 'accepted' }],
+  })
+})

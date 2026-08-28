@@ -13,6 +13,7 @@ import {
   downloadProjectResearchEvents,
   getProject,
   restoreProjectVersion,
+  syncProjectResearchEvents,
   updateProject,
 } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
@@ -122,6 +123,7 @@ export function EditorPage() {
     'idle' | 'duplicating' | 'deleting'
   >('idle')
   const [projectActionError, setProjectActionError] = useState('')
+  const [researchSyncRevision, setResearchSyncRevision] = useState(0)
   const [activeSettingsDialog, setActiveSettingsDialog] =
     useState<ProjectSettingsDialog>(null)
   const [aiSettingsRevision, setAiSettingsRevision] = useState(0)
@@ -144,6 +146,41 @@ export function EditorPage() {
   const suggestionEvents = useChatStore(
     (state) => state.suggestionEvents,
   )
+
+  useEffect(() => {
+    if (
+      projectLoadState !== 'ready' ||
+      projectAccessRole === 'viewer' ||
+      !projectId ||
+      projectId === LOCAL_PROJECT_ID ||
+      suggestionEvents.length === 0
+    ) {
+      return
+    }
+
+    let isCancelled = false
+    let retryTimeoutId: number | undefined
+
+    void syncProjectResearchEvents(projectId, suggestionEvents).catch(() => {
+      if (!isCancelled) {
+        retryTimeoutId = window.setTimeout(
+          () => setResearchSyncRevision((revision) => revision + 1),
+          5000,
+        )
+      }
+    })
+
+    return () => {
+      isCancelled = true
+      if (retryTimeoutId !== undefined) window.clearTimeout(retryTimeoutId)
+    }
+  }, [
+    projectAccessRole,
+    projectId,
+    projectLoadState,
+    researchSyncRevision,
+    suggestionEvents,
+  ])
   const projectDocument = useMemo(
     () =>
       createProjectDocument(

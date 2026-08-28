@@ -9,6 +9,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 
 from app.auth import AuthenticatedUser, CurrentUser, OptionalCurrentUser
 from app.database import get_database_session
@@ -19,6 +20,7 @@ from app.project_schemas import (
     ProjectMemberResponse,
     ProjectMemberUpdate,
     ProjectResponse,
+    ProjectResearchEventsSync,
     ProjectRole,
     ProjectSuggestionDecisionEvent,
     ProjectSummary,
@@ -69,34 +71,30 @@ async def sync_research_events(
     if not events:
         return
 
-    client_event_ids = [event.id for event in events]
-    existing_event_ids = set(
-        await session.scalars(
-            select(ResearchEvent.client_event_id).where(
-                ResearchEvent.project_id == project_id,
-                ResearchEvent.client_event_id.in_(client_event_ids),
-            )
+    await session.execute(
+        postgresql_insert(ResearchEvent)
+        .values(
+            [
+                {
+                    "id": uuid.uuid4(),
+                    "project_id": project_id,
+                    "client_event_id": event.id,
+                    "actor_id": actor_id,
+                    "action": event.action,
+                    "context_node_id": event.context_node_id,
+                    "ai_mode": event.ai_mode,
+                    "edited": event.edited,
+                    "decision_time_ms": event.decision_time_ms,
+                    "node_count": event.node_count,
+                    "occurred_at": event.created_at,
+                }
+                for event in events
+            ]
+        )
+        .on_conflict_do_nothing(
+            constraint="uq_research_events_project_client_event",
         )
     )
-
-    for event in events:
-        if event.id in existing_event_ids:
-            continue
-
-        session.add(
-            ResearchEvent(
-                project_id=project_id,
-                client_event_id=event.id,
-                actor_id=actor_id,
-                action=event.action,
-                context_node_id=event.context_node_id,
-                ai_mode=event.ai_mode,
-                edited=event.edited,
-                decision_time_ms=event.decision_time_ms,
-                node_count=event.node_count,
-                occurred_at=event.created_at,
-            )
-        )
 
 
 async def get_project_or_404(
@@ -435,6 +433,34 @@ async def export_project_research_events(
     )
 
 
+@router.post(
+    "/{project_id}/research-events",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def record_project_research_events(
+    project_id: uuid.UUID,
+    request: ProjectResearchEventsSync,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> Response:
+    _, role = await get_readable_project(project_id, session, user)
+
+    if role == "viewer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="你只有檢視權限",
+        )
+
+    await sync_research_events(
+        project_id,
+        request.events,
+        session,
+        user.id,
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get(
     "/{project_id}/versions",
     response_model=list[ProjectVersionSummary],
@@ -678,14 +704,6 @@ async def update_project(
     else:
         for field_name, value in update_values.items():
             setattr(project, field_name, value)
-
-    if request.document is not None:
-        await sync_research_events(
-            project_id,
-            request.document.suggestion_events,
-            session,
-            user.id if user is not None else None,
-        )
 
     await session.commit()
     await session.refresh(project)

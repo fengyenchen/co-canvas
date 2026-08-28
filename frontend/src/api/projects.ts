@@ -11,6 +11,7 @@ import type {
   TrashedProjectSummary,
   UpdateProjectInput,
 } from '../types/project'
+import type { SuggestionDecisionEvent } from '../types/suggestion'
 import { projectDocumentSchema } from '../utils/projectFile'
 import { ApiRequestError, throwApiRequestError } from './errors'
 
@@ -367,4 +368,24 @@ export async function downloadProjectResearchEvents(
   anchor.download = `${projectName}-research-events.csv`
   anchor.click()
   URL.revokeObjectURL(url)
+}
+
+export async function syncProjectResearchEvents(
+  projectId: string,
+  events: SuggestionDecisionEvent[],
+): Promise<void> {
+  if (events.length === 0) return
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/research-events`,
+    {
+      method: 'POST',
+      headers: await createRequestHeaders(true),
+      body: JSON.stringify({ events }),
+    },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
 }
