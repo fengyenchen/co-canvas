@@ -92,6 +92,14 @@ function App() {
         }
       />
       <Route
+        path="/guide/example"
+        element={
+          <LazyPage message="正在載入使用範例…">
+            <EditorPage mode="example" />
+          </LazyPage>
+        }
+      />
+      <Route
         path="/guide/research"
         element={
           <LazyPage message="正在載入研究資料指南…">

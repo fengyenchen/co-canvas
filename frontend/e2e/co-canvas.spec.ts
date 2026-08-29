@@ -19,6 +19,31 @@ test('登入後進入雲端專案列表', async ({ page }) => {
   await expect(page.getByTitle('e2e@example.com')).toBeVisible()
 })
 
+test('可從搜尋旁的問號開啟操作導覽', async ({ page }) => {
+  await installE2eMocks(page, {
+    projects: [createProject()],
+  })
+  await page.goto(`/projects/${PROJECT_ID}`)
+
+  const helpButton = page.getByRole('button', { name: '開啟操作導覽' })
+  const searchButton = page.getByRole('button', { name: '搜尋節點' })
+
+  await expect(helpButton).toBeVisible({ timeout: 30_000 })
+  await expect(searchButton).toBeVisible()
+  await helpButton.click()
+
+  const tourDialog = page.getByRole('alertdialog')
+  await expect(
+    tourDialog.getByText('歡迎使用 Co-Canvas', { exact: true }),
+  ).toBeVisible()
+  await tourDialog.getByRole('button', { name: /^下一步/ }).click()
+  await expect(
+    tourDialog.getByText('新增節點', { exact: true }),
+  ).toBeVisible()
+  await tourDialog.getByRole('button', { name: '跳過' }).click()
+  await expect(tourDialog).toHaveCount(0)
+})
+
 test('建立專案、儲存節點並複製分享連結', async ({ page }) => {
   const state = await installE2eMocks(page)
   await page.goto('/projects')

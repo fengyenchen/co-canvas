@@ -11,6 +11,38 @@ test('登入後可瀏覽首頁、以新分頁開啟手冊並從專案列表返�
   await expect(page.getByRole('link', { name: '進入專案' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: '登出' })).toBeVisible()
 
+  await page.getByRole('link', { name: '查看完整使用範例' }).click()
+  await expect(page).toHaveURL(/\/guide\/example$/)
+  const exampleTour = page.getByRole('alertdialog')
+  await expect(
+    exampleTour.getByText('新增文字節點', { exact: true }),
+  ).toBeVisible()
+  await exampleTour.getByRole('button', { name: /^下一步/ }).click()
+  await expect(
+    exampleTour.getByText('開啟節點對話', { exact: true }),
+  ).toBeVisible()
+  await exampleTour.getByRole('button', { name: /^下一步/ }).click()
+  await expect(
+    exampleTour.getByText('與 AI 對話', { exact: true }),
+  ).toBeVisible()
+  await exampleTour.getByRole('button', { name: /^下一步/ }).click()
+  await expect(
+    exampleTour.getByText('從回覆產生節點', { exact: true }),
+  ).toBeVisible()
+  await exampleTour.getByRole('button', { name: /^下一步/ }).click()
+  await expect(
+    exampleTour.getByText('自動排版', { exact: true }),
+  ).toBeVisible()
+  await exampleTour.getByRole('button', { name: '完成' }).click()
+  await expect(
+    page
+      .getByTestId('rf__node-example-root')
+      .getByText('校園永續競賽題目發想'),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: '產生節點' })).toBeVisible()
+
+  await page.goto('/')
+
   const guidePagePromise = page.waitForEvent('popup')
   await page.getByRole('link', { name: /使用手冊/ }).first().click()
   const guidePage = await guidePagePromise
@@ -47,4 +79,24 @@ test('登入後可瀏覽首頁、以新分頁開啟手冊並從專案列表返�
   await expect(page).toHaveURL(/\/projects$/)
   await page.getByRole('link', { name: '首頁', exact: true }).click()
   await expect(page).toHaveURL(/\/$/)
+})
+
+test('互動使用範例在手機寬度可操作且不產生水平捲動', async ({ page }) => {
+  await installE2eMocks(page)
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto('/guide/example')
+
+  const exampleTour = page.getByRole('alertdialog')
+  await expect(
+    exampleTour.getByText('新增文字節點', { exact: true }),
+  ).toBeVisible()
+  await exampleTour.getByRole('button', { name: '跳過' }).click()
+  await expect(page.getByRole('button', { name: '產生節點' })).toBeVisible()
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    )
+    .toBe(true)
 })

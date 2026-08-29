@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { motion, MotionConfig, type HTMLMotionProps } from 'motion/react'
-import { CloudUpload, ExternalLink, Film, Link2, MessageSquareText, Play } from 'lucide-react'
+import { BookOpenCheck, CloudUpload, ExternalLink, Film, Link2, MessageSquareText, Play } from 'lucide-react'
 import { Link } from 'react-router'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 
@@ -111,6 +111,12 @@ export function LandingPage() {
             className="hidden min-h-11 cursor-pointer items-center justify-center rounded-lg px-4 text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:inline-flex"
           >
             適用情境
+          </a>
+          <a
+            href="#example"
+            className="hidden min-h-11 cursor-pointer items-center justify-center rounded-lg px-4 text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 xl:inline-flex"
+          >
+            使用範例
           </a>
           <Link
             to="/guide"
@@ -741,6 +747,63 @@ export function LandingPage() {
         </section>
 
         <section
+          id="example"
+          aria-labelledby="example-title"
+          className="scroll-mt-6 border-t border-border bg-canvas/45"
+        >
+          <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-[minmax(0,0.9fr)_minmax(26rem,1.1fr)]">
+            <Reveal>
+              <div className="inline-flex size-12 items-center justify-center rounded-2xl border border-border bg-background text-primary shadow-sm">
+                <BookOpenCheck aria-hidden="true" className="size-5" />
+              </div>
+              <p className="mt-6 text-sm font-semibold tracking-[0.16em] text-primary">
+                使用範例
+              </p>
+              <h2
+                id="example-title"
+                className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl"
+              >
+                從競賽題目發想，走完核心流程
+              </h2>
+              <p className="mt-4 max-w-xl text-base leading-8 text-foreground/65">
+                直接進入可操作的範例畫布，跟著導覽新增文字節點、查看模擬 AI 對話、產生提案節點並完成自動排版。
+              </p>
+              <Link
+                to="/guide/example"
+                className="mt-7 inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                查看完整使用範例
+                <span aria-hidden="true">→</span>
+              </Link>
+            </Reveal>
+
+            <Reveal delay={0.08}>
+              <ol className="grid gap-3 rounded-3xl border border-border bg-background p-5 shadow-lg shadow-foreground/5 sm:p-7">
+                {[
+                  ['01', '從文字節點開始整理題目'],
+                  ['02', '帶著節點脈絡和 AI 對話'],
+                  ['03', '將 AI 回覆產生成節點'],
+                  ['04', '檢查建議後加入畫布'],
+                  ['05', '自動排版整理畫布'],
+                ].map(([number, label]) => (
+                  <li
+                    key={number}
+                    className="flex min-h-14 items-center gap-4 rounded-xl border border-border bg-canvas/45 px-4 py-3"
+                  >
+                    <span className="text-xs font-semibold tabular-nums text-primary">
+                      {number}
+                    </span>
+                    <span className="text-sm font-medium text-foreground">
+                      {label}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </Reveal>
+          </div>
+        </section>
+
+        <section
           aria-labelledby="cta-title"
           className="border-t border-border bg-background"
         >
@@ -799,7 +862,7 @@ export function LandingPage() {
               to="/guide"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium text-foreground/65 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium text-foreground/65 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
               使用手冊
               <ExternalLink aria-hidden="true" className="size-4" />

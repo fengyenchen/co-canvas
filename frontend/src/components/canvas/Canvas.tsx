@@ -7,6 +7,9 @@ import {
     useReactFlow,
 } from '@xyflow/react'
 import type { NodeTypes } from '@xyflow/react'
+import { CircleHelp } from 'lucide-react'
+import { Joyride, STATUS } from 'react-joyride'
+import type { Step } from 'react-joyride'
 import { Link } from 'react-router'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
@@ -32,6 +35,7 @@ const nodeTypes: NodeTypes = {
 
 type CanvasProps = {
     isReadOnly?: boolean
+    autoStartTour?: boolean
     canRenameProject?: boolean
     canManageProjectPermissions?: boolean
     canCopyProjectLink?: boolean
@@ -53,6 +57,7 @@ type CanvasProps = {
 
 function CanvasContent({
     isReadOnly = false,
+    autoStartTour = false,
     canRenameProject = false,
     canManageProjectPermissions = false,
     canCopyProjectLink = false,
@@ -77,6 +82,7 @@ function CanvasContent({
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [isSearchOpen, setIsSearchOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [isTourRunning, setIsTourRunning] = useState(autoStartTour)
     const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false)
     const [isAddNodeMenuOpen, setIsAddNodeMenuOpen] = useState(false)
     const [pendingImportProject, setPendingImportProject] =
@@ -86,6 +92,117 @@ function CanvasContent({
     const [copyLinkState, setCopyLinkState] = useState<
         'idle' | 'copied' | 'error'
     >('idle')
+
+    const tourSteps = useMemo<Step[]>(() => {
+        if (autoStartTour) {
+            return [
+                {
+                    target: '[data-tour="add-node"]',
+                    placement: 'bottom-start',
+                    title: '新增文字節點',
+                    content:
+                        '按「新增節點」，再選擇「文字節點」，就能把想法、問題或提案方向放進畫布。',
+                },
+                {
+                    target: '.react-flow__node-concept',
+                    placement: 'right',
+                    title: '開啟節點對話',
+                    content:
+                        '雙擊任何文字節點即可進入對話。這裡已先開啟競賽題目節點作為示範。',
+                },
+                {
+                    target: '[data-tour="chat-panel"]',
+                    placement: 'right',
+                    title: '與 AI 對話',
+                    content:
+                        '對話會帶入目前節點與相鄰節點的脈絡。範例已準備好一段題目發想對話。',
+                },
+                {
+                    target: '[data-tour="generate-nodes"]',
+                    placement: 'right',
+                    title: '從回覆產生節點',
+                    content:
+                        'AI 回覆後按「產生節點」，先檢查建議內容，再決定是否加入畫布。',
+                },
+                {
+                    target: '[data-tour="auto-layout"]',
+                    placement: 'bottom',
+                    title: '自動排版',
+                    content:
+                        '節點加入後按「自動排版」，即可整理整張畫布。之後還能探索影片片段與群組等進階功能。',
+                },
+            ]
+        }
+
+        const sharedSteps: Step[] = [
+            {
+                target: '[data-tour="canvas"]',
+                placement: 'center',
+                title: '歡迎使用 Co-Canvas',
+                content:
+                    '這裡是專案畫布。你可以整理節點、建立關係，並從文字節點進入 AI 對話。',
+            },
+        ]
+
+        if (!isReadOnly) {
+            sharedSteps.push(
+                {
+                    target: '[data-tour="add-node"]',
+                    placement: 'bottom-start',
+                    title: '新增節點',
+                    content:
+                        '從這裡新增文字節點或影片節點。拖曳節點上下端點，可以建立節點之間的連線。',
+                },
+                {
+                    target: '[data-tour="group-nodes"]',
+                    placement: 'bottom',
+                    title: '建立群組',
+                    content:
+                        '按住 Shift 框選至少兩個節點後，可把節點整理成可命名、上色、收合與鎖定的群組。',
+                },
+                {
+                    target: '[data-tour="auto-layout"]',
+                    placement: 'bottom',
+                    title: '自動排版',
+                    content:
+                        '自動整理節點與群組的位置，同時保留群組內部的結構。',
+                },
+                {
+                    target: '[data-tour="history-controls"]',
+                    placement: 'bottom',
+                    title: '復原與重做',
+                    content:
+                        '可復原或重做畫布操作，也支援 Ctrl/Cmd + Z 與 Ctrl/Cmd + Shift + Z。',
+                },
+            )
+        }
+
+        sharedSteps.push(
+            {
+                target: '[data-tour="project-menu"]',
+                placement: 'bottom-end',
+                title: '專案功能',
+                content: isReadOnly
+                    ? '可從這裡匯出目前可查看的專案內容。'
+                    : '管理分享、權限、版本、備份、匯入匯出與 AI 設定。',
+            },
+            {
+                target: '[data-tour="search"]',
+                placement: 'left',
+                title: '搜尋節點',
+                content:
+                    '依標題或內容搜尋節點，點選結果即可立即移動到該節點。',
+            },
+            {
+                target: '[data-tour="tour-help"]',
+                placement: 'left',
+                title: '隨時重新查看',
+                content: '之後需要複習時，再按這個問號即可重新開始操作導覽。',
+            },
+        )
+
+        return sharedSteps
+    }, [autoStartTour, isReadOnly])
 
     const edges = useCanvasStore((state) => state.edges)
     const addNode = useCanvasStore((state) => state.addNode)
@@ -304,6 +421,22 @@ function CanvasContent({
     }
 
     useEffect(() => {
+        if (!isTourRunning) return
+
+        function stopTourWithEscape(event: KeyboardEvent) {
+            if (event.key === 'Escape') {
+                setIsTourRunning(false)
+            }
+        }
+
+        window.addEventListener('keydown', stopTourWithEscape, true)
+
+        return () => {
+            window.removeEventListener('keydown', stopTourWithEscape, true)
+        }
+    }, [isTourRunning])
+
+    useEffect(() => {
         function handleKeyDown(event: KeyboardEvent) {
             if (isReadOnly) {
                 return
@@ -363,8 +496,88 @@ function CanvasContent({
     return (
         <section
             ref={canvasSectionRef}
+            data-tour="canvas"
             className="relative min-h-0 min-w-0 flex-1 bg-canvas"
         >
+            <Joyride
+                run={isTourRunning}
+                steps={tourSteps}
+                continuous
+                scrollToFirstStep
+                onEvent={({ status }) => {
+                    if (
+                        status === STATUS.FINISHED ||
+                        status === STATUS.SKIPPED
+                    ) {
+                        setIsTourRunning(false)
+                    }
+                }}
+                locale={{
+                    back: '上一步',
+                    close: '關閉導覽',
+                    last: '完成',
+                    next: '下一步',
+                    nextWithProgress: '下一步（{current}/{total}）',
+                    open: '開啟操作導覽',
+                    skip: '跳過',
+                }}
+                options={{
+                    backgroundColor: '#f5f5f7',
+                    textColor: '#0f172a',
+                    primaryColor: '#52525b',
+                    arrowColor: '#f5f5f7',
+                    overlayColor: 'rgba(15, 23, 42, 0.58)',
+                    buttons: ['back', 'close', 'skip', 'primary'],
+                    closeButtonAction: 'skip',
+                    overlayClickAction: false,
+                    skipBeacon: true,
+                    showProgress: true,
+                    spotlightPadding: 6,
+                    spotlightRadius: 10,
+                    zIndex: 1000,
+                    width: 360,
+                }}
+                styles={{
+                    tooltip: {
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 16,
+                        padding: 20,
+                        boxShadow: '0 20px 45px rgba(15, 23, 42, 0.18)',
+                    },
+                    tooltipContainer: {
+                        lineHeight: 1.6,
+                        textAlign: 'left',
+                    },
+                    tooltipTitle: {
+                        fontSize: 18,
+                        fontWeight: 650,
+                        paddingRight: 44,
+                    },
+                    buttonBack: {
+                        minHeight: 44,
+                        padding: '8px 12px',
+                    },
+                    buttonClose: {
+                        alignItems: 'center',
+                        display: 'flex',
+                        height: 44,
+                        justifyContent: 'center',
+                        right: 8,
+                        top: 8,
+                        width: 44,
+                    },
+                    buttonPrimary: {
+                        minHeight: 44,
+                        borderRadius: 8,
+                        padding: '8px 14px',
+                    },
+                    buttonSkip: {
+                        minHeight: 44,
+                        padding: '8px 10px',
+                    },
+                }}
+            />
+
             {isProjectMenuOpen && (
                 <button
                     type="button"
@@ -468,7 +681,10 @@ function CanvasContent({
                 </div>
             )}
 
-            <div className="absolute left-4 right-4 top-4 z-10 flex items-center justify-between gap-2 sm:right-auto sm:justify-start">
+            <div
+                data-tour="toolbar"
+                className="absolute left-4 right-4 top-4 z-10 flex items-center justify-between gap-2 sm:right-auto sm:justify-start"
+            >
                 <Link
                     to="/projects"
                     aria-label="返回專案列表"
@@ -497,6 +713,7 @@ function CanvasContent({
                         >
                             <button
                                 type="button"
+                                data-tour="add-node"
                                 aria-expanded={isAddNodeMenuOpen}
                                 onClick={() =>
                                     setIsAddNodeMenuOpen((isOpen) => !isOpen)
@@ -535,6 +752,7 @@ function CanvasContent({
 
                         <button
                             type="button"
+                            data-tour="group-nodes"
                             onClick={groupSelectedNodes}
                             disabled={selectedUngroupedNodeCount < 2}
                             title="框選至少兩個未分組節點後建立群組"
@@ -546,6 +764,7 @@ function CanvasContent({
 
                         <button
                             type="button"
+                            data-tour="auto-layout"
                             onClick={handleAutoLayout}
                             disabled={nodes.length < 2}
                             className="min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:border-border disabled:bg-background disabled:text-foreground/30 sm:flex-none sm:px-4"
@@ -554,7 +773,10 @@ function CanvasContent({
                             <span className="hidden sm:inline">自動排版</span>
                         </button>
 
-                        <div className="flex min-h-11 min-w-22 flex-1 overflow-hidden rounded-lg border border-border bg-background shadow-sm sm:flex-none">
+                        <div
+                            data-tour="history-controls"
+                            className="flex min-h-11 min-w-22 flex-1 overflow-hidden rounded-lg border border-border bg-background shadow-sm sm:flex-none"
+                        >
                             <button
                                 type="button"
                                 onClick={undo}
@@ -590,6 +812,7 @@ function CanvasContent({
                 >
                     <button
                         type="button"
+                        data-tour="project-menu"
                         aria-expanded={isProjectMenuOpen}
                         onClick={() =>
                             setIsProjectMenuOpen((isOpen) => !isOpen)
@@ -757,10 +980,32 @@ function CanvasContent({
                 />
             </div>
 
-            <div className="absolute right-4 top-16 z-10 sm:top-4">
+            <div className="absolute right-4 top-16 z-10 flex items-start gap-2 sm:top-4">
                 <button
                     type="button"
+                    data-tour="tour-help"
+                    aria-label="開啟操作導覽"
+                    title="操作導覽"
+                    onClick={() => {
+                        setIsSearchOpen(false)
+                        setSearchQuery('')
+                        setIsProjectMenuOpen(false)
+                        setIsAddNodeMenuOpen(false)
+                        setIsTourRunning(false)
+                        window.requestAnimationFrame(() => {
+                            setIsTourRunning(true)
+                        })
+                    }}
+                    className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-background text-foreground shadow-sm transition hover:border-primary/30 hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                    <CircleHelp aria-hidden="true" className="size-5" />
+                </button>
+
+                <button
+                    type="button"
+                    data-tour="search"
                     aria-label="搜尋節點"
+                    title="搜尋節點"
                     aria-expanded={isSearchOpen}
                     onClick={() => {
                         setIsSearchOpen((isOpen) => !isOpen)

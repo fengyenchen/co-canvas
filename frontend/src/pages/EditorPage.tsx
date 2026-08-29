@@ -41,6 +41,10 @@ import {
 } from '../utils/cloudProjectRecovery'
 import { createProjectDocument } from '../utils/projectFile'
 import { mergeProjectDocuments } from '../utils/mergeProjectDocuments'
+import {
+  createExampleProjectDocument,
+  EXAMPLE_PROJECT_ID,
+} from '../utils/exampleProject'
 import type {
   Project,
   ProjectDocument,
@@ -87,8 +91,16 @@ function clampChatHeight(value: number): number {
   )
 }
 
-export function EditorPage() {
-  const { projectId } = useParams()
+type EditorPageProps = {
+  mode?: 'project' | 'example'
+}
+
+export function EditorPage({ mode = 'project' }: EditorPageProps) {
+  const { projectId: routeProjectId } = useParams()
+  const projectId = mode === 'example' ? EXAMPLE_PROJECT_ID : routeProjectId
+  const isExampleProject = projectId === EXAMPLE_PROJECT_ID
+  const isStandaloneProject =
+    projectId === LOCAL_PROJECT_ID || isExampleProject
   const location = useLocation()
   const navigate = useNavigate()
   const layoutRef = useRef<HTMLDivElement>(null)
@@ -145,6 +157,9 @@ export function EditorPage() {
   const activeContextNodeId = useChatStore(
     (state) => state.activeContextNodeId,
   )
+  const setActiveContextNodeId = useChatStore(
+    (state) => state.setActiveContextNodeId,
+  )
   const messages = useChatStore((state) => state.messages)
   const suggestionEvents = useChatStore(
     (state) => state.suggestionEvents,
@@ -155,7 +170,7 @@ export function EditorPage() {
       projectLoadState !== 'ready' ||
       projectAccessRole === 'viewer' ||
       !projectId ||
-      projectId === LOCAL_PROJECT_ID ||
+      isStandaloneProject ||
       suggestionEvents.length === 0
     ) {
       return
@@ -179,6 +194,7 @@ export function EditorPage() {
     }
   }, [
     projectAccessRole,
+    isStandaloneProject,
     projectId,
     projectLoadState,
     researchSyncRevision,
@@ -242,6 +258,43 @@ export function EditorPage() {
       }
 
       const previousProjectId = getActiveProjectId()
+
+      if (isExampleProject) {
+        if (
+          !previousProjectId ||
+          previousProjectId === LOCAL_PROJECT_ID
+        ) {
+          backupLocalProject()
+        }
+
+        try {
+          const { authClient } = await import('../lib/auth')
+          const { data: sessionData } = await authClient.getSession()
+          if (sessionData?.user.id) {
+            setCurrentUser({
+              id: sessionData.user.id,
+              email: sessionData.user.email,
+              name: sessionData.user.name,
+            })
+          }
+        } catch {
+          // The example remains usable without an account.
+        }
+
+        const exampleDocument = createExampleProjectDocument()
+        replaceProject(exampleDocument.nodes, exampleDocument.edges)
+        replaceProjectMessages(
+          exampleDocument.messages,
+          exampleDocument.suggestionEvents,
+        )
+        setActiveContextNodeId(
+          exampleDocument.nodes.find((node) => node.type === 'concept')?.id ??
+            null,
+        )
+        setActiveProjectId(EXAMPLE_PROJECT_ID)
+        setProjectLoadState('ready')
+        return
+      }
 
       if (projectId === LOCAL_PROJECT_ID) {
         if (
@@ -349,10 +402,12 @@ export function EditorPage() {
   }, [
     location.pathname,
     location.search,
+    isExampleProject,
     navigate,
     projectId,
     replaceProject,
     replaceProjectMessages,
+    setActiveContextNodeId,
   ])
 
   useEffect(() => {
@@ -360,7 +415,7 @@ export function EditorPage() {
       projectLoadState !== 'ready' ||
       projectAccessRole === 'viewer' ||
       !projectId ||
-      projectId === LOCAL_PROJECT_ID
+      isStandaloneProject
     ) {
       return
     }
@@ -392,7 +447,7 @@ export function EditorPage() {
     }, AUTOMATIC_VERSION_INTERVAL_MS)
 
     return () => window.clearInterval(intervalId)
-  }, [projectAccessRole, projectId, projectLoadState])
+  }, [isStandaloneProject, projectAccessRole, projectId, projectLoadState])
 
   const applyRemoteProject = useCallback((
     project: Project,
@@ -453,7 +508,7 @@ export function EditorPage() {
     if (
       projectLoadState !== 'ready' ||
       !projectId ||
-      projectId === LOCAL_PROJECT_ID
+      isStandaloneProject
     ) {
       return
     }
@@ -502,14 +557,14 @@ export function EditorPage() {
       window.clearInterval(intervalId)
       window.removeEventListener('focus', handleFocus)
     }
-  }, [applyRemoteProject, projectId, projectLoadState])
+  }, [applyRemoteProject, isStandaloneProject, projectId, projectLoadState])
 
   useEffect(() => {
     if (
       projectLoadState !== 'ready' ||
       projectAccessRole === 'viewer' ||
       !projectId ||
-      projectId === LOCAL_PROJECT_ID ||
+      isStandaloneProject ||
       !recoveryUserId ||
       projectDocumentSignature === savedDocumentSignatureRef.current
     ) {
@@ -616,6 +671,7 @@ export function EditorPage() {
     projectDocument,
     projectDocumentSignature,
     projectId,
+    isStandaloneProject,
     projectAccessRole,
     projectLoadState,
     recoveryUserId,
@@ -628,7 +684,7 @@ export function EditorPage() {
   async function duplicateCurrentProject() {
     if (
       !projectId ||
-      projectId === LOCAL_PROJECT_ID ||
+      isStandaloneProject ||
       !loadedProject ||
       projectAction !== 'idle'
     ) {
@@ -652,7 +708,7 @@ export function EditorPage() {
   }
 
   async function syncCurrentProjectForVersionAction(): Promise<Project> {
-    if (!projectId || projectId === LOCAL_PROJECT_ID || !loadedProject) {
+    if (!projectId || isStandaloneProject || !loadedProject) {
       throw new Error('目前專案無法建立版本')
     }
 
@@ -688,7 +744,7 @@ export function EditorPage() {
   async function createCurrentProjectVersion(
     name: string,
   ): Promise<ProjectVersion> {
-    if (!projectId || projectId === LOCAL_PROJECT_ID) {
+    if (!projectId || isStandaloneProject) {
       throw new Error('本機畫布不支援雲端版本紀錄')
     }
 
@@ -706,7 +762,7 @@ export function EditorPage() {
   }
 
   async function restoreCurrentProjectVersion(versionId: string) {
-    if (!projectId || projectId === LOCAL_PROJECT_ID) {
+    if (!projectId || isStandaloneProject) {
       throw new Error('本機畫布不支援雲端版本紀錄')
     }
 
@@ -748,7 +804,7 @@ export function EditorPage() {
   }
 
   async function createPreImportVersion() {
-    if (!projectId || projectId === LOCAL_PROJECT_ID) {
+    if (!projectId || isStandaloneProject) {
       return
     }
 
@@ -767,7 +823,7 @@ export function EditorPage() {
   async function moveCurrentProjectToTrash() {
     if (
       !projectId ||
-      projectId === LOCAL_PROJECT_ID ||
+      isStandaloneProject ||
       projectAccessRole !== 'owner' ||
       projectAction !== 'idle'
     ) {
@@ -873,7 +929,7 @@ export function EditorPage() {
       <ChatPanel
         mobileHeightPercent={mobileChatHeight}
         isReadOnly={projectAccessRole === 'viewer'}
-        projectId={projectId}
+        projectId={isExampleProject ? LOCAL_PROJECT_ID : projectId}
         aiSettingsRevision={aiSettingsRevision}
         currentUser={currentUser}
       />
@@ -915,40 +971,43 @@ export function EditorPage() {
       )}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Canvas
-          isReadOnly={projectAccessRole === 'viewer'}
-          canRenameProject={
-            projectId !== LOCAL_PROJECT_ID && projectAccessRole !== 'viewer'
-          }
-          canManageProjectPermissions={
-            projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
-          }
-          canCopyProjectLink={projectId !== LOCAL_PROJECT_ID}
-          canDuplicateProject={projectId !== LOCAL_PROJECT_ID}
-          canDeleteProject={
-            projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
-          }
-          canViewProjectVersions={projectId !== LOCAL_PROJECT_ID}
-          canExportResearchData={
-            projectId !== LOCAL_PROJECT_ID && projectAccessRole === 'owner'
-          }
-          canManageAiSettings={projectId !== LOCAL_PROJECT_ID}
-          onRenameProject={() => setActiveSettingsDialog('rename')}
-          onManageProjectPermissions={() =>
-            setActiveSettingsDialog('permissions')
-          }
-          onDuplicateProject={() => void duplicateCurrentProject()}
-          onDeleteProject={() => void moveCurrentProjectToTrash()}
-          onViewProjectVersions={() => setIsVersionsDialogOpen(true)}
-          onExportResearchData={() => {
-            if (projectId && loadedProject) {
-              void downloadProjectResearchEvents(projectId, loadedProject.name)
+        <div className="flex min-h-0 flex-1">
+          <Canvas
+            isReadOnly={projectAccessRole === 'viewer'}
+            autoStartTour={isExampleProject}
+            canRenameProject={
+              !isStandaloneProject && projectAccessRole !== 'viewer'
             }
-          }}
-          onBeforeImportProject={createPreImportVersion}
-          onManageAiSettings={() => setActiveSettingsDialog('ai')}
-          projectAction={projectAction}
-        />
+            canManageProjectPermissions={
+              !isStandaloneProject && projectAccessRole === 'owner'
+            }
+            canCopyProjectLink={!isStandaloneProject}
+            canDuplicateProject={!isStandaloneProject}
+            canDeleteProject={
+              !isStandaloneProject && projectAccessRole === 'owner'
+            }
+            canViewProjectVersions={!isStandaloneProject}
+            canExportResearchData={
+              !isStandaloneProject && projectAccessRole === 'owner'
+            }
+            canManageAiSettings={!isStandaloneProject}
+            onRenameProject={() => setActiveSettingsDialog('rename')}
+            onManageProjectPermissions={() =>
+              setActiveSettingsDialog('permissions')
+            }
+            onDuplicateProject={() => void duplicateCurrentProject()}
+            onDeleteProject={() => void moveCurrentProjectToTrash()}
+            onViewProjectVersions={() => setIsVersionsDialogOpen(true)}
+            onExportResearchData={() => {
+              if (projectId && loadedProject) {
+                void downloadProjectResearchEvents(projectId, loadedProject.name)
+              }
+            }}
+            onBeforeImportProject={createPreImportVersion}
+            onManageAiSettings={() => setActiveSettingsDialog('ai')}
+            projectAction={projectAction}
+          />
+        </div>
       </div>
 
       {(projectAction !== 'idle' || projectActionError) && (
@@ -1062,7 +1121,7 @@ export function EditorPage() {
         </div>
       )}
 
-      {projectId !== LOCAL_PROJECT_ID && projectSaveState !== 'idle' && (
+      {!isStandaloneProject && projectSaveState !== 'idle' && (
         <div
           role="status"
           className={`fixed bottom-4 right-4 z-20 flex items-center gap-2 rounded-lg border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur-sm ${

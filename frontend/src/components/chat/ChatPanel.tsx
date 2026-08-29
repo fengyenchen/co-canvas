@@ -601,6 +601,7 @@ export function ChatPanel({
 
   return (
     <aside
+      data-tour="chat-panel"
       style={mobileHeightStyle}
       className="flex h-[var(--mobile-chat-height)] w-full max-w-full shrink-0 flex-col overflow-hidden border-b border-border bg-background lg:h-full lg:w-100 lg:border-b-0 lg:border-r"
     >
@@ -907,6 +908,7 @@ export function ChatPanel({
                     {!isReadOnly && message.canGenerateNodes && (
                       <button
                         type="button"
+                        data-tour="generate-nodes"
                         onClick={() => {
                           void requestSuggestion(message.content)
                         }}
