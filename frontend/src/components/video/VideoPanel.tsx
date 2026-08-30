@@ -1,9 +1,18 @@
-import { Link, Video } from 'lucide-react'
+import { Link, Upload, Video } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { SyntheticEvent } from 'react'
+import type { ChangeEvent, SyntheticEvent } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import type { CanvasNode, VideoCanvasNode } from '../../types/canvas'
+import {
+  clearLocalVideoFile,
+  getLocalVideoFile,
+  persistLocalVideoFile,
+  pruneLocalVideoFiles,
+  restoreLocalVideoFile,
+  setLocalVideoFile,
+  type LocalVideoFile,
+} from '../../utils/localVideoFiles'
 import { getBilibiliVideo } from './bilibili'
 import { BilibiliPlayer } from './BilibiliPlayer'
 import { getDropboxVideoUrl } from './dropbox'
@@ -14,6 +23,24 @@ import { getYouTubeVideoId } from './youtube'
 
 type VideoPanelProps = {
   isReadOnly?: boolean
+}
+
+const supportedLocalVideoExtensions = new Set(['mp4', 'webm', 'mov'])
+
+function validateLocalVideoFile(file: File): string | null {
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+
+  if (!supportedLocalVideoExtensions.has(extension)) {
+    return '目前先支援 MP4、WebM 與 MOV 影片檔案。'
+  }
+
+  if (file.size === 0) return '這個影片檔案沒有內容。'
+  return null
+}
+
+function formatFileSize(size: number): string {
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function isVideoNode(node: CanvasNode): node is VideoCanvasNode {
@@ -82,17 +109,24 @@ function VideoNodeEditor({
   )
   const [draftUrl, setDraftUrl] = useState(node.data.source)
   const [formError, setFormError] = useState<string | null>(null)
+  const [localFileError, setLocalFileError] = useState<string | null>(null)
+  const [isSavingLocalVideo, setIsSavingLocalVideo] = useState(false)
+  const [localVideo, setLocalVideo] = useState<LocalVideoFile | null>(() =>
+    getLocalVideoFile(node.id),
+  )
   const [failedSource, setFailedSource] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const requestedTimeMs =
     videoSeekRequest?.videoNodeId === node.id
       ? videoSeekRequest.timeMs
       : null
-  const youtubeVideoId = getYouTubeVideoId(node.data.source)
-  const vimeoVideoUrl = getVimeoVideoUrl(node.data.source)
-  const bilibiliVideo = getBilibiliVideo(node.data.source)
+  const youtubeVideoId = localVideo ? null : getYouTubeVideoId(node.data.source)
+  const vimeoVideoUrl = localVideo ? null : getVimeoVideoUrl(node.data.source)
+  const bilibiliVideo = localVideo ? null : getBilibiliVideo(node.data.source)
   const directVideoUrl =
     getDropboxVideoUrl(node.data.source) ?? node.data.source
+  const playbackSource = localVideo?.url ?? directVideoUrl
 
   const handleEmbeddedDuration = useCallback((durationMs: number) => {
     updateVideoNode(node.id, { durationMs })
@@ -106,6 +140,25 @@ function VideoNodeEditor({
     if (requestedTimeMs === null || !videoRef.current) return
     videoRef.current.currentTime = requestedTimeMs / 1000
   }, [requestedTimeMs, videoSeekRequest?.requestId])
+
+  useEffect(() => {
+    if (localVideo) return
+
+    let cancelled = false
+    void restoreLocalVideoFile(node.id)
+      .then((restoredVideo) => {
+        if (!cancelled && restoredVideo) setLocalVideo(restoredVideo)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLocalFileError('無法從這個瀏覽器恢復本機影片，請重新選擇檔案')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [localVideo, node.id])
 
   function clearMissingActiveContext() {
     if (
@@ -131,8 +184,50 @@ function VideoNodeEditor({
       source,
       durationMs: undefined,
     })
+    if (localVideo) {
+      clearLocalVideoFile(node.id)
+      setLocalVideo(null)
+    }
+    setFormError(null)
+    setLocalFileError(null)
+    setFailedSource(null)
+  }
+
+  async function selectLocalVideo(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    const error = validateLocalVideoFile(file)
+    if (error) {
+      setLocalFileError(error)
+      return
+    }
+
+    const nextLocalVideo = setLocalVideoFile(node.id, file)
+    setLocalVideo(nextLocalVideo)
+    setDraftUrl('')
+    setLocalFileError(null)
     setFormError(null)
     setFailedSource(null)
+    updateVideoNode(node.id, { source: '', durationMs: undefined })
+
+    setIsSavingLocalVideo(true)
+    try {
+      await persistLocalVideoFile(node.id, file)
+    } catch {
+      setLocalFileError(
+        '影片可以在目前分頁使用，但無法保存在這個瀏覽器；刷新後需要重新選擇',
+      )
+    } finally {
+      setIsSavingLocalVideo(false)
+    }
+
+    if (/^新影片 \d+$/.test(node.data.title)) {
+      updateNode(node.id, {
+        title: file.name.replace(/\.[^.]+$/, '') || file.name,
+      })
+    }
   }
 
   function handleLoadedMetadata(event: SyntheticEvent<HTMLVideoElement>) {
@@ -200,6 +295,58 @@ function VideoNodeEditor({
         </>
       )}
 
+      {!isReadOnly && (
+        <section className="mt-4 rounded-xl border border-border bg-canvas/45 p-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime"
+            onChange={selectLocalVideo}
+            className="sr-only"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          >
+            <Upload aria-hidden="true" className="size-4" />
+            {localVideo ? '更換本機影片' : '選擇本機影片'}
+          </button>
+          <p className="mt-2 text-xs leading-5 text-foreground/55">
+              支援 MP4、WebM、MOV；檔案只保存在這個瀏覽器，不會寫入雲端專案，只有使用影片片段對話時才會暫時上傳給 Gemini。
+          </p>
+          {isSavingLocalVideo && (
+            <p className="mt-2 text-xs text-foreground/55">
+              正在保存在這個瀏覽器，完成後刷新仍可使用…
+            </p>
+          )}
+          {localVideo && (
+            <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-background px-3 py-2 text-xs">
+              <span className="min-w-0 truncate text-foreground/70">
+                {localVideo.fileName} · {formatFileSize(localVideo.size)}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  clearLocalVideoFile(node.id)
+                  setLocalVideo(null)
+                  updateVideoNode(node.id, { durationMs: undefined })
+                  setFailedSource(null)
+                }}
+                className="min-h-9 shrink-0 cursor-pointer rounded-md px-2 text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
+              >
+                移除
+              </button>
+            </div>
+          )}
+          {localFileError && (
+            <p role="alert" className="mt-2 text-xs text-red-600">
+              {localFileError}
+            </p>
+          )}
+        </section>
+      )}
+
       <form
         className="mt-4"
         onSubmit={(event) => {
@@ -252,7 +399,7 @@ function VideoNodeEditor({
         )}
       </form>
 
-      {node.data.source && (
+      {playbackSource && (
         <div className="mt-4 overflow-hidden rounded-lg bg-black">
           {youtubeVideoId ? (
             <YouTubePlayer
@@ -279,23 +426,25 @@ function VideoNodeEditor({
           ) : (
             <video
             ref={videoRef}
-            key={node.data.source}
+            key={playbackSource}
             controls
             preload="metadata"
-            src={directVideoUrl}
+            src={playbackSource}
             onLoadedMetadata={handleLoadedMetadata}
-            onError={() => setFailedSource(node.data.source)}
+            onError={() => setFailedSource(playbackSource)}
             className="block aspect-video max-h-[35dvh] w-full object-contain"
           >
             你的瀏覽器不支援影片播放。
           </video>
           )}
-          {failedSource === node.data.source && (
+          {failedSource === playbackSource && (
             <p
               role="alert"
               className="border-t border-red-900/30 bg-red-950 px-3 py-2 text-xs text-red-100"
             >
-              影片無法播放，請確認網址可直接開啟影片檔案。
+              {localVideo
+                ? '本機影片無法播放，MOV 是否可播放會依影片編碼與瀏覽器而異。'
+                : '影片無法播放，請確認網址可直接開啟影片檔案。'}
             </p>
           )}
         </div>
@@ -306,6 +455,7 @@ function VideoNodeEditor({
           <button
             type="button"
             onClick={() => {
+              clearLocalVideoFile(node.id)
               deleteNode(node.id)
               clearMissingActiveContext()
             }}
@@ -316,6 +466,7 @@ function VideoNodeEditor({
           <button
             type="button"
             onClick={() => {
+              clearLocalVideoFile(node.id)
               deleteBranch(node.id)
               clearMissingActiveContext()
             }}
@@ -330,11 +481,18 @@ function VideoNodeEditor({
 }
 
 export function VideoPanel({ isReadOnly = false }: VideoPanelProps) {
+  const nodes = useCanvasStore((state) => state.nodes)
   const selectedVideoNode = useCanvasStore((state) =>
     state.nodes.find((node) => node.selected && isVideoNode(node)) as
       | VideoCanvasNode
       | undefined,
   )
+
+  useEffect(() => {
+    pruneLocalVideoFiles(
+      new Set(nodes.filter(isVideoNode).map((node) => node.id)),
+    )
+  }, [nodes])
 
   if (!selectedVideoNode) return null
 

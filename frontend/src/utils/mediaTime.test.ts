@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatMediaDuration,
+  formatMediaTime,
   formatMediaTimeInput,
   getMediaTimeInputLabel,
   parseMediaTimeInput,
@@ -10,6 +12,15 @@ describe('mediaTime', () => {
     expect(formatMediaTimeInput(12_500, 30_000)).toBe('12.5')
     expect(formatMediaTimeInput(90_000, 10 * 60_000)).toBe('1:30')
     expect(formatMediaTimeInput(3_661_000, 2 * 3_600_000)).toBe('1:01:01')
+  })
+
+  it('formats duration without decimals or a unit suffix', () => {
+    expect(formatMediaDuration(4_100)).toBe('4')
+    expect(formatMediaDuration(240_100)).toBe('4:00')
+  })
+
+  it('formats displayed time ranges to whole seconds', () => {
+    expect(formatMediaTime(240_100, 240_100)).toBe('4:00')
   })
 
   it('parses seconds, minute and hour inputs', () => {

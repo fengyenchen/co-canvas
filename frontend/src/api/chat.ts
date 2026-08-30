@@ -15,6 +15,9 @@ type ChatInput = {
   neighborNodes: AiContextNode[]
   history: ChatHistoryMessage[]
   projectId?: string
+  uploadedVideo?: {
+    name: string
+  }
   signal?: AbortSignal
 }
 

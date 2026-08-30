@@ -6,7 +6,13 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
-AI_PATHS = frozenset({"/api/chat", "/api/suggestions/generate"})
+AI_PATHS = frozenset({
+    "/api/chat",
+    "/api/suggestions/generate",
+    "/api/video-uploads/start",
+})
+UPLOAD_PATHS = frozenset({"/api/video-uploads/chunk"})
+UPLOAD_MAX_BODY_BYTES = 8 * 1024 * 1024
 BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
 
 
@@ -48,8 +54,12 @@ class RequestProtectionMiddleware:
         method = scope.get("method", "GET")
 
         if path.startswith("/api/") and method != "OPTIONS":
-            group = "ai" if path in AI_PATHS else "api"
-            limit = self.ai_requests if group == "ai" else self.api_requests
+            if path in UPLOAD_PATHS:
+                group = "upload"
+                limit = max(600, self.api_requests * 5)
+            else:
+                group = "ai" if path in AI_PATHS else "api"
+                limit = self.ai_requests if group == "ai" else self.api_requests
             retry_after = await self._check_rate_limit(
                 self._get_client_identifier(scope),
                 group,
@@ -65,12 +75,17 @@ class RequestProtectionMiddleware:
                 return
 
         if path.startswith("/api/") and method in BODY_METHODS:
+            max_body_bytes = (
+                UPLOAD_MAX_BODY_BYTES
+                if path in UPLOAD_PATHS
+                else self.max_body_bytes
+            )
             content_length = self._get_content_length(scope)
-            if content_length is not None and content_length > self.max_body_bytes:
+            if content_length is not None and content_length > max_body_bytes:
                 await self._send_body_too_large(scope, receive, send)
                 return
 
-            body = await self._read_body(receive)
+            body = await self._read_body(receive, max_body_bytes)
             if body is None:
                 await self._send_body_too_large(scope, receive, send)
                 return
@@ -101,7 +116,11 @@ class RequestProtectionMiddleware:
             entry.count += 1
             return None
 
-    async def _read_body(self, receive: Receive) -> bytes | None:
+    async def _read_body(
+        self,
+        receive: Receive,
+        max_body_bytes: int,
+    ) -> bytes | None:
         chunks: list[bytes] = []
         total_bytes = 0
 
@@ -112,7 +131,7 @@ class RequestProtectionMiddleware:
 
             chunk = message.get("body", b"")
             total_bytes += len(chunk)
-            if total_bytes > self.max_body_bytes:
+            if total_bytes > max_body_bytes:
                 return None
             chunks.append(chunk)
 

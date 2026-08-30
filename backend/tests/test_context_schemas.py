@@ -2,7 +2,15 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas import ChatRequest, ContextNode
-from app.services.gemini import build_chat_parts
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+from app.services.gemini import (
+    GeminiUploadStartError,
+    build_chat_parts,
+    forward_gemini_upload_chunk,
+    upload_chat_video_clip,
+)
 
 
 def test_accepts_video_aware_context() -> None:
@@ -74,6 +82,161 @@ def test_chat_attaches_selected_youtube_clip() -> None:
     assert parts[0].video_metadata.start_offset == "10.0s"
     assert parts[0].video_metadata.end_offset == "20.0s"
     assert "這個片段在說什麼？" in parts[1].text
+
+
+def test_accepts_uploaded_local_video_reference() -> None:
+    request = ChatRequest.model_validate(
+        {
+            "prompt": "分析本機影片",
+            "selectedNode": {
+                "id": "concept-1",
+                "title": "片段",
+                "startTimeMs": 0,
+                "endTimeMs": 10_000,
+                "linkedVideo": {
+                    "id": "video-1",
+                    "title": "本機影片",
+                    "provider": "尚未設定",
+                    "source": "",
+                },
+            },
+            "uploadedVideo": {"name": "files/local_video_123"},
+        }
+    )
+
+    assert request.uploaded_video is not None
+    assert request.uploaded_video.name == "files/local_video_123"
+
+
+@pytest.mark.anyio
+async def test_attaches_uploaded_local_video_clip() -> None:
+    request = ChatRequest.model_validate(
+        {
+            "prompt": "這段影片在說什麼？",
+            "selectedNode": {
+                "id": "concept-1",
+                "title": "片段",
+                "startTimeMs": 2_000,
+                "endTimeMs": 12_000,
+                "linkedVideo": {
+                    "id": "video-1",
+                    "title": "本機影片",
+                    "provider": "尚未設定",
+                    "source": "",
+                },
+            },
+            "uploadedVideo": {"name": "files/local_video_123"},
+        }
+    )
+    uploaded_file = SimpleNamespace(
+        name="files/local_video_123",
+        uri="https://generativelanguage.googleapis.com/v1beta/files/local_video_123",
+        mime_type="video/mov",
+        state=SimpleNamespace(name="ACTIVE"),
+    )
+    client = SimpleNamespace(
+        files=SimpleNamespace(get=AsyncMock(return_value=uploaded_file)),
+    )
+
+    part = await upload_chat_video_clip(
+        client,
+        request,
+        "test-key",
+        AsyncMock(),
+    )
+
+    assert part is not None
+    assert part.file_data.mime_type == "video/mov"
+    assert part.video_metadata.start_offset == "2.0s"
+    assert part.video_metadata.end_offset == "12.0s"
+
+    parts = build_chat_parts(
+        request,
+        "（尚無先前對話）",
+        part,
+    )
+    assert "本次請求已附上可直接讀取的影片檔案" in parts[1].text
+    assert "不代表影片未附上" in parts[1].text
+
+
+@pytest.mark.anyio
+async def test_rejects_untrusted_gemini_upload_url() -> None:
+    with pytest.raises(GeminiUploadStartError) as error:
+        await forward_gemini_upload_chunk(
+            "https://example.com/upload/video",
+            0,
+            b"video",
+            True,
+        )
+
+    assert error.value.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_forwards_and_finalizes_gemini_upload_chunk(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def post(self, url, *, headers, content):
+            captured.update(url=url, headers=headers, content=content)
+            return SimpleNamespace(
+                status_code=200,
+                is_success=True,
+                json=lambda: {"file": {"name": "files/video_123"}},
+            )
+
+    monkeypatch.setattr(
+        "app.services.gemini.httpx.AsyncClient",
+        lambda **_kwargs: FakeClient(),
+    )
+
+    file_name = await forward_gemini_upload_chunk(
+        "https://generativelanguage.googleapis.com/upload/v1beta/files?upload_id=abc",
+        1_500_000,
+        b"video-chunk",
+        True,
+    )
+
+    assert file_name == "files/video_123"
+    assert captured["content"] == b"video-chunk"
+    assert captured["headers"] == {
+        "Content-Type": "application/octet-stream",
+        "X-Goog-Upload-Offset": "1500000",
+        "X-Goog-Upload-Command": "upload, finalize",
+    }
+
+
+@pytest.mark.anyio
+async def test_accepts_resume_incomplete_for_non_final_chunk(monkeypatch) -> None:
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def post(self, *_args, **_kwargs):
+            return SimpleNamespace(status_code=308, is_success=False)
+
+    monkeypatch.setattr(
+        "app.services.gemini.httpx.AsyncClient",
+        lambda **_kwargs: FakeClient(),
+    )
+
+    file_name = await forward_gemini_upload_chunk(
+        "https://generativelanguage.googleapis.com/upload/v1beta/files?upload_id=abc",
+        0,
+        b"video-chunk",
+        False,
+    )
+
+    assert file_name is None
 
 
 def test_accepts_group_context_with_members_and_relations() -> None:

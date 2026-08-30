@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, Callable, Literal, TypeVar
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from google.genai.errors import APIError
@@ -26,11 +26,17 @@ from app.schemas import (
     ChatRequest,
     GenerateSuggestionApiResponse,
     GenerateSuggestionRequest,
+    VideoUploadStartRequest,
+    VideoUploadStartResponse,
+    VideoUploadChunkResponse,
 )
 from app.services.gemini import (
     GeminiConfigurationError,
+    GeminiUploadStartError,
     chat_with_gemini,
     generate_with_gemini,
+    forward_gemini_upload_chunk,
+    start_gemini_resumable_upload,
 )
 from app.services.mock import chat_with_mock, generate_with_mock
 from app.services.ai_credentials import (
@@ -332,16 +338,20 @@ async def chat(
         fallback=lambda: chat_with_mock(request),
         timeout_seconds=(
             280
-            if request.selected_node
-            and request.selected_node.start_time_ms is not None
-            and request.selected_node.linked_video
-            and request.selected_node.linked_video.source
-            and supports_chat_video_source(
-                request.selected_node.linked_video.source
+            if request.uploaded_video is not None
+            or (
+                request.selected_node
+                and request.selected_node.start_time_ms is not None
+                and request.selected_node.linked_video
+                and request.selected_node.linked_video.source
+                and supports_chat_video_source(
+                    request.selected_node.linked_video.source
+                )
             )
             else 30
         ),
     )
+
 
     if runtime.uses_user_key and user is not None:
         await update_user_key_status(
@@ -355,6 +365,80 @@ async def chat(
         ai_mode="mock" if fallback_reason else "gemini",
         fallback_reason=fallback_reason,
     )
+
+
+@app.post(
+    "/api/video-uploads/start",
+    response_model=VideoUploadStartResponse,
+)
+async def start_video_upload(
+    request: VideoUploadStartRequest,
+    session: DatabaseSession,
+    user: OptionalCurrentUser,
+    project_id: ProjectId = None,
+) -> VideoUploadStartResponse:
+    runtime = await resolve_ai_api_key(project_id, user, session)
+    if runtime.use_mock or runtime.api_key is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini API Key 尚未設定",
+        )
+
+    try:
+        upload_url, chunk_size = await start_gemini_resumable_upload(
+            runtime.api_key,
+            request.file_name,
+            request.mime_type,
+            request.size,
+        )
+    except GeminiUploadStartError as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=str(error),
+        ) from error
+
+    return VideoUploadStartResponse(
+        upload_url=upload_url,
+        chunk_size=chunk_size,
+    )
+
+
+@app.post(
+    "/api/video-uploads/chunk",
+    response_model=VideoUploadChunkResponse,
+)
+async def upload_video_chunk(
+    request: Request,
+    user: OptionalCurrentUser,
+    project_id: ProjectId = None,
+    upload_url: str = Header(alias="X-Co-Canvas-Upload-Url"),
+    upload_offset: int = Header(alias="X-Goog-Upload-Offset", ge=0),
+    upload_final: bool = Header(alias="X-Co-Canvas-Upload-Final"),
+) -> VideoUploadChunkResponse:
+    if project_id not in (None, "local") and user is None:
+        raise HTTPException(status_code=401, detail="請先登入")
+
+    chunk = await request.body()
+    if not chunk or len(chunk) > 8 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="影片分段大小無效",
+        )
+
+    try:
+        file_name = await forward_gemini_upload_chunk(
+            upload_url,
+            upload_offset,
+            chunk,
+            upload_final,
+        )
+    except GeminiUploadStartError as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=str(error),
+        ) from error
+
+    return VideoUploadChunkResponse(file_name=file_name)
 
 
 @app.post(

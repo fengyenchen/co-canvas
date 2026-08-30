@@ -439,7 +439,7 @@ export function LandingPage() {
                   <div>
                     <h3 className="font-semibold">直接和選取片段對話</h3>
                     <p className="mt-1 text-sm leading-6 text-foreground/60">
-                      從片段文字節點進入對話，Gemini 會讀取所選的 YouTube、Dropbox MP4／MOV 或公開 MP4／MOV 時間區間，依實際影音內容回答。
+                      從片段文字節點進入對話，Gemini 會讀取所選的本機 MP4／WebM／MOV、YouTube、Dropbox 或公開影片時間區間，依實際影音內容回答。
                     </p>
                   </div>
                 </li>
@@ -450,7 +450,7 @@ export function LandingPage() {
                   <div>
                     <h3 className="font-semibold">安全處理大型影片</h3>
                     <p className="mt-1 text-sm leading-6 text-foreground/60">
-                      Dropbox 與公開 MP4／MOV 最高支援 450 MB；後端下載檔上傳後立即刪除，Gemini 檔案會安全快取約 47 小時供後續對話重用。
+                      本機、Dropbox 與公開影片最高支援 450 MB；本機影片會分段經由 Co-Canvas 後端轉送至 Gemini，後端不保存完整檔案，後續對話會重用有效檔案。
                     </p>
                   </div>
                 </li>
@@ -522,6 +522,7 @@ export function LandingPage() {
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {[
+                      '本機 MP4／WebM／MOV',
                       'YouTube',
                       'Dropbox MP4／MOV',
                       '公開 MP4／MOV',
@@ -540,7 +541,10 @@ export function LandingPage() {
                     播放與片段定位
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {['Vimeo', 'Bilibili'].map((provider) => (
+                    {[
+                      'Vimeo',
+                      'Bilibili',
+                    ].map((provider) => (
                       <span
                         key={provider}
                         className="rounded-full border border-border bg-canvas/55 px-3 py-1.5 text-xs text-foreground/65"
@@ -551,7 +555,7 @@ export function LandingPage() {
                   </div>
                 </div>
                 <p className="mt-3 text-xs leading-5 text-foreground/45">
-                  大型影片只有首次分析需要下載與上傳，後續對話會重用有效快取；播放與時間定位能力依各平台官方播放器而異。
+                  本機影片只保存在目前瀏覽器，刷新後可恢復，不會寫入雲端專案；片段對話時才分段轉送並暫存至 Gemini。
                 </p>
               </div>
             </Reveal>

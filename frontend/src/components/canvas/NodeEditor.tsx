@@ -8,6 +8,7 @@ import type {
     VideoCanvasNode,
 } from '../../types/canvas'
 import {
+    formatMediaDuration,
     formatMediaTime,
     formatMediaTimeInput,
     getMediaTimeInputLabel,
@@ -55,12 +56,12 @@ function ConceptNodeEditor({
         ),
     )
     const [draftEndSeconds, setDraftEndSeconds] = useState(
-        formatMediaTimeInput(
-            selectedNode.data.endTimeMs,
-            linkedVideoNodes.length === 1
-                ? linkedVideoNodes[0].data.durationMs
-                : undefined,
-        ),
+        storedWholeVideoRange && selectedVideoDuration !== undefined
+            ? formatMediaDuration(selectedVideoDuration)
+            : formatMediaTimeInput(
+                selectedNode.data.endTimeMs,
+                selectedVideoDuration,
+            ),
     )
     const [bindingError, setBindingError] = useState<string | null>(null)
     const [isPropertyMenuOpen, setIsPropertyMenuOpen] = useState(false)
@@ -93,6 +94,18 @@ function ConceptNodeEditor({
 
         if (linkedVideoNodes.length > 1) {
             setBindingError('設定時間區間的文字節點只能連接一個影片節點。')
+            return
+        }
+
+        if (timeRangeMode === 'all' && selectedVideoDuration !== undefined) {
+            updateConceptTimeRange(selectedNode.id, {
+                startTimeMs: 0,
+                endTimeMs: selectedVideoDuration,
+            })
+            setDraftStartSeconds(formatMediaTimeInput(0, selectedVideoDuration))
+            setDraftEndSeconds(formatMediaDuration(selectedVideoDuration))
+            setBindingError(null)
+            setIsVideoBindingEditorOpen(false)
             return
         }
 
@@ -150,6 +163,10 @@ function ConceptNodeEditor({
     }
 
     function closeVideoBindingEditor() {
+        const isWholeVideoRange =
+            selectedVideoDuration !== undefined &&
+            selectedNode.data.startTimeMs === 0 &&
+            selectedNode.data.endTimeMs === selectedVideoDuration
         setDraftStartSeconds(
             formatMediaTimeInput(
                 selectedNode.data.startTimeMs,
@@ -157,10 +174,12 @@ function ConceptNodeEditor({
             ),
         )
         setDraftEndSeconds(
-            formatMediaTimeInput(
-                selectedNode.data.endTimeMs,
-                selectedVideo?.data.durationMs,
-            ),
+            isWholeVideoRange
+                ? formatMediaDuration(selectedVideoDuration)
+                : formatMediaTimeInput(
+                    selectedNode.data.endTimeMs,
+                    selectedVideoDuration,
+                ),
         )
         setBindingError(null)
         setIsVideoBindingEditorOpen(false)
@@ -336,10 +355,7 @@ function ConceptNodeEditor({
 
                         {selectedVideoDuration && (
                             <p className="mt-2 text-xs text-foreground/55">
-                                影片長度：{formatMediaTime(
-                                    selectedVideoDuration,
-                                    selectedVideoDuration,
-                                )}
+                                影片長度：{formatMediaDuration(selectedVideoDuration)}
                             </p>
                         )}
 
@@ -348,8 +364,9 @@ function ConceptNodeEditor({
                                 type="button"
                                 disabled={!selectedVideoDuration}
                                 onClick={() => {
+                                    if (selectedVideoDuration === undefined) return
                                     setDraftStartSeconds(formatMediaTimeInput(0, selectedVideoDuration))
-                                    setDraftEndSeconds(formatMediaTimeInput(selectedVideoDuration, selectedVideoDuration))
+                                    setDraftEndSeconds(formatMediaDuration(selectedVideoDuration))
                                     setTimeRangeMode('all')
                                     setBindingError(null)
                                 }}

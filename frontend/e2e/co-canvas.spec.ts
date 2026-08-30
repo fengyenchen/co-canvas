@@ -44,6 +44,27 @@ test('可從搜尋旁的問號開啟操作導覽', async ({ page }) => {
   await expect(tourDialog).toHaveCount(0)
 })
 
+test('影片節點可選擇本機 MP4 並在目前分頁預覽', async ({ page }) => {
+  await installE2eMocks(page, {
+    projects: [createProject()],
+  })
+  await page.goto(`/projects/${PROJECT_ID}`)
+
+  await page.getByRole('button', { name: '新增節點' }).click()
+  await page.getByRole('button', { name: '影片節點' }).click()
+
+  const fileInput = page.locator('input[type="file"][accept*=".mp4"]')
+  await fileInput.setInputFiles({
+    name: 'competition-demo.mp4',
+    mimeType: 'video/mp4',
+    buffer: Buffer.from('e2e-video'),
+  })
+
+  await expect(page.getByText(/competition-demo\.mp4 ·/)).toBeVisible()
+  await expect(page.locator('video')).toHaveAttribute('src', /^blob:/)
+  await expect(page.getByLabel('標題')).toHaveValue('competition-demo')
+})
+
 test('建立專案、儲存節點並複製分享連結', async ({ page }) => {
   const state = await installE2eMocks(page)
   await page.goto('/projects')

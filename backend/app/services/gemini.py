@@ -1,5 +1,8 @@
 import asyncio
+import logging
+from urllib.parse import urlparse
 
+import httpx
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
@@ -26,6 +29,9 @@ from app.services.video_source import (
     normalize_downloadable_video_url,
     remove_temporary_video,
 )
+
+
+logger = logging.getLogger("uvicorn.error")
 
 
 SYSTEM_INSTRUCTION = """
@@ -58,6 +64,114 @@ nodeType 為 group 時，請把 groupMembers 與 groupRelations 視為同一組�
 
 class GeminiConfigurationError(RuntimeError):
     pass
+
+
+class GeminiUploadStartError(RuntimeError):
+    def __init__(self, status_code: int, message: str):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+async def start_gemini_resumable_upload(
+    api_key: str,
+    file_name: str,
+    mime_type: str,
+    size: int,
+) -> tuple[str, int]:
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                "https://generativelanguage.googleapis.com/upload/v1beta/files",
+                headers={
+                    "x-goog-api-key": api_key,
+                    "X-Goog-Upload-Protocol": "resumable",
+                    "X-Goog-Upload-Command": "start",
+                    "X-Goog-Upload-Header-Content-Length": str(size),
+                    "X-Goog-Upload-Header-Content-Type": mime_type,
+                },
+                json={"file": {"display_name": file_name}},
+            )
+    except httpx.RequestError as error:
+        raise GeminiUploadStartError(
+            502,
+            "無法連線 Gemini 影片上傳服務",
+        ) from error
+
+    if response.status_code in (400, 401, 403):
+        raise GeminiUploadStartError(401, "Gemini API Key 無效")
+    if response.status_code == 429:
+        raise GeminiUploadStartError(429, "Gemini 額度不足或請求過多")
+    if not response.is_success:
+        raise GeminiUploadStartError(502, "Gemini 無法建立影片上傳工作")
+
+    upload_url = response.headers.get("x-goog-upload-url")
+    if not upload_url:
+        raise GeminiUploadStartError(502, "Gemini 未回傳影片上傳網址")
+    try:
+        chunk_size = int(
+            response.headers.get("x-goog-upload-chunk-granularity", "8388608")
+        )
+    except ValueError as error:
+        raise GeminiUploadStartError(
+            502,
+            "Gemini 回傳的影片分段大小無效",
+        ) from error
+    if chunk_size <= 0 or chunk_size > 8 * 1024 * 1024:
+        raise GeminiUploadStartError(502, "Gemini 影片分段大小不受支援")
+    return upload_url, chunk_size
+
+
+async def forward_gemini_upload_chunk(
+    upload_url: str,
+    offset: int,
+    chunk: bytes,
+    finalize: bool,
+) -> str | None:
+    parsed_url = urlparse(upload_url)
+    if (
+        parsed_url.scheme != "https"
+        or parsed_url.hostname != "generativelanguage.googleapis.com"
+        or "/upload/" not in parsed_url.path
+    ):
+        raise GeminiUploadStartError(400, "Gemini 影片上傳網址無效")
+
+    command = "upload, finalize" if finalize else "upload"
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.post(
+                upload_url,
+                headers={
+                    "Content-Type": "application/octet-stream",
+                    "X-Goog-Upload-Offset": str(offset),
+                    "X-Goog-Upload-Command": command,
+                },
+                content=chunk,
+            )
+    except httpx.RequestError as error:
+        raise GeminiUploadStartError(
+            502,
+            "無法將影片分段傳送至 Gemini",
+        ) from error
+
+    if not finalize and response.status_code in (200, 308):
+        return None
+    if response.status_code == 429:
+        raise GeminiUploadStartError(429, "Gemini 額度不足或請求過多")
+    if not response.is_success:
+        raise GeminiUploadStartError(502, "Gemini 無法接收影片分段")
+    if not finalize:
+        return None
+
+    try:
+        file_name = response.json()["file"]["name"]
+    except (KeyError, TypeError, ValueError) as error:
+        raise GeminiUploadStartError(
+            502,
+            "Gemini 未回傳影片檔案識別碼",
+        ) from error
+    if not isinstance(file_name, str) or not file_name.startswith("files/"):
+        raise GeminiUploadStartError(502, "Gemini 影片檔案識別碼無效")
+    return file_name
 
 
 async def validate_gemini_api_key(api_key: str) -> None:
@@ -114,9 +228,17 @@ def build_chat_parts(
         )
     )
     parts: list[types.Part] = []
+    attachment_note = ""
 
     if uploaded_video_part is not None:
         parts.append(uploaded_video_part)
+        attachment_note = (
+            "本次請求已附上可直接讀取的影片檔案與指定時間區間。"
+            "linkedVideo.source 為空只代表來源是使用者本機檔案，"
+            "不代表影片未附上。即使先前對話曾聲稱沒有影片，"
+            "也必須以本次附件為準；請直接根據影音內容回答，"
+            "不得要求使用者再次提供影片、字幕或摘要。\n\n"
+        )
     elif has_video_clip and selected_node and linked_video:
         parts.append(
             types.Part(
@@ -127,12 +249,16 @@ def build_chat_parts(
                 ),
             )
         )
+        attachment_note = (
+            "本次請求已附上可直接讀取的影片與指定時間區間，"
+            "請直接根據影音內容回答。\n\n"
+        )
 
     parts.append(
         types.Part(
             text=(
-                "畫布上下文：\n"
-                f"{request.model_dump_json(by_alias=True, exclude={'history', 'prompt'})}\n\n"
+                f"{attachment_note}畫布上下文：\n"
+                f"{request.model_dump_json(by_alias=True, exclude={'history', 'prompt', 'uploaded_video'})}\n\n"
                 "先前對話：\n"
                 f"{history}\n\n"
                 "使用者目前訊息：\n"
@@ -156,9 +282,37 @@ async def upload_chat_video_clip(
         not selected_node
         or selected_node.start_time_ms is None
         or selected_node.end_time_ms is None
-        or not linked_video
-        or not linked_video.source
     ):
+        return None
+
+    if request.uploaded_video is not None:
+        uploaded_file = await client.files.get(name=request.uploaded_video.name)
+        for _ in range(60):
+            state_name = uploaded_file.state.name if uploaded_file.state else None
+            if state_name == "ACTIVE":
+                break
+            if state_name == "FAILED":
+                raise VideoSourceError("Gemini 無法處理這個影片檔案")
+            await asyncio.sleep(2)
+            uploaded_file = await client.files.get(name=request.uploaded_video.name)
+        else:
+            raise VideoSourceError("等待 Gemini 處理影片逾時")
+
+        if not uploaded_file.uri:
+            raise VideoSourceError("Gemini 未回傳影片檔案網址")
+
+        return types.Part(
+            file_data=types.FileData(
+                file_uri=uploaded_file.uri,
+                mime_type=uploaded_file.mime_type or "video/mp4",
+            ),
+            video_metadata=types.VideoMetadata(
+                start_offset=f"{selected_node.start_time_ms / 1000}s",
+                end_offset=f"{selected_node.end_time_ms / 1000}s",
+            ),
+        )
+
+    if not linked_video or not linked_video.source:
         return None
 
     downloadable_url = normalize_downloadable_video_url(linked_video.source)
@@ -282,6 +436,11 @@ async def chat_with_gemini(
             request,
             resolved_api_key,
             session,
+        )
+        logger.info(
+            "Gemini chat video attachment prepared: attached=%s local=%s",
+            uploaded_video_part is not None,
+            request.uploaded_video is not None,
         )
         response = await client.models.generate_content(
             model=settings.gemini_model,

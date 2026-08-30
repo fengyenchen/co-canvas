@@ -77,6 +77,12 @@ export function getMediaTimePlaceholder(durationMs?: number): string {
 }
 
 export function formatMediaTime(timeMs: number, referenceMs = timeMs): string {
-  const value = formatMediaTimeInput(timeMs, referenceMs)
+  const roundedTimeMs = Math.round(timeMs / 1000) * 1000
+  const value = formatMediaTimeInput(roundedTimeMs, referenceMs)
   return getMediaTimeFormat(referenceMs) === 'seconds' ? `${value} 秒` : value
+}
+
+export function formatMediaDuration(durationMs: number): string {
+  const roundedDurationMs = Math.round(durationMs / 1000) * 1000
+  return formatMediaTimeInput(roundedDurationMs, durationMs)
 }

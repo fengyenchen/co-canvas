@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { sendChatMessage } from '../../api/chat'
+import { uploadLocalVideoToGemini } from '../../api/videoUploads'
 import { getGeminiCredential } from '../../api/aiCredentials'
 import {
   ApiRequestError,
@@ -17,6 +18,14 @@ import { useChatStore } from '../../stores/chatStore'
 import { formatLatency } from '../../utils/formatLatency'
 import { createAiContextNode } from '../../utils/aiContext'
 import { measureRequest } from '../../utils/measureRequest'
+import {
+  LOCAL_VIDEO_CHANGED_EVENT,
+  getLocalVideoFile,
+  getLocalVideoGeminiFile,
+  restoreLocalVideoFile,
+  setLocalVideoGeminiFile,
+  type LocalVideoFile,
+} from '../../utils/localVideoFiles'
 import { MarkdownMessage } from './MarkdownMessage'
 import { SuggestionPreview } from './SuggestionPreview'
 
@@ -50,7 +59,12 @@ function formatClipTime(timeMs: number): string {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`
 }
 
-function canGeminiReadVideoSource(provider: string, source: string): boolean {
+function canGeminiReadVideoSource(
+  provider: string,
+  source: string,
+  hasLocalFile = false,
+): boolean {
+  if (hasLocalFile) return true
   if (provider === 'YouTube') return true
 
   try {
@@ -162,6 +176,47 @@ export function ChatPanel({
           video: contextPayload.linkedVideo,
         }
       : null
+  const attachedVideoNodeId = attachedVideoClip?.video.id ?? null
+  const [attachedLocalVideo, setAttachedLocalVideo] =
+    useState<LocalVideoFile | null>(() =>
+      attachedVideoNodeId ? getLocalVideoFile(attachedVideoNodeId) : null,
+    )
+
+  useEffect(() => {
+    if (!attachedVideoNodeId) {
+      return
+    }
+
+    let cancelled = false
+    const syncLocalVideo = () => {
+      if (!cancelled) {
+        setAttachedLocalVideo(getLocalVideoFile(attachedVideoNodeId))
+      }
+    }
+    const handleLocalVideoChange = (event: Event) => {
+      const changedNodeId = (event as CustomEvent<{ nodeId?: string }>).detail
+        ?.nodeId
+      if (changedNodeId === attachedVideoNodeId) syncLocalVideo()
+    }
+
+    syncLocalVideo()
+    window.addEventListener(LOCAL_VIDEO_CHANGED_EVENT, handleLocalVideoChange)
+    void restoreLocalVideoFile(attachedVideoNodeId)
+      .then((restoredVideo) => {
+        if (!cancelled) setAttachedLocalVideo(restoredVideo)
+      })
+      .catch(() => {
+        if (!cancelled) setAttachedLocalVideo(null)
+      })
+
+    return () => {
+      cancelled = true
+      window.removeEventListener(
+        LOCAL_VIDEO_CHANGED_EVENT,
+        handleLocalVideoChange,
+      )
+    }
+  }, [attachedVideoNodeId])
 
   const visibleMessages = messages.filter(
     (message) =>
@@ -404,10 +459,54 @@ export function ChatPanel({
     activeRequestControllerRef.current = controller
     setGenerationMode('chat')
 
-    const result = await measureRequest(() =>
-      sendChatMessage({
+    const result = await measureRequest(async () => {
+      let resolvedAttachedLocalVideo = attachedLocalVideo
+      if (
+        attachedVideoClip &&
+        !attachedVideoClip.video.source &&
+        !resolvedAttachedLocalVideo
+      ) {
+        resolvedAttachedLocalVideo = await restoreLocalVideoFile(
+          attachedVideoClip.video.id,
+        )
+      }
+      let uploadedVideo: { name: string } | undefined
+      if (
+        attachedVideoClip &&
+        !attachedVideoClip.video.source &&
+        !resolvedAttachedLocalVideo
+      ) {
+        throw new ApiRequestError(
+          409,
+          '本機影片已不在目前分頁，請點選影片節點並重新選擇檔案',
+        )
+      }
+
+      if (attachedVideoClip && resolvedAttachedLocalVideo) {
+        const uploadScope = `${projectId ?? 'local'}:${aiSettingsRevision}`
+        let geminiFileName = getLocalVideoGeminiFile(
+          attachedVideoClip.video.id,
+          uploadScope,
+        )
+        if (!geminiFileName) {
+          geminiFileName = await uploadLocalVideoToGemini({
+            file: resolvedAttachedLocalVideo.file,
+            projectId,
+            signal: controller.signal,
+          })
+          setLocalVideoGeminiFile(
+            attachedVideoClip.video.id,
+            uploadScope,
+            geminiFileName,
+          )
+        }
+        uploadedVideo = { name: geminiFileName }
+      }
+
+      return sendChatMessage({
         projectId,
         signal: controller.signal,
+        uploadedVideo,
         prompt: content,
         selectedNode: contextPayload!,
         neighborNodes: selectedContextNeighborNodes
@@ -419,8 +518,8 @@ export function ChatPanel({
             role,
             content: messageContent,
           })),
-      }),
-    )
+      })
+    })
 
     if (controller.signal.aborted) {
       finishRequest(controller)
@@ -754,12 +853,18 @@ export function ChatPanel({
                 {formatClipTime(attachedVideoClip.startTimeMs)}–
                 {formatClipTime(attachedVideoClip.endTimeMs)}
               </div>
+              {!attachedVideoClip.video.source && !attachedLocalVideo && (
+                <div className="mt-1 text-xs leading-5 text-red-600">
+                  本機影片已不在目前分頁，請點選影片節點並重新選擇檔案。
+                </div>
+              )}
               {!canGeminiReadVideoSource(
                 attachedVideoClip.video.provider,
                 attachedVideoClip.video.source,
-              ) && (
+                Boolean(attachedLocalVideo),
+              ) && attachedVideoClip.video.source && (
                 <div className="mt-1 text-xs leading-5 text-foreground/55">
-                  目前只有 YouTube、Dropbox MP4／MOV 與公開 MP4／MOV 片段能提供給 Gemini 觀看。
+                  目前只有本機 MP4／WebM／MOV、YouTube、Dropbox MP4／MOV 與公開 MP4／MOV 片段能提供給 Gemini 觀看。
                 </div>
               )}
             </div>

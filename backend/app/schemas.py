@@ -72,11 +72,35 @@ class ChatHistoryMessage(ApiModel):
     content: str = Field(min_length=1, max_length=4000)
 
 
+class UploadedVideoFile(ApiModel):
+    name: str = Field(pattern=r"^files/[A-Za-z0-9_-]+$", max_length=160)
+
+
 class ChatRequest(ApiModel):
     prompt: str = Field(min_length=1, max_length=4000)
     selected_node: ContextNode | None = None
     neighbor_nodes: list[ContextNode] = Field(default_factory=list, max_length=20)
     history: list[ChatHistoryMessage] = Field(default_factory=list, max_length=30)
+    uploaded_video: UploadedVideoFile | None = None
+
+
+class VideoUploadStartRequest(ApiModel):
+    file_name: str = Field(min_length=1, max_length=255)
+    mime_type: Literal["video/mp4", "video/mov", "video/webm"]
+    size: int = Field(gt=0, le=450 * 1024 * 1024)
+
+
+class VideoUploadStartResponse(ApiModel):
+    upload_url: str = Field(min_length=1)
+    chunk_size: int = Field(gt=0, le=8 * 1024 * 1024)
+
+
+class VideoUploadChunkResponse(ApiModel):
+    file_name: str | None = Field(
+        default=None,
+        pattern=r"^files/[A-Za-z0-9_-]+$",
+        max_length=160,
+    )
 
 
 class ChatResponse(ApiModel):
