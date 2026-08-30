@@ -1,0 +1,31 @@
+name: Cleanup unverified users
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cleanup-unverified-users
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Remove expired unverified accounts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call protected cleanup endpoint
+        env:
+          API_BASE_URL: ${{ secrets.CO_CANVAS_API_BASE_URL }}
+          CLEANUP_SECRET: ${{ secrets.AUTH_CLEANUP_SECRET }}
+        run: |
+          test -n "$API_BASE_URL"
+          test -n "$CLEANUP_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "X-Cleanup-Secret: $CLEANUP_SECRET" \
+            "${API_BASE_URL%/}/api/internal/auth/cleanup-unverified"

@@ -10,6 +10,7 @@ const sections = [
   ['groups', '群組整理'],
   ['ai-chat', 'AI 對話與建議'],
   ['video', '影片節點與分析'],
+  ['files', '文件與圖片節點'],
   ['cloud', '雲端協作與權限'],
   ['versions', '版本、備份與復原'],
   ['shortcuts', '快捷鍵'],

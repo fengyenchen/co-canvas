@@ -19,6 +19,7 @@ from app.models import UserAiCredential
 from app.middleware.request_protection import RequestProtectionMiddleware
 from app.middleware.observability import ObservabilityMiddleware
 from app.routers.ai_credentials import router as ai_credentials_router
+from app.routers.auth_maintenance import router as auth_maintenance_router
 from app.routers.projects import router as projects_router
 from app.schemas import (
     AiFallbackReason,
@@ -93,6 +94,7 @@ app.add_middleware(ObservabilityMiddleware)
 
 app.include_router(projects_router)
 app.include_router(ai_credentials_router)
+app.include_router(auth_maintenance_router)
 
 
 @app.get("/health")

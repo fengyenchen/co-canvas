@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     database_url: SecretStr | None = None
     database_migration_url: SecretStr | None = None
     neon_auth_jwks_url: AnyHttpUrl | None = None
+    neon_api_key: SecretStr | None = None
+    neon_project_id: str | None = None
+    neon_branch_id: str | None = None
+    resend_webhook_secret: SecretStr | None = None
+    auth_cleanup_secret: SecretStr | None = None
+    auth_unverified_retention_hours: int = Field(default=24, ge=1)
+    auth_cleanup_batch_size: int = Field(default=100, ge=1, le=1000)
     cors_allowed_origins: str = "http://localhost:5173"
     api_rate_limit_requests: int = Field(default=120, ge=1)
     ai_rate_limit_requests: int = Field(default=20, ge=1)
