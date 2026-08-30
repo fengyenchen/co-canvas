@@ -22,14 +22,18 @@ import {
 import type { ProjectFile } from '../../utils/projectFile'
 import { ConceptNode } from './ConceptNode'
 import { VideoNode } from './VideoNode'
+import { DocumentNode, ImageNode } from './FileNode'
 import { GroupNode } from './GroupNode'
 import { EdgeEditor } from './EdgeEditor'
 import { NodeEditor } from './NodeEditor'
 import { VideoPanel } from '../video/VideoPanel'
+import { FilePanel } from '../file/FilePanel'
 
 const nodeTypes: NodeTypes = {
     concept: ConceptNode,
     video: VideoNode,
+    document: DocumentNode,
+    image: ImageNode,
     group: GroupNode,
 }
 
@@ -129,7 +133,7 @@ function CanvasContent({
                     placement: 'bottom',
                     title: '自動排版',
                     content:
-                        '節點加入後按「自動排版」，即可整理整張畫布。之後還能探索影片片段與群組等進階功能。',
+                        '節點加入後按「自動排版」，即可整理整張畫布。之後還能探索影片片段、文件／圖片附件與群組等進階功能。',
                 },
             ]
         }
@@ -151,7 +155,7 @@ function CanvasContent({
                     placement: 'bottom-start',
                     title: '新增節點',
                     content:
-                        '從這裡新增文字節點或影片節點。拖曳節點上下端點，可以建立節點之間的連線。',
+                        '從這裡新增文字、影片、文件或圖片節點。拖曳節點上下端點，可以建立節點之間的連線。',
                 },
                 {
                     target: '[data-tour="group-nodes"]',
@@ -207,6 +211,8 @@ function CanvasContent({
     const edges = useCanvasStore((state) => state.edges)
     const addNode = useCanvasStore((state) => state.addNode)
     const addVideoNode = useCanvasStore((state) => state.addVideoNode)
+    const addDocumentNode = useCanvasStore((state) => state.addDocumentNode)
+    const addImageNode = useCanvasStore((state) => state.addImageNode)
     const groupSelectedNodes = useCanvasStore(
         (state) => state.groupSelectedNodes,
     )
@@ -746,6 +752,26 @@ function CanvasContent({
                                     >
                                         影片節點
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsAddNodeMenuOpen(false)
+                                            addDocumentNode(getNewNodePosition())
+                                        }}
+                                        className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                    >
+                                        文件節點
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsAddNodeMenuOpen(false)
+                                            addImageNode(getNewNodePosition())
+                                        }}
+                                        className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                    >
+                                        圖片節點
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -1108,6 +1134,7 @@ function CanvasContent({
 
             {!isReadOnly && <NodeEditor />}
             <VideoPanel isReadOnly={isReadOnly} />
+            <FilePanel isReadOnly={isReadOnly} />
             {!isReadOnly && <EdgeEditor />}
 
             <ReactFlow
@@ -1119,7 +1146,7 @@ function CanvasContent({
                 onConnect={isReadOnly ? undefined : onConnect}
                 onNodeDragStop={(_, node) => reconcileNodeGroup(node.id)}
                 onNodeDoubleClick={(_, node) => {
-                    if (node.type === 'concept' || node.type === 'group') {
+                    if (node.type === 'concept' || node.type === 'document' || node.type === 'image' || node.type === 'group') {
                         setActiveContextNodeId(node.id)
                     }
                 }}

@@ -102,4 +102,37 @@ describe('createAiContextNode', () => {
       ],
     })
   })
+
+  it('讓相連文件與頁面範圍成為文字節點附件上下文', () => {
+    const documentNode: CanvasNode = {
+      id: 'document-1',
+      type: 'document',
+      position: { x: 0, y: 0 },
+      data: {
+        title: '研究報告', content: '', origin: 'user', fileName: 'report.pdf',
+        mimeType: 'application/pdf', size: 2048, pageCount: 12, pageUnit: 'page',
+      },
+    }
+    const conceptNode: CanvasNode = {
+      id: 'concept-document', type: 'concept', position: { x: 0, y: 200 },
+      data: {
+        title: '前十頁重點', content: '', origin: 'user',
+        documentStartPage: 1, documentEndPage: 10,
+      },
+    }
+    const documentEdge: CanvasEdge = {
+      id: 'edge-document', source: documentNode.id, target: conceptNode.id,
+      data: { origin: 'user' },
+    }
+
+    expect(createAiContextNode(conceptNode, [documentNode, conceptNode], [documentEdge])).toEqual(
+      expect.objectContaining({
+        documentStartPage: 1,
+        documentEndPage: 10,
+        linkedFile: expect.objectContaining({
+          id: 'document-1', fileName: 'report.pdf', pageCount: 12, pageUnit: 'page',
+        }),
+      }),
+    )
+  })
 })

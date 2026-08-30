@@ -18,6 +18,9 @@ type ChatInput = {
   uploadedVideo?: {
     name: string
   }
+  uploadedFile?: {
+    name: string
+  }
   signal?: AbortSignal
 }
 

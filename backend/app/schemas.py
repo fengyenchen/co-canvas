@@ -24,16 +24,35 @@ class LinkedVideoContext(ApiModel):
     duration_ms: int | None = Field(default=None, ge=0)
 
 
+class LinkedFileContext(ApiModel):
+    id: str
+    title: str = Field(min_length=1, max_length=120)
+    node_type: Literal["document", "image"]
+    file_name: str | None = Field(default=None, max_length=255)
+    mime_type: str | None = Field(default=None, max_length=160)
+    file_size: int | None = Field(default=None, ge=0, le=100 * 1024 * 1024)
+    file_source: str | None = Field(default=None, max_length=2048)
+    page_count: int | None = Field(default=None, ge=1, le=100000)
+    page_unit: Literal["page", "slide"] | None = None
+
+
 class ContextNode(ApiModel):
     id: str
     title: str = Field(min_length=1, max_length=120)
     content: str = Field(default="", max_length=2000)
-    node_type: Literal["concept", "video", "group"] = "concept"
+    node_type: Literal["concept", "video", "document", "image", "group"] = "concept"
+    file_name: str | None = Field(default=None, max_length=255)
+    mime_type: str | None = Field(default=None, max_length=160)
+    file_size: int | None = Field(default=None, ge=0, le=100 * 1024 * 1024)
+    file_source: str | None = Field(default=None, max_length=2048)
     start_time_ms: int | None = Field(default=None, ge=0)
     end_time_ms: int | None = Field(default=None, ge=0)
     video_provider: str | None = Field(default=None, max_length=40)
     video_duration_ms: int | None = Field(default=None, ge=0)
     linked_video: LinkedVideoContext | None = None
+    linked_file: LinkedFileContext | None = None
+    document_start_page: int | None = Field(default=None, ge=1)
+    document_end_page: int | None = Field(default=None, ge=1)
     group_members: list["ContextNode"] = Field(default_factory=list, max_length=500)
     group_relations: list["GroupContextRelation"] = Field(
         default_factory=list,
@@ -49,6 +68,23 @@ class ContextNode(ApiModel):
             raise ValueError("startTimeMs and endTimeMs must be set together")
         if has_start and self.end_time_ms <= self.start_time_ms:
             raise ValueError("endTimeMs must be greater than startTimeMs")
+        has_start_page = self.document_start_page is not None
+        has_end_page = self.document_end_page is not None
+        if has_start_page != has_end_page:
+            raise ValueError("documentStartPage and documentEndPage must be set together")
+        if (
+            self.document_start_page is not None
+            and self.document_end_page is not None
+            and self.document_end_page < self.document_start_page
+        ):
+            raise ValueError("documentEndPage must not be less than documentStartPage")
+        if (
+            self.document_end_page is not None
+            and self.linked_file
+            and self.linked_file.page_count
+            and self.document_end_page > self.linked_file.page_count
+        ):
+            raise ValueError("documentEndPage exceeds pageCount")
         return self
 
 
@@ -76,18 +112,45 @@ class UploadedVideoFile(ApiModel):
     name: str = Field(pattern=r"^files/[A-Za-z0-9_-]+$", max_length=160)
 
 
+class UploadedFile(ApiModel):
+    name: str = Field(pattern=r"^files/[A-Za-z0-9_-]+$", max_length=160)
+
+
 class ChatRequest(ApiModel):
     prompt: str = Field(min_length=1, max_length=4000)
     selected_node: ContextNode | None = None
     neighbor_nodes: list[ContextNode] = Field(default_factory=list, max_length=20)
     history: list[ChatHistoryMessage] = Field(default_factory=list, max_length=30)
     uploaded_video: UploadedVideoFile | None = None
+    uploaded_file: UploadedFile | None = None
 
 
 class VideoUploadStartRequest(ApiModel):
     file_name: str = Field(min_length=1, max_length=255)
     mime_type: Literal["video/mp4", "video/mov", "video/webm"]
     size: int = Field(gt=0, le=450 * 1024 * 1024)
+
+
+SUPPORTED_FILE_MIME_TYPES = {
+    "image/png", "image/jpeg", "image/webp", "image/heic", "image/heif", "image/bmp",
+    "application/pdf", "application/json",
+    "text/plain", "text/markdown", "text/csv", "text/html", "text/css", "text/xml",
+    "text/rtf", "text/javascript",
+}
+
+
+class FileUploadStartRequest(ApiModel):
+    file_name: str = Field(min_length=1, max_length=255)
+    mime_type: str = Field(min_length=1, max_length=160)
+    size: int = Field(gt=0, le=100 * 1024 * 1024)
+
+    @model_validator(mode="after")
+    def validate_mime_type(self):
+        if self.mime_type not in SUPPORTED_FILE_MIME_TYPES:
+            raise ValueError("不支援的檔案格式")
+        if self.mime_type == "application/pdf" and self.size > 50 * 1024 * 1024:
+            raise ValueError("PDF 超過 50 MB 限制")
+        return self
 
 
 class VideoUploadStartResponse(ApiModel):

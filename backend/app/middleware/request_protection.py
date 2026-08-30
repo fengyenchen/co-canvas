@@ -10,8 +10,9 @@ AI_PATHS = frozenset({
     "/api/chat",
     "/api/suggestions/generate",
     "/api/video-uploads/start",
+    "/api/file-uploads/start",
 })
-UPLOAD_PATHS = frozenset({"/api/video-uploads/chunk"})
+UPLOAD_PATHS = frozenset({"/api/video-uploads/chunk", "/api/file-uploads/chunk"})
 UPLOAD_MAX_BODY_BYTES = 8 * 1024 * 1024
 BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
 

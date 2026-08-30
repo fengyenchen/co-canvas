@@ -26,6 +26,7 @@ from app.schemas import (
     ChatRequest,
     GenerateSuggestionApiResponse,
     GenerateSuggestionRequest,
+    FileUploadStartRequest,
     VideoUploadStartRequest,
     VideoUploadStartResponse,
     VideoUploadChunkResponse,
@@ -339,6 +340,17 @@ async def chat(
         timeout_seconds=(
             280
             if request.uploaded_video is not None
+            or request.uploaded_file is not None
+            or (
+                request.selected_node
+                and request.selected_node.node_type in {"document", "image"}
+                and request.selected_node.file_source
+            )
+            or (
+                request.selected_node
+                and request.selected_node.linked_file
+                and request.selected_node.linked_file.file_source
+            )
             or (
                 request.selected_node
                 and request.selected_node.start_time_ms is not None
@@ -438,6 +450,46 @@ async def upload_video_chunk(
             detail=str(error),
         ) from error
 
+    return VideoUploadChunkResponse(file_name=file_name)
+
+
+@app.post("/api/file-uploads/start", response_model=VideoUploadStartResponse)
+async def start_file_upload(
+    request: FileUploadStartRequest,
+    session: DatabaseSession,
+    user: OptionalCurrentUser,
+    project_id: ProjectId = None,
+) -> VideoUploadStartResponse:
+    runtime = await resolve_ai_api_key(project_id, user, session)
+    if runtime.use_mock or runtime.api_key is None:
+        raise HTTPException(status_code=503, detail="Gemini API Key 尚未設定")
+    try:
+        upload_url, chunk_size = await start_gemini_resumable_upload(
+            runtime.api_key, request.file_name, request.mime_type, request.size
+        )
+    except GeminiUploadStartError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+    return VideoUploadStartResponse(upload_url=upload_url, chunk_size=chunk_size)
+
+
+@app.post("/api/file-uploads/chunk", response_model=VideoUploadChunkResponse)
+async def upload_file_chunk(
+    request: Request,
+    user: OptionalCurrentUser,
+    project_id: ProjectId = None,
+    upload_url: str = Header(alias="X-Co-Canvas-Upload-Url"),
+    upload_offset: int = Header(alias="X-Goog-Upload-Offset", ge=0),
+    upload_final: bool = Header(alias="X-Co-Canvas-Upload-Final"),
+) -> VideoUploadChunkResponse:
+    if project_id not in (None, "local") and user is None:
+        raise HTTPException(status_code=401, detail="請先登入")
+    chunk = await request.body()
+    if not chunk or len(chunk) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="檔案分段大小無效")
+    try:
+        file_name = await forward_gemini_upload_chunk(upload_url, upload_offset, chunk, upload_final)
+    except GeminiUploadStartError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error)) from error
     return VideoUploadChunkResponse(file_name=file_name)
 
 

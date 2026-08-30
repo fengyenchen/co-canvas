@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 from pydantic import ValidationError
 
 from app.schemas import ChatRequest, ContextNode
@@ -10,6 +11,7 @@ from app.services.gemini import (
     build_chat_parts,
     forward_gemini_upload_chunk,
     upload_chat_video_clip,
+    upload_chat_file,
 )
 
 
@@ -106,6 +108,36 @@ def test_accepts_uploaded_local_video_reference() -> None:
 
     assert request.uploaded_video is not None
     assert request.uploaded_video.name == "files/local_video_123"
+
+
+def test_accepts_uploaded_document_reference() -> None:
+    request = ChatRequest.model_validate({
+        "prompt": "摘要這份文件",
+        "selectedNode": {"id": "document-1", "title": "研究報告", "nodeType": "document", "fileName": "report.pdf", "mimeType": "application/pdf"},
+        "uploadedFile": {"name": "files/local_document_123"},
+    })
+    assert request.uploaded_file is not None
+    assert request.selected_node is not None
+    assert request.selected_node.node_type == "document"
+
+
+@pytest.mark.anyio
+async def test_attaches_public_image_url(monkeypatch, tmp_path: Path) -> None:
+    request = ChatRequest.model_validate({
+        "prompt": "描述圖片",
+        "selectedNode": {"id": "image-1", "title": "流程圖", "nodeType": "image", "fileSource": "https://example.com/flow.png", "mimeType": "image/png"},
+    })
+    temporary_file = tmp_path / "flow.png"
+    temporary_file.write_bytes(b"image")
+    async def fake_download(_source: str):
+        return temporary_file, "image/png"
+    monkeypatch.setattr("app.services.gemini.download_file_source", fake_download)
+    uploaded = SimpleNamespace(uri="https://files.example/flow", mime_type="image/png", state=SimpleNamespace(name="ACTIVE"))
+    client = SimpleNamespace(files=SimpleNamespace(upload=AsyncMock(return_value=uploaded)))
+    part = await upload_chat_file(client, request)
+    assert part is not None
+    assert part.file_data.file_uri == "https://files.example/flow"
+    assert part.file_data.mime_type == "image/png"
 
 
 @pytest.mark.anyio

@@ -34,6 +34,8 @@ class ProjectConceptNodeData(ApiModel):
     ] = "default"
     start_time_ms: int | None = Field(default=None, ge=0)
     end_time_ms: int | None = Field(default=None, ge=0)
+    document_start_page: int | None = Field(default=None, ge=1)
+    document_end_page: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def validate_time_range(self) -> "ProjectConceptNodeData":
@@ -49,6 +51,17 @@ class ProjectConceptNodeData(ApiModel):
             and self.end_time_ms <= self.start_time_ms
         ):
             raise ValueError("結束時間必須晚於開始時間")
+
+        has_start_page = self.document_start_page is not None
+        has_end_page = self.document_end_page is not None
+        if has_start_page != has_end_page:
+            raise ValueError("文件開始與結束頁必須同時設定")
+        if (
+            self.document_start_page is not None
+            and self.document_end_page is not None
+            and self.document_end_page < self.document_start_page
+        ):
+            raise ValueError("文件結束頁不得早於開始頁")
 
         return self
 
@@ -72,6 +85,18 @@ class ProjectVideoNodeData(ApiModel):
             raise ValueError("影片網址必須為空白或使用 http、https")
 
         return value
+
+
+class ProjectDocumentNodeData(ApiModel):
+    title: str = Field(max_length=120)
+    content: str = Field(default="", max_length=2000)
+    origin: Literal["user", "ai"]
+    file_name: str | None = Field(default=None, max_length=255)
+    mime_type: str | None = Field(default=None, max_length=160)
+    size: int | None = Field(default=None, ge=0, le=100 * 1024 * 1024)
+    source: str | None = Field(default=None, max_length=2048)
+    page_count: int | None = Field(default=None, ge=1, le=100000)
+    page_unit: Literal["page", "slide"] | None = None
 
 
 class ProjectGroupNodeData(ApiModel):
@@ -99,6 +124,14 @@ class ProjectVideoNode(ApiModel):
     parent_id: str | None = None
 
 
+class ProjectDocumentNode(ApiModel):
+    id: str = Field(min_length=1)
+    type: Literal["document"] = "document"
+    position: ProjectPosition
+    data: ProjectDocumentNodeData
+    parent_id: str | None = None
+
+
 class ProjectGroupNode(ApiModel):
     id: str = Field(min_length=1)
     type: Literal["group"] = "group"
@@ -106,7 +139,15 @@ class ProjectGroupNode(ApiModel):
     data: ProjectGroupNodeData
 
 
-ProjectNode = ProjectConceptNode | ProjectVideoNode | ProjectGroupNode
+class ProjectImageNode(ApiModel):
+    id: str = Field(min_length=1)
+    type: Literal["image"] = "image"
+    position: ProjectPosition
+    data: ProjectDocumentNodeData
+    parent_id: str | None = None
+
+
+ProjectNode = ProjectConceptNode | ProjectVideoNode | ProjectDocumentNode | ProjectImageNode | ProjectGroupNode
 
 
 class ProjectEdgeData(ApiModel):
@@ -174,6 +215,18 @@ class ProjectDocument(ApiModel):
     def upgrade_legacy_document(cls, value: object) -> object:
         if not isinstance(value, dict):
             return value
+
+        raw_nodes = value.get("nodes", [])
+        if isinstance(raw_nodes, list):
+            value = {
+                **value,
+                "nodes": [
+                    {**node, "type": "document"}
+                    if isinstance(node, dict) and node.get("type") == "file"
+                    else node
+                    for node in raw_nodes
+                ],
+            }
 
         if value.get("version") == 1:
             return {**value, "version": 4}
@@ -325,10 +378,15 @@ class ProjectDocument(ApiModel):
             for node in self.nodes
             if isinstance(node, ProjectVideoNode)
         }
+        document_nodes = {
+            node.id: node
+            for node in self.nodes
+            if isinstance(node, ProjectDocumentNode)
+        }
 
         for node in self.nodes:
             if (
-                isinstance(node, (ProjectConceptNode, ProjectVideoNode))
+                isinstance(node, (ProjectConceptNode, ProjectVideoNode, ProjectDocumentNode, ProjectImageNode))
                 and node.parent_id is not None
                 and node.parent_id not in group_ids
             ):
@@ -339,6 +397,22 @@ class ProjectDocument(ApiModel):
 
             start_time_ms = node.data.start_time_ms
             end_time_ms = node.data.end_time_ms
+            start_page = node.data.document_start_page
+            end_page = node.data.document_end_page
+
+            if start_page is not None and end_page is not None:
+                linked_document_ids = list(dict.fromkeys(
+                    edge.source
+                    for edge in self.edges
+                    if edge.target == node.id and edge.source in document_nodes
+                ))
+                if not linked_document_ids:
+                    raise ValueError("設定頁面範圍前必須先連接文件節點")
+                if len(linked_document_ids) > 1:
+                    raise ValueError("設定頁面範圍的文字節點只能連接一個文件節點")
+                page_count = document_nodes[linked_document_ids[0]].data.page_count
+                if page_count is not None and end_page > page_count:
+                    raise ValueError("文件結束頁不得超出文件頁數")
 
             if start_time_ms is None or end_time_ms is None:
                 continue

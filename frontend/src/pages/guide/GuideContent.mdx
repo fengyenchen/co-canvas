@@ -4,7 +4,7 @@
 
 # 從想法到清晰脈絡
 
-這份手冊說明 Co-Canvas 的專案模式、畫布操作、AI 與影片功能、雲端協作，以及資料復原。第一次使用可依序閱讀「快速開始」到「AI 對話與建議」，再依工作需求查閱其他章節。
+這份手冊說明 Co-Canvas 的專案模式、畫布操作、AI、影片與附件功能、雲端協作，以及資料復原。第一次使用可依序閱讀「快速開始」到「AI 對話與建議」，再依工作需求查閱其他章節。
 
 <div className="mt-7 flex">
   <a href="https://github.com/fengyenchen/co-canvas" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-medium text-foreground no-underline transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">GitHub Repository：fengyenchen/co-canvas ↗</a>
@@ -20,7 +20,7 @@
 <SectionTitle id="quick-start">01 · 五分鐘快速開始</SectionTitle>
 
 1. **選擇專案模式。** 只想立即試用可開啟本機畫布；需要跨裝置、分享、即時協作或版本紀錄時，請登入並建立雲端專案。
-2. **建立起始節點。** 按「新增節點」選擇文字節點或影片節點。文字節點用來記錄概念；影片節點用來保存可播放的影片來源。
+2. **建立起始節點。** 按「新增節點」選擇文字、影片、文件或圖片節點。文字節點用來記錄概念；影片節點保存可播放來源；文件與圖片節點可選擇本機檔案，或貼上公開的 HTTPS 原檔直連。
 3. **建立結構。** 拖曳節點端點建立連線，選取連線後可命名關係。按住 Shift 框選多個節點，可建立群組或整批移動。
 4. **開始對話。** 雙擊文字節點或群組，將其設為 AI 對話上下文，再輸入想拆解、比較或延伸的問題。
 5. **檢查後採用。** AI 產生的節點會先進入預覽。確認內容與關係後再加入畫布，也可以編輯、重新生成或取消。
@@ -60,7 +60,7 @@
 
 自動排版會參考連線方向決定節點層級。群組內的節點先在群組座標內排版，群組尺寸再依成員內容擴張；外層排版只移動整個群組，不會讓成員飛到框外。沒有連線的節點仍可能被放到獨立區域，因此建議先建立關係再排版。
 
-<SectionTitle id="nodes-edges">04 · 文字節點、影片節點與連線</SectionTitle>
+<SectionTitle id="nodes-edges">04 · 文字、影片節點與連線</SectionTitle>
 
 ### 文字節點
 
@@ -144,7 +144,17 @@ AI 回覆支援 Markdown 標題、清單、粗體、程式碼與連結。訊息�
 
 Gemini 檔案依 API Key 的不可逆指紋與影片來源建立約 47 小時快取。同一影片的後續對話會重用有效快取，不需每次重新下載與上傳。快取不保存明文 API Key；過期資料會在後續請求時清理。
 
-<SectionTitle id="cloud">08 · 雲端協作與權限</SectionTitle>
+<SectionTitle id="files">08 · 文件與圖片節點</SectionTitle>
+
+文件節點支援 PDF、TXT／Markdown／CSV／JSON、DOCX、XLSX 與 PPTX；圖片節點支援 PNG、JPG、WebP、HEIC／HEIF 與 BMP。兩者都可選擇本機檔案或貼上能直接開啟原檔的公開 HTTPS 網址，並可像其他節點一樣移動、連線、分組與進入對話。
+
+本機原檔保存在目前瀏覽器的私人檔案空間，刷新後可恢復，但不會寫入雲端專案或同步到其他裝置。圖片、PDF 與文字檔可在側欄預覽；DOCX、XLSX、PPTX 會在對話前抽取文字供 Gemini 分析。PDF 目前上限為 50 MB，其他支援檔案上限為 100 MB。
+
+使用文件或圖片作為 AI 上下文時，請雙擊該節點進入對話，再直接提問。若使用本機檔案，必須等瀏覽器保存完成後再傳送；若使用網址，連結需免登入且直接回傳原始檔案，不能是檔案預覽頁或資料夾頁面。
+
+文件也可以像影片一樣先連到文字節點，再從文字節點進入對話。PDF 與 PPTX 連線後，可在文字節點的「新增屬性」加入「文件頁面範圍」，選擇全部或指定開始與結束頁；PDF 使用頁碼，PPTX 使用投影片編號。DOCX 的分頁會受字型與版面環境影響，因此不提供固定頁碼，會分析完整文件。
+
+<SectionTitle id="cloud">09 · 雲端協作與權限</SectionTitle>
 
 - **擁有者：** 可編輯、分享、管理成員、刪除及恢復專案。
 - **編輯者：** 可修改畫布與對話，但不能執行擁有者限定的管理操作。
@@ -160,7 +170,7 @@ Gemini 檔案依 API Key 的不可逆指紋與影片來源建立約 47 小時快
 
 > 目前同步粒度約為 2 秒，不會顯示其他人的游標位置或逐字輸入過程。
 
-<SectionTitle id="versions">09 · 版本、備份與復原</SectionTitle>
+<SectionTitle id="versions">10 · 版本、備份與復原</SectionTitle>
 
 - **自動儲存：** 雲端內容改變後會保存，右下角顯示儲存中、已儲存或失敗。
 - **手動版本：** 可自行命名並長期保留，不受自動版本清理規則影響。
@@ -173,7 +183,7 @@ Gemini 檔案依 API Key 的不可逆指紋與影片來源建立約 47 小時快
 
 版本內容不包含專案名稱、專案成員或權限設定。恢復版本只改動畫布文件，不會把已移除成員重新加回專案。
 
-<SectionTitle id="shortcuts">10 · 快捷鍵</SectionTitle>
+<SectionTitle id="shortcuts">11 · 快捷鍵</SectionTitle>
 
 | 快捷鍵 | 功能 |
 | --- | --- |
@@ -189,7 +199,7 @@ Gemini 檔案依 API Key 的不可逆指紋與影片來源建立約 47 小時快
 
 > 游標位於文字輸入框或可編輯內容時，複製、貼上、Backspace 等按鍵會保留原本的文字編輯功能。
 
-<SectionTitle id="troubleshooting">11 · 常見問題</SectionTitle>
+<SectionTitle id="troubleshooting">12 · 常見問題</SectionTitle>
 
 ### AI 為什麼顯示 Mock？
 
@@ -202,6 +212,18 @@ Gemini 檔案依 API Key 的不可逆指紋與影片來源建立約 47 小時快
 ### Dropbox 為什麼無法分析？
 
 使用單一影片檔案分享連結，不要使用資料夾連結；確認副檔名為 MP4／MOV，檔案不超過 450 MB，且分享權限允許後端下載。
+
+### 文件或圖片刷新後為什麼找不到原檔？
+
+本機原檔只保存在選取檔案時所使用的瀏覽器私人檔案空間。請使用同一個瀏覽器與網站來源開啟專案；更換瀏覽器、裝置、網域，或清除網站資料後，需要重新選擇本機檔案。雲端專案只同步節點資料，不會上傳原始附件。
+
+### 文件或圖片網址為什麼無法預覽或分析？
+
+請使用公開、免登入的 HTTPS 原檔直連，且網址路徑應保留可辨識的副檔名。會開啟網站預覽器、需要 Cookie／權限、導向登入頁或指向資料夾的連結，無法當成附件交給 Gemini。
+
+### 相連的文件為什麼只有檔名、沒有分析內容？
+
+請確認文件節點已連到目前對話的文字節點，且「AI 上下文」展開後顯示「隨對話附上的文件」。本機文件必須仍存在目前瀏覽器；若是 PDF／PPTX，可進一步新增文件頁面範圍。舊對話中曾出現的「無法讀取」不會影響下一則請求，重新傳送後會以本次實際附件為準。
 
 ### 雲端專案無法載入怎麼辦？
 

@@ -4,6 +4,7 @@ import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import type {
     ConceptCanvasNode,
+    DocumentCanvasNode,
     GroupCanvasNode,
     VideoCanvasNode,
 } from '../../types/canvas'
@@ -23,9 +24,11 @@ import {
 function ConceptNodeEditor({
     selectedNode,
     linkedVideoNodes,
+    linkedDocumentNodes,
 }: {
     selectedNode: ConceptCanvasNode
     linkedVideoNodes: VideoCanvasNode[]
+    linkedDocumentNodes: DocumentCanvasNode[]
 }) {
     const updateNode = useCanvasStore((state) => state.updateNode)
     const updateConceptTimeRange = useCanvasStore(
@@ -39,10 +42,18 @@ function ConceptNodeEditor({
     const setActiveContextNodeId = useChatStore(
         (state) => state.setActiveContextNodeId,
     )
+    const updateConceptDocumentRange = useCanvasStore(
+        (state) => state.updateConceptDocumentRange,
+    )
     const selectedVideo = linkedVideoNodes.length === 1
         ? linkedVideoNodes[0]
         : undefined
     const selectedVideoDuration = selectedVideo?.data.durationMs
+    const selectedDocument = linkedDocumentNodes.length === 1
+        ? linkedDocumentNodes[0]
+        : undefined
+    const documentPageCount = selectedDocument?.data.pageCount
+    const documentPageUnit = selectedDocument?.data.pageUnit === 'slide' ? '投影片' : '頁'
     const storedWholeVideoRange =
         selectedVideoDuration !== undefined &&
         selectedNode.data.startTimeMs === 0 &&
@@ -67,6 +78,15 @@ function ConceptNodeEditor({
     const [isPropertyMenuOpen, setIsPropertyMenuOpen] = useState(false)
     const [isVideoBindingEditorOpen, setIsVideoBindingEditorOpen] =
         useState(false)
+    const [isDocumentBindingEditorOpen, setIsDocumentBindingEditorOpen] =
+        useState(false)
+    const [draftStartPage, setDraftStartPage] = useState(
+        String(selectedNode.data.documentStartPage ?? 1),
+    )
+    const [draftEndPage, setDraftEndPage] = useState(
+        String(selectedNode.data.documentEndPage ?? documentPageCount ?? 1),
+    )
+    const [documentBindingError, setDocumentBindingError] = useState<string | null>(null)
     const [timeRangeMode, setTimeRangeMode] = useState<'all' | 'custom'>(
         storedWholeVideoRange ? 'all' : 'custom',
     )
@@ -74,6 +94,49 @@ function ConceptNodeEditor({
     const hasTimeRange =
         selectedNode.data.startTimeMs !== undefined &&
         selectedNode.data.endTimeMs !== undefined
+    const hasDocumentRange =
+        selectedNode.data.documentStartPage !== undefined &&
+        selectedNode.data.documentEndPage !== undefined
+
+    function applyDocumentBinding() {
+        if (linkedDocumentNodes.length === 0) {
+            setDocumentBindingError('請先從 PDF 或 PPTX 文件節點連線到此文字節點。')
+            return
+        }
+        if (linkedDocumentNodes.length > 1) {
+            setDocumentBindingError('設定頁面範圍的文字節點只能連接一個文件節點。')
+            return
+        }
+        if (!selectedDocument?.data.pageUnit) {
+            setDocumentBindingError('這個文件格式沒有可選擇的固定頁面。')
+            return
+        }
+        const startPage = Number(draftStartPage)
+        const endPage = Number(draftEndPage)
+        if (!Number.isInteger(startPage) || !Number.isInteger(endPage) || startPage < 1 || endPage < startPage) {
+            setDocumentBindingError('請輸入有效的開始與結束頁碼。')
+            return
+        }
+        if (documentPageCount !== undefined && endPage > documentPageCount) {
+            setDocumentBindingError(`結束${documentPageUnit}不得超過 ${documentPageCount}。`)
+            return
+        }
+        updateConceptDocumentRange(selectedNode.id, {
+            documentStartPage: startPage,
+            documentEndPage: endPage,
+        })
+        setDocumentBindingError(null)
+        setIsDocumentBindingEditorOpen(false)
+    }
+
+    function clearDocumentBinding() {
+        updateConceptDocumentRange(selectedNode.id, {
+            documentStartPage: undefined,
+            documentEndPage: undefined,
+        })
+        setDocumentBindingError(null)
+        setIsDocumentBindingEditorOpen(false)
+    }
 
     function clearMissingActiveContext() {
         if (
@@ -263,8 +326,8 @@ function ConceptNodeEditor({
                     <h3 className="text-sm font-semibold text-foreground">
                         屬性
                     </h3>
-                    {!hasTimeRange &&
-                        !isVideoBindingEditorOpen && (
+                    {(!hasTimeRange || !hasDocumentRange) &&
+                        !isVideoBindingEditorOpen && !isDocumentBindingEditorOpen && (
                             <div className="relative">
                                 <button
                                     type="button"
@@ -289,6 +352,16 @@ function ConceptNodeEditor({
                                             className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                                         >
                                             影片時間區間
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsPropertyMenuOpen(false)
+                                                setIsDocumentBindingEditorOpen(true)
+                                            }}
+                                            className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                        >
+                                            文件頁面範圍
                                         </button>
                                     </div>
                                 )}
@@ -459,6 +532,80 @@ function ConceptNodeEditor({
                         </div>
                             </>
                         )}
+                    </div>
+                )}
+
+                {hasDocumentRange && !isDocumentBindingEditorOpen && (
+                    <button
+                        type="button"
+                        onClick={() => setIsDocumentBindingEditorOpen(true)}
+                        className="mt-3 w-full cursor-pointer rounded-lg border border-border px-3 py-3 text-left transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    >
+                        <span className="block text-sm font-medium text-foreground">文件頁面範圍</span>
+                        <span className="mt-1 block text-xs text-foreground/55">
+                            {selectedDocument?.data.title ?? '尚未連接文件'} · 第 {selectedNode.data.documentStartPage}–{selectedNode.data.documentEndPage} {documentPageUnit}
+                        </span>
+                    </button>
+                )}
+
+                {isDocumentBindingEditorOpen && (
+                    <div className="mt-3 rounded-lg border border-border p-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <h4 className="text-sm font-medium text-foreground">文件頁面範圍</h4>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setDocumentBindingError(null)
+                                    setIsDocumentBindingEditorOpen(false)
+                                }}
+                                className="min-h-9 cursor-pointer rounded-md px-2 text-xs text-foreground/60 transition hover:bg-primary/5 hover:text-foreground"
+                            >
+                                取消
+                            </button>
+                        </div>
+                        {linkedDocumentNodes.length === 0 ? (
+                            <p className="mt-2 text-sm text-foreground/55">先從 PDF 或 PPTX 文件節點連線到此文字節點。</p>
+                        ) : linkedDocumentNodes.length > 1 ? (
+                            <p className="mt-2 text-sm text-red-600">此文字節點連接了多個文件節點，請只保留一個文件來源。</p>
+                        ) : !selectedDocument?.data.pageUnit ? (
+                            <p className="mt-2 text-sm text-foreground/55">這個文件格式沒有固定頁面；對話會分析完整文件。</p>
+                        ) : (
+                            <>
+                                <p className="mt-3 rounded-lg bg-primary/5 px-3 py-2 text-sm text-foreground/70">
+                                    文件來源：{selectedDocument.data.title}
+                                    {documentPageCount ? ` · ${documentPageCount} ${documentPageUnit}` : ''}
+                                </p>
+                                {documentPageCount && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setDraftStartPage('1')
+                                            setDraftEndPage(String(documentPageCount))
+                                            setDocumentBindingError(null)
+                                        }}
+                                        className="mt-3 min-h-11 w-full cursor-pointer rounded-lg border border-border px-3 text-sm text-foreground transition hover:border-primary/30 hover:bg-primary/5"
+                                    >
+                                        全部
+                                    </button>
+                                )}
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                    <label>
+                                        <span className="mb-1 block text-xs text-foreground/70">開始{documentPageUnit}</span>
+                                        <input type="number" min={1} max={documentPageCount} value={draftStartPage} onChange={(event) => { setDraftStartPage(event.target.value); setDocumentBindingError(null) }} className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm" />
+                                    </label>
+                                    <label>
+                                        <span className="mb-1 block text-xs text-foreground/70">結束{documentPageUnit}</span>
+                                        <input type="number" min={1} max={documentPageCount} value={draftEndPage} onChange={(event) => { setDraftEndPage(event.target.value); setDocumentBindingError(null) }} className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm" />
+                                    </label>
+                                </div>
+                                {documentBindingError && <p role="alert" className="mt-2 text-xs text-red-600">{documentBindingError}</p>}
+                                <div className="mt-3 flex gap-2">
+                                    {hasDocumentRange && <button type="button" onClick={clearDocumentBinding} className="min-h-11 flex-1 rounded-lg border border-border px-3 text-sm">刪除屬性</button>}
+                                    <button type="button" onClick={applyDocumentBinding} className="min-h-11 flex-1 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground">套用</button>
+                                </div>
+                            </>
+                        )}
+                        {documentBindingError && (linkedDocumentNodes.length !== 1 || !selectedDocument?.data.pageUnit) && <p role="alert" className="mt-2 text-xs text-red-600">{documentBindingError}</p>}
                     </div>
                 )}
             </div>
@@ -696,12 +843,17 @@ export function NodeEditor() {
         (node): node is VideoCanvasNode =>
             node.type === 'video' && linkedVideoNodeIds.has(node.id),
     )
+    const linkedDocumentNodes = nodes.filter(
+        (node): node is DocumentCanvasNode =>
+            node.type === 'document' && linkedVideoNodeIds.has(node.id),
+    )
 
     return (
         <ConceptNodeEditor
             key={selectedNode.id}
             selectedNode={selectedNode}
             linkedVideoNodes={linkedVideoNodes}
+            linkedDocumentNodes={linkedDocumentNodes}
         />
     )
 }

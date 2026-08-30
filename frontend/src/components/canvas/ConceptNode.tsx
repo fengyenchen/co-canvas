@@ -1,8 +1,8 @@
 import { Handle, Position } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
-import { Play } from 'lucide-react'
+import { FileText, Play } from 'lucide-react'
 import { useCanvasStore } from '../../stores/canvasStore'
-import type { ConceptCanvasNode } from '../../types/canvas'
+import type { ConceptCanvasNode, DocumentCanvasNode } from '../../types/canvas'
 import { formatMediaTime } from '../../utils/mediaTime'
 import { getConceptNodeColor } from '../../utils/nodeColor'
 
@@ -27,8 +27,22 @@ export function ConceptNode({
     const requestVideoSeek = useCanvasStore(
         (state) => state.requestVideoSeek,
     )
+    const linkedDocument = useCanvasStore((state) => {
+        const documentNodeIds = new Set(
+            state.nodes.filter((node) => node.type === 'document').map((node) => node.id),
+        )
+        const documentNodeId = state.edges.find(
+            (edge) => edge.target === id && documentNodeIds.has(edge.source),
+        )?.source
+        return state.nodes.find(
+            (node): node is DocumentCanvasNode =>
+                node.id === documentNodeId && node.type === 'document',
+        )
+    })
     const hasTimeRange =
         data.startTimeMs !== undefined && data.endTimeMs !== undefined
+    const hasDocumentRange =
+        data.documentStartPage !== undefined && data.documentEndPage !== undefined
     const nodeColor = getConceptNodeColor(data.color)
 
     return (
@@ -69,6 +83,13 @@ export function ConceptNode({
                     {formatMediaTime(data.startTimeMs!, data.endTimeMs)}–
                     {formatMediaTime(data.endTimeMs!, data.endTimeMs)}
                 </button>
+            )}
+
+            {hasDocumentRange && linkedDocument && (
+                <div className="mt-3 flex min-h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary/8 px-3 text-xs font-medium text-primary">
+                    <FileText aria-hidden="true" className="size-3.5" />
+                    第 {data.documentStartPage}–{data.documentEndPage} {linkedDocument.data.pageUnit === 'slide' ? '投影片' : '頁'}
+                </div>
             )}
 
             <Handle

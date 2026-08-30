@@ -9,7 +9,74 @@ from app.project_schemas import (
     ProjectVersionRestore,
     ProjectGroupNode,
     ProjectVideoNode,
+    ProjectDocumentNode,
+    ProjectImageNode,
 )
+
+
+def test_accepts_document_and_image_nodes() -> None:
+    document = ProjectDocument.model_validate({
+        "version": 4,
+        "nodes": [
+            {"id": "document-1", "type": "document", "position": {"x": 0, "y": 0}, "data": {"title": "報告", "content": "", "origin": "user", "fileName": "report.pdf", "mimeType": "application/pdf", "size": 1024}},
+            {"id": "image-1", "type": "image", "position": {"x": 100, "y": 0}, "data": {"title": "圖片", "content": "", "origin": "user", "source": "https://example.com/image.png"}},
+        ],
+        "edges": [], "messages": [],
+    })
+    assert isinstance(document.nodes[0], ProjectDocumentNode)
+    assert isinstance(document.nodes[1], ProjectImageNode)
+
+
+def test_accepts_document_page_range_connected_to_document() -> None:
+    document = ProjectDocument.model_validate({
+        "version": 4,
+        "nodes": [
+            {
+                "id": "document-1", "type": "document", "position": {"x": 0, "y": 0},
+                "data": {
+                    "title": "報告", "content": "", "origin": "user",
+                    "fileName": "report.pdf", "mimeType": "application/pdf",
+                    "pageCount": 12, "pageUnit": "page",
+                },
+            },
+            create_concept_node({"documentStartPage": 1, "documentEndPage": 10}),
+        ],
+        "edges": [{"id": "edge-1", "source": "document-1", "target": "node-1", "data": {"origin": "user"}}],
+        "messages": [],
+    })
+    assert document.nodes[1].data.document_end_page == 10
+
+
+def test_rejects_document_page_range_past_page_count() -> None:
+    with pytest.raises(ValidationError):
+        ProjectDocument.model_validate({
+            "version": 4,
+            "nodes": [
+                {
+                    "id": "document-1", "type": "document", "position": {"x": 0, "y": 0},
+                    "data": {
+                        "title": "報告", "content": "", "origin": "user",
+                        "fileName": "report.pdf", "pageCount": 5, "pageUnit": "page",
+                    },
+                },
+                create_concept_node({"documentStartPage": 1, "documentEndPage": 10}),
+            ],
+            "edges": [{"id": "edge-1", "source": "document-1", "target": "node-1", "data": {"origin": "user"}}],
+            "messages": [],
+        })
+
+
+def test_upgrades_intermediate_file_node_to_document() -> None:
+    document = ProjectDocument.model_validate({
+        "version": 4,
+        "nodes": [{
+            "id": "legacy-file", "type": "file", "position": {"x": 0, "y": 0},
+            "data": {"title": "舊文件", "content": "", "origin": "user", "fileName": "report.pdf"},
+        }],
+        "edges": [], "messages": [],
+    })
+    assert isinstance(document.nodes[0], ProjectDocumentNode)
+    assert document.nodes[0].type == "document"
 
 
 def create_video_node(duration_ms: int | None = 60_000) -> dict[str, object]:

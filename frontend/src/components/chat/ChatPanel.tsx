@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { sendChatMessage } from '../../api/chat'
 import { uploadLocalVideoToGemini } from '../../api/videoUploads'
+import { uploadLocalFileToGemini } from '../../api/fileUploads'
 import { getGeminiCredential } from '../../api/aiCredentials'
 import {
   ApiRequestError,
@@ -13,11 +14,21 @@ import { getHealth } from '../../api/health'
 import type { AiMode } from '../../api/health'
 import type { AiFallbackReason } from '../../types/ai'
 import type { ChatMessage } from '../../types/chat'
+import type { DocumentCanvasNode, ImageCanvasNode } from '../../types/canvas'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import { formatLatency } from '../../utils/formatLatency'
 import { createAiContextNode } from '../../utils/aiContext'
 import { measureRequest } from '../../utils/measureRequest'
+import { prepareFileForAi } from '../../utils/extractOfficeText'
+import {
+  getLocalNodeFile,
+  getLocalNodeGeminiFile,
+  LOCAL_NODE_FILE_CHANGED_EVENT,
+  restoreLocalNodeFile,
+  setLocalNodeGeminiFile,
+  type LocalNodeFile,
+} from '../../utils/localNodeFiles'
 import {
   LOCAL_VIDEO_CHANGED_EVENT,
   getLocalVideoFile,
@@ -177,6 +188,16 @@ export function ChatPanel({
         }
       : null
   const attachedVideoNodeId = attachedVideoClip?.video.id ?? null
+  const attachedFileNodeId = contextNode?.type === 'document' || contextNode?.type === 'image'
+    ? contextNode.id
+    : contextPayload?.linkedFile?.id ?? null
+  const attachedFileNode = nodes.find(
+    (node): node is DocumentCanvasNode | ImageCanvasNode =>
+      node.id === attachedFileNodeId && (node.type === 'document' || node.type === 'image'),
+  )
+  const [attachedLocalFile, setAttachedLocalFile] = useState<LocalNodeFile | null>(() =>
+    attachedFileNodeId ? getLocalNodeFile(attachedFileNodeId) ?? null : null,
+  )
   const [attachedLocalVideo, setAttachedLocalVideo] =
     useState<LocalVideoFile | null>(() =>
       attachedVideoNodeId ? getLocalVideoFile(attachedVideoNodeId) : null,
@@ -217,6 +238,29 @@ export function ChatPanel({
       )
     }
   }, [attachedVideoNodeId])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!attachedFileNodeId) {
+      queueMicrotask(() => {
+        if (!cancelled) setAttachedLocalFile(null)
+      })
+      return () => { cancelled = true }
+    }
+    const sync = () => { if (!cancelled) setAttachedLocalFile(getLocalNodeFile(attachedFileNodeId) ?? null) }
+    const onChange = (event: Event) => {
+      if ((event as CustomEvent<{ nodeId?: string }>).detail?.nodeId === attachedFileNodeId) sync()
+    }
+    sync()
+    window.addEventListener(LOCAL_NODE_FILE_CHANGED_EVENT, onChange)
+    void restoreLocalNodeFile(attachedFileNodeId).then((file) => {
+      if (!cancelled) setAttachedLocalFile(file ?? null)
+    })
+    return () => {
+      cancelled = true
+      window.removeEventListener(LOCAL_NODE_FILE_CHANGED_EVENT, onChange)
+    }
+  }, [attachedFileNodeId])
 
   const visibleMessages = messages.filter(
     (message) =>
@@ -471,6 +515,7 @@ export function ChatPanel({
         )
       }
       let uploadedVideo: { name: string } | undefined
+      let uploadedFile: { name: string } | undefined
       if (
         attachedVideoClip &&
         !attachedVideoClip.video.source &&
@@ -503,10 +548,29 @@ export function ChatPanel({
         uploadedVideo = { name: geminiFileName }
       }
 
+      if (attachedFileNode && !attachedFileNode.data.source) {
+        const resolvedFile = attachedLocalFile ?? await restoreLocalNodeFile(attachedFileNode.id)
+        if (!resolvedFile) {
+          throw new ApiRequestError(409, '這台瀏覽器沒有原始檔案，請點選文件或圖片節點並重新選擇檔案')
+        }
+        const pageRange = contextPayload?.documentStartPage !== undefined && contextPayload.documentEndPage !== undefined
+          ? { startPage: contextPayload.documentStartPage, endPage: contextPayload.documentEndPage }
+          : undefined
+        const preparedFile = await prepareFileForAi(resolvedFile.file, pageRange)
+        const uploadScope = `${projectId ?? 'local'}:${aiSettingsRevision}:${preparedFile.name}:${preparedFile.size}:${pageRange?.startPage ?? 'all'}-${pageRange?.endPage ?? 'all'}`
+        let geminiFileName = getLocalNodeGeminiFile(attachedFileNode.id, uploadScope)
+        if (!geminiFileName) {
+          geminiFileName = await uploadLocalFileToGemini({ file: preparedFile, projectId, signal: controller.signal })
+          setLocalNodeGeminiFile(attachedFileNode.id, uploadScope, geminiFileName)
+        }
+        uploadedFile = { name: geminiFileName }
+      }
+
       return sendChatMessage({
         projectId,
         signal: controller.signal,
         uploadedVideo,
+        uploadedFile,
         prompt: content,
         selectedNode: contextPayload!,
         neighborNodes: selectedContextNeighborNodes
@@ -810,6 +874,7 @@ export function ChatPanel({
             {attachedVideoClip
               ? `・影片片段 ${formatClipTime(attachedVideoClip.startTimeMs)}–${formatClipTime(attachedVideoClip.endTimeMs)}`
               : ''}
+            {attachedFileNode ? `・${attachedFileNode.type === 'image' ? '圖片' : '文件'}附件` : ''}
           </span>
           <span
             aria-hidden="true"
@@ -866,6 +931,21 @@ export function ChatPanel({
                 <div className="mt-1 text-xs leading-5 text-foreground/55">
                   目前只有本機 MP4／WebM／MOV、YouTube、Dropbox MP4／MOV 與公開 MP4／MOV 片段能提供給 Gemini 觀看。
                 </div>
+              )}
+            </div>
+          )}
+
+          {attachedFileNode && (
+            <div className="rounded-lg border border-primary/15 bg-primary/5 px-3 py-2">
+              <div className="text-xs text-foreground/50">隨對話附上的{attachedFileNode.type === 'image' ? '圖片' : '文件'}</div>
+              <div className="mt-1 text-sm font-medium text-foreground">
+                {attachedFileNode.data.fileName || attachedFileNode.data.title}
+                {contextPayload?.documentStartPage !== undefined && contextPayload.documentEndPage !== undefined
+                  ? `・第 ${contextPayload.documentStartPage}–${contextPayload.documentEndPage} ${attachedFileNode.data.pageUnit === 'slide' ? '投影片' : '頁'}`
+                  : ''}
+              </div>
+              {!attachedLocalFile && !attachedFileNode.data.source && (
+                <div className="mt-1 text-xs leading-5 text-red-600">這台瀏覽器沒有原始檔案，請點選文件或圖片節點並重新選擇。</div>
               )}
             </div>
           )}

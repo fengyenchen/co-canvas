@@ -29,6 +29,7 @@ from app.services.video_source import (
     normalize_downloadable_video_url,
     remove_temporary_video,
 )
+from app.services.file_source import download_file_source
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -212,7 +213,7 @@ def load_settings(api_key: str | None = None):
 def build_chat_parts(
     request: ChatRequest,
     history: str,
-    uploaded_video_part: types.Part | None = None,
+    uploaded_attachment_part: types.Part | None = None,
 ) -> list[types.Part]:
     selected_node = request.selected_node
     linked_video = selected_node.linked_video if selected_node else None
@@ -230,15 +231,44 @@ def build_chat_parts(
     parts: list[types.Part] = []
     attachment_note = ""
 
-    if uploaded_video_part is not None:
-        parts.append(uploaded_video_part)
-        attachment_note = (
-            "本次請求已附上可直接讀取的影片檔案與指定時間區間。"
-            "linkedVideo.source 為空只代表來源是使用者本機檔案，"
-            "不代表影片未附上。即使先前對話曾聲稱沒有影片，"
-            "也必須以本次附件為準；請直接根據影音內容回答，"
-            "不得要求使用者再次提供影片、字幕或摘要。\n\n"
-        )
+    if uploaded_attachment_part is not None:
+        parts.append(uploaded_attachment_part)
+        if request.uploaded_file is not None or (
+            request.selected_node
+            and (
+                request.selected_node.node_type in {"document", "image"}
+                or request.selected_node.linked_file is not None
+            )
+        ):
+            page_note = ""
+            if (
+                request.selected_node
+                and request.selected_node.document_start_page is not None
+                and request.selected_node.document_end_page is not None
+            ):
+                unit = (
+                    "投影片"
+                    if request.selected_node.linked_file
+                    and request.selected_node.linked_file.page_unit == "slide"
+                    else "頁"
+                )
+                page_note = (
+                    f"本次指定分析第 {request.selected_node.document_start_page}–"
+                    f"{request.selected_node.document_end_page} {unit}，請只根據此範圍回答。"
+                )
+            attachment_note = (
+                "本次請求已附上可直接讀取的檔案。即使先前對話曾聲稱沒有附件，"
+                "也必須以本次附件為準；請直接根據檔案內容回答，"
+                f"不得要求使用者再次提供檔案或貼上內容。{page_note}\n\n"
+            )
+        else:
+            attachment_note = (
+                "本次請求已附上可直接讀取的影片檔案與指定時間區間。"
+                "linkedVideo.source 為空只代表來源是使用者本機檔案，"
+                "不代表影片未附上。即使先前對話曾聲稱沒有影片，"
+                "也必須以本次附件為準；請直接根據影音內容回答，"
+                "不得要求使用者再次提供影片、字幕或摘要。\n\n"
+            )
     elif has_video_clip and selected_node and linked_video:
         parts.append(
             types.Part(
@@ -258,7 +288,7 @@ def build_chat_parts(
         types.Part(
             text=(
                 f"{attachment_note}畫布上下文：\n"
-                f"{request.model_dump_json(by_alias=True, exclude={'history', 'prompt', 'uploaded_video'})}\n\n"
+                f"{request.model_dump_json(by_alias=True, exclude={'history', 'prompt', 'uploaded_video', 'uploaded_file'})}\n\n"
                 "先前對話：\n"
                 f"{history}\n\n"
                 "使用者目前訊息：\n"
@@ -415,6 +445,70 @@ async def upload_chat_video_clip(
         raise
 
 
+async def upload_chat_file(client, request: ChatRequest) -> types.Part | None:
+    if request.uploaded_file is None:
+        selected_node = request.selected_node
+        file_context = None
+        if (
+            selected_node
+            and selected_node.node_type in {"document", "image"}
+            and selected_node.file_source
+        ):
+            file_context = selected_node
+        elif selected_node and selected_node.linked_file and selected_node.linked_file.file_source:
+            file_context = selected_node.linked_file
+        if file_context and file_context.file_source.startswith(("http://", "https://")):
+            temporary_path, mime_type = await download_file_source(file_context.file_source)
+            try:
+                uploaded_file = await client.files.upload(
+                    file=temporary_path,
+                    config=types.UploadFileConfig(
+                        mime_type=mime_type,
+                        display_name=file_context.title,
+                    ),
+                )
+            finally:
+                temporary_path.unlink(missing_ok=True)
+            for _ in range(60):
+                state_name = uploaded_file.state.name if uploaded_file.state else "ACTIVE"
+                if state_name == "ACTIVE":
+                    break
+                if state_name == "FAILED":
+                    raise VideoSourceError("Gemini 無法處理這個檔案")
+                await asyncio.sleep(2)
+                uploaded_file = await client.files.get(name=uploaded_file.name)
+            else:
+                raise VideoSourceError("等待 Gemini 處理檔案逾時")
+            if not uploaded_file.uri:
+                raise VideoSourceError("Gemini 未回傳檔案網址")
+            return types.Part(
+                file_data=types.FileData(
+                    file_uri=uploaded_file.uri,
+                    mime_type=uploaded_file.mime_type or mime_type,
+                )
+            )
+        return None
+    uploaded_file = await client.files.get(name=request.uploaded_file.name)
+    for _ in range(60):
+        state_name = uploaded_file.state.name if uploaded_file.state else None
+        if state_name == "ACTIVE":
+            break
+        if state_name == "FAILED":
+            raise VideoSourceError("Gemini 無法處理這個檔案")
+        await asyncio.sleep(2)
+        uploaded_file = await client.files.get(name=request.uploaded_file.name)
+    else:
+        raise VideoSourceError("等待 Gemini 處理檔案逾時")
+    if not uploaded_file.uri:
+        raise VideoSourceError("Gemini 未回傳檔案網址")
+    return types.Part(
+        file_data=types.FileData(
+            file_uri=uploaded_file.uri,
+            mime_type=uploaded_file.mime_type or "text/plain",
+        )
+    )
+
+
 async def chat_with_gemini(
     request: ChatRequest,
     api_key: str | None = None,
@@ -431,15 +525,17 @@ async def chat_with_gemini(
     async with genai.Client(
         api_key=resolved_api_key,
     ).aio as client:
-        uploaded_video_part = await upload_chat_video_clip(
+        uploaded_attachment_part = await upload_chat_video_clip(
             client,
             request,
             resolved_api_key,
             session,
         )
+        if uploaded_attachment_part is None:
+            uploaded_attachment_part = await upload_chat_file(client, request)
         logger.info(
             "Gemini chat video attachment prepared: attached=%s local=%s",
-            uploaded_video_part is not None,
+            uploaded_attachment_part is not None,
             request.uploaded_video is not None,
         )
         response = await client.models.generate_content(
@@ -448,7 +544,7 @@ async def chat_with_gemini(
                 parts=build_chat_parts(
                     request,
                     history,
-                    uploaded_video_part,
+                    uploaded_attachment_part,
                 )
             ),
             config=types.GenerateContentConfig(

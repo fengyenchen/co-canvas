@@ -16,6 +16,7 @@ import type {
     CanvasNode,
     CommonCanvasNodeData,
     ConceptNodeData,
+    DocumentNodeData,
     GroupNodeData,
     VideoNodeData,
 } from '../types/canvas'
@@ -104,20 +105,37 @@ function clearOrphanedTimeRanges(
             .filter((edge) => videoNodeIds.has(edge.source))
             .map((edge) => edge.target),
     )
+    const documentNodeIds = new Set(
+        nodes.filter((node) => node.type === 'document').map((node) => node.id),
+    )
+    const documentLinkedConceptNodeIds = new Set(
+        edges
+            .filter((edge) => documentNodeIds.has(edge.source))
+            .map((edge) => edge.target),
+    )
 
     return nodes.map((node) => {
+        if (node.type !== 'concept') return node
+        let data = node.data
         if (
-            node.type !== 'concept' ||
-            linkedConceptNodeIds.has(node.id) ||
-            (node.data.startTimeMs === undefined && node.data.endTimeMs === undefined)
+            !linkedConceptNodeIds.has(node.id) &&
+            (data.startTimeMs !== undefined || data.endTimeMs !== undefined)
         ) {
-            return node
+            const { startTimeMs, endTimeMs, ...remaining } = data
+            void startTimeMs
+            void endTimeMs
+            data = remaining
         }
-
-        const { startTimeMs, endTimeMs, ...data } = node.data
-        void startTimeMs
-        void endTimeMs
-        return { ...node, data }
+        if (
+            !documentLinkedConceptNodeIds.has(node.id) &&
+            (data.documentStartPage !== undefined || data.documentEndPage !== undefined)
+        ) {
+            const { documentStartPage, documentEndPage, ...remaining } = data
+            void documentStartPage
+            void documentEndPage
+            data = remaining
+        }
+        return data === node.data ? node : { ...node, data }
     })
 }
 
@@ -532,6 +550,8 @@ type CanvasState = {
     } | null
     addNode: (position?: XYPosition) => void
     addVideoNode: (position?: XYPosition) => string
+    addDocumentNode: (position?: XYPosition) => string
+    addImageNode: (position?: XYPosition) => string
     groupSelectedNodes: () => string | null
     updateGroup: (
         nodeId: string,
@@ -556,9 +576,17 @@ type CanvasState = {
         updates: Partial<Pick<VideoNodeData, 'source' | 'durationMs'>> &
             Partial<Pick<CommonCanvasNodeData, 'title' | 'content'>>,
     ) => void
+    updateDocumentNode: (
+        nodeId: string,
+        updates: Partial<Pick<DocumentNodeData, 'title' | 'content' | 'fileName' | 'mimeType' | 'size' | 'source' | 'pageCount' | 'pageUnit'>>,
+    ) => void
     updateConceptTimeRange: (
         nodeId: string,
         timeRange: Pick<ConceptNodeData, 'startTimeMs' | 'endTimeMs'>,
+    ) => void
+    updateConceptDocumentRange: (
+        nodeId: string,
+        pageRange: Pick<ConceptNodeData, 'documentStartPage' | 'documentEndPage'>,
     ) => void
     requestVideoSeek: (videoNodeId: string, timeMs: number) => void
     deleteNode: (nodeId: string) => void
@@ -659,6 +687,63 @@ export const useCanvasStore = create<CanvasState>()(
             }
         })
 
+        return nodeId
+    },
+
+    addDocumentNode: (position) => {
+        const nodeId = crypto.randomUUID()
+
+        set((state) => {
+            const fileCount = state.nodes.filter((node) => node.type === 'document').length
+            const nextPosition = findAvailableNodePosition(
+                state.nodes,
+                position ?? { x: 100, y: 100 },
+            )
+            const newNode: CanvasNode = {
+                id: nodeId,
+                type: 'document',
+                position: nextPosition,
+                selected: true,
+                data: {
+                    title: `新文件 ${fileCount + 1}`,
+                    content: '',
+                    origin: 'user',
+                },
+            }
+
+            return {
+                nodes: [
+                    ...state.nodes.map((node) => ({ ...node, selected: false })),
+                    newNode,
+                ],
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        })
+
+        return nodeId
+    },
+
+    addImageNode: (position) => {
+        const nodeId = crypto.randomUUID()
+        set((state) => {
+            const count = state.nodes.filter((node) => node.type === 'image').length
+            const nextPosition = findAvailableNodePosition(state.nodes, position ?? { x: 100, y: 100 })
+            const newNode: CanvasNode = {
+                id: nodeId,
+                type: 'image',
+                position: nextPosition,
+                selected: true,
+                data: { title: `新圖片 ${count + 1}`, content: '', origin: 'user' },
+            }
+            return {
+                nodes: [...state.nodes.map((node) => ({ ...node, selected: false })), newNode],
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [], canUndo: true, canRedo: false,
+            }
+        })
         return nodeId
     },
 
@@ -1220,6 +1305,14 @@ export const useCanvasStore = create<CanvasState>()(
                     }
                 }
 
+                if (node.type === 'document') {
+                    return { ...node, data: { ...node.data, ...updates } }
+                }
+
+                if (node.type === 'image') {
+                    return { ...node, data: { ...node.data, ...updates } }
+                }
+
                 return node
             }),
             past: addToHistory(
@@ -1252,6 +1345,25 @@ export const useCanvasStore = create<CanvasState>()(
             }
         }),
 
+    updateDocumentNode: (nodeId, updates) =>
+        set((state) => {
+            const node = state.nodes.find((candidate) => candidate.id === nodeId)
+            if (!node || (node.type !== 'document' && node.type !== 'image')) return state
+
+            return {
+                nodes: state.nodes.map((candidate) => {
+                    if (candidate.id !== nodeId) return candidate
+                    if (candidate.type === 'document') return { ...candidate, data: { ...candidate.data, ...updates } }
+                    if (candidate.type === 'image') return { ...candidate, data: { ...candidate.data, ...updates } }
+                    return candidate
+                }),
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
     updateConceptTimeRange: (nodeId, timeRange) =>
         set((state) => {
             const node = state.nodes.find(
@@ -1267,6 +1379,23 @@ export const useCanvasStore = create<CanvasState>()(
                             ...candidate,
                             data: { ...candidate.data, ...timeRange },
                         }
+                        : candidate,
+                ),
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        }),
+
+    updateConceptDocumentRange: (nodeId, pageRange) =>
+        set((state) => {
+            const node = state.nodes.find((candidate) => candidate.id === nodeId)
+            if (!node || node.type !== 'concept') return state
+            return {
+                nodes: state.nodes.map((candidate) =>
+                    candidate.id === nodeId && candidate.type === 'concept'
+                        ? { ...candidate, data: { ...candidate.data, ...pageRange } }
                         : candidate,
                 ),
                 past: addToHistory(state.past, createSnapshot(state)),

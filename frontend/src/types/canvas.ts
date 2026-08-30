@@ -19,6 +19,8 @@ export type ConceptNodeData = CommonCanvasNodeData & {
     color?: ConceptNodeColor
     startTimeMs?: number
     endTimeMs?: number
+    documentStartPage?: number
+    documentEndPage?: number
 }
 
 export type VideoNodeData = CommonCanvasNodeData & {
@@ -26,6 +28,17 @@ export type VideoNodeData = CommonCanvasNodeData & {
     source: string
     durationMs?: number
 }
+
+export type DocumentNodeData = CommonCanvasNodeData & {
+    fileName?: string
+    mimeType?: string
+    size?: number
+    source?: string
+    pageCount?: number
+    pageUnit?: 'page' | 'slide'
+}
+
+export type ImageNodeData = DocumentNodeData
 
 export type GroupNodeData = {
     title: string
@@ -36,7 +49,7 @@ export type GroupNodeData = {
     locked?: boolean
 }
 
-export type CanvasNodeData = ConceptNodeData | VideoNodeData | GroupNodeData
+export type CanvasNodeData = ConceptNodeData | VideoNodeData | DocumentNodeData | ImageNodeData | GroupNodeData
 
 export type CanvasEdgeData = {
     label?: string
@@ -45,6 +58,8 @@ export type CanvasEdgeData = {
 
 export type ConceptCanvasNode = Node<ConceptNodeData, 'concept'>
 export type VideoCanvasNode = Node<VideoNodeData, 'video'>
+export type DocumentCanvasNode = Node<DocumentNodeData, 'document'>
+export type ImageCanvasNode = Node<ImageNodeData, 'image'>
 export type GroupCanvasNode = Node<GroupNodeData, 'group'>
-export type CanvasNode = ConceptCanvasNode | VideoCanvasNode | GroupCanvasNode
+export type CanvasNode = ConceptCanvasNode | VideoCanvasNode | DocumentCanvasNode | ImageCanvasNode | GroupCanvasNode
 export type CanvasEdge = Edge<CanvasEdgeData>

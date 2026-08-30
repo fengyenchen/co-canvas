@@ -44,6 +44,8 @@ const conceptNodeDataSchema = z
     color: conceptNodeColorSchema.default('default'),
     startTimeMs: optionalNonnegativeIntegerSchema,
     endTimeMs: optionalNonnegativeIntegerSchema,
+    documentStartPage: z.preprocess(nullToUndefined, z.number().int().positive().optional()),
+    documentEndPage: z.preprocess(nullToUndefined, z.number().int().positive().optional()),
   })
   .superRefine((data, context) => {
     const hasStartTime = data.startTimeMs !== undefined
@@ -69,6 +71,22 @@ const conceptNodeDataSchema = z
         message: '結束時間必須晚於開始時間',
       })
     }
+
+    const hasStartPage = data.documentStartPage !== undefined
+    const hasEndPage = data.documentEndPage !== undefined
+    if (hasStartPage !== hasEndPage) {
+      context.addIssue({
+        code: 'custom',
+        path: hasStartPage ? ['documentEndPage'] : ['documentStartPage'],
+        message: '文件開始與結束頁必須同時設定',
+      })
+    } else if (
+      data.documentStartPage !== undefined &&
+      data.documentEndPage !== undefined &&
+      data.documentEndPage < data.documentStartPage
+    ) {
+      context.addIssue({ code: 'custom', path: ['documentEndPage'], message: '文件結束頁不得早於開始頁' })
+    }
   })
 
 const videoNodeDataSchema = z.object({
@@ -91,6 +109,16 @@ const videoNodeDataSchema = z.object({
     nullToUndefined,
     z.number().int().positive().optional(),
   ),
+})
+
+const fileNodeDataSchema = z.object({
+  ...commonNodeDataShape,
+  fileName: optionalStringSchema,
+  mimeType: optionalStringSchema,
+  size: z.preprocess(nullToUndefined, z.number().int().nonnegative().optional()),
+  source: optionalStringSchema,
+  pageCount: z.preprocess(nullToUndefined, z.number().int().positive().optional()),
+  pageUnit: z.preprocess(nullToUndefined, z.enum(['page', 'slide']).optional()),
 })
 
 const groupNodeDataSchema = z.object({
@@ -123,6 +151,22 @@ const videoNodeSchema = z.object({
   parentId: optionalStringSchema,
 })
 
+const documentNodeSchema = z.object({
+  id: z.string().min(1),
+  type: z.literal('document'),
+  position: positionSchema,
+  data: fileNodeDataSchema,
+  parentId: optionalStringSchema,
+})
+
+const imageNodeSchema = z.object({
+  id: z.string().min(1),
+  type: z.literal('image'),
+  position: positionSchema,
+  data: fileNodeDataSchema,
+  parentId: optionalStringSchema,
+})
+
 const groupNodeSchema = z.object({
   id: z.string().min(1),
   type: z.literal('group'),
@@ -133,6 +177,8 @@ const groupNodeSchema = z.object({
 const canvasNodeSchema = z.discriminatedUnion('type', [
   conceptNodeSchema,
   videoNodeSchema,
+  documentNodeSchema,
+  imageNodeSchema,
   groupNodeSchema,
 ])
 
@@ -225,12 +271,22 @@ function upgradeLegacyProject(value: unknown): unknown {
     return value
   }
 
-  if (value.version === 1) {
-    return { ...value, version: 4 }
+  const normalized = value as Record<string, unknown>
+  const normalizedNodes = Array.isArray(normalized.nodes)
+    ? normalized.nodes.map((node) =>
+        typeof node === 'object' && node !== null && 'type' in node && node.type === 'file'
+          ? { ...node, type: 'document' }
+          : node,
+      )
+    : normalized.nodes
+  const candidate: Record<string, unknown> = { ...normalized, nodes: normalizedNodes }
+
+  if (candidate.version === 1) {
+    return { ...candidate, version: 4 }
   }
 
-  if (value.version === 3) {
-    const legacy = value as Record<string, unknown>
+  if (candidate.version === 3) {
+    const legacy = candidate
     const nodes = Array.isArray(legacy.nodes) ? legacy.nodes : []
     const edges = Array.isArray(legacy.edges) ? [...legacy.edges] : []
     const edgeIds = new Set(
@@ -280,11 +336,11 @@ function upgradeLegacyProject(value: unknown): unknown {
     return { ...legacy, version: 4, nodes: migratedNodes, edges }
   }
 
-  if (value.version !== 2) {
-    return value
+  if (candidate.version !== 2) {
+    return candidate
   }
 
-  const legacy = value as Record<string, unknown>
+  const legacy = candidate
   const nodes = Array.isArray(legacy.nodes) ? legacy.nodes : []
   const media = legacy.media
 
@@ -363,6 +419,11 @@ function validateProjectRelations(
       .filter((node) => node.type === 'video')
       .map((node) => [node.id, node]),
   )
+  const documentNodes = new Map(
+    project.nodes
+      .filter((node): node is Extract<CanvasNode, { type: 'document' }> => node.type === 'document')
+      .map((node) => [node.id, node]),
+  )
 
   project.edges.forEach((edge, index) => {
     if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) {
@@ -389,7 +450,29 @@ function validateProjectRelations(
     }
 
     if (node.type !== 'concept') return
-    const { startTimeMs, endTimeMs } = node.data
+    const { startTimeMs, endTimeMs, documentStartPage, documentEndPage } = node.data
+
+    if (documentStartPage !== undefined && documentEndPage !== undefined) {
+      const linkedDocumentIds = [...new Set(
+        project.edges
+          .filter((edge) => edge.target === node.id && documentNodes.has(edge.source))
+          .map((edge) => edge.source),
+      )]
+      if (linkedDocumentIds.length !== 1) {
+        context.addIssue({
+          code: 'custom',
+          path: ['nodes', index, 'data', 'documentStartPage'],
+          message: linkedDocumentIds.length === 0
+            ? '設定頁面範圍前必須先連接文件節點'
+            : '設定頁面範圍的文字節點只能連接一個文件節點',
+        })
+      } else {
+        const pageCount = documentNodes.get(linkedDocumentIds[0])?.data.pageCount
+        if (pageCount !== undefined && documentEndPage > pageCount) {
+          context.addIssue({ code: 'custom', path: ['nodes', index, 'data', 'documentEndPage'], message: '文件結束頁不得超出文件頁數' })
+        }
+      }
+    }
 
     if (startTimeMs === undefined || endTimeMs === undefined) return
 

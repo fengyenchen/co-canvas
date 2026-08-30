@@ -3,6 +3,8 @@ import type {
   CanvasEdge,
   ConceptCanvasNode,
   GroupCanvasNode,
+  DocumentCanvasNode,
+  ImageCanvasNode,
   VideoCanvasNode,
 } from '../types/canvas'
 import type { ChatMessage } from '../types/chat'
@@ -94,6 +96,28 @@ const suggestionEvents: SuggestionDecisionEvent[] = [
 ]
 
 describe('projectFile', () => {
+  it('將過渡版本的 file 節點升級為文件節點', () => {
+    const parsed = parseProjectFile({
+      version: 4,
+      nodes: [{ id: 'legacy-file', type: 'file', position: { x: 0, y: 0 }, data: { title: '舊文件', content: '', origin: 'user', fileName: 'report.pdf' } }],
+      edges: [], messages: [], suggestionEvents: [], exportedAt: '2026-08-30T00:00:00.000Z',
+    })
+    expect(parsed.nodes[0].type).toBe('document')
+  })
+
+  it('保留文件與圖片節點的來源中繼資料', () => {
+    const documentNode: DocumentCanvasNode = {
+      id: 'document-1', type: 'document', position: { x: 0, y: 0 },
+      data: { title: '研究報告', content: '', origin: 'user', fileName: 'report.pdf', mimeType: 'application/pdf', size: 1024 },
+    }
+    const imageNode: ImageCanvasNode = {
+      id: 'image-1', type: 'image', position: { x: 100, y: 0 },
+      data: { title: '流程圖', content: '', origin: 'user', source: 'https://example.com/flow.png' },
+    }
+    const parsed = parseProjectFile(createProjectFile([documentNode, imageNode], [], []))
+    expect(parsed.nodes).toEqual([documentNode, imageNode])
+  })
+
   it('允許尚未設定網址的空白影片節點', () => {
     const blankVideo: VideoCanvasNode = {
       ...videoNode,
