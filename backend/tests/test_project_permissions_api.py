@@ -179,6 +179,38 @@ def test_owner_can_mark_project_viewed_without_updating_project() -> None:
     assert project.updated_at == original_updated_at
 
 
+def test_viewer_can_remove_project_from_personal_list() -> None:
+    project = create_project()
+    session = FakeProjectSession(project, member_role="viewer")
+
+    with api_client(session, VIEWER) as client:
+        response = client.delete(
+            f"/api/projects/{PROJECT_ID}/list-entry"
+        )
+
+    assert response.status_code == 204
+    assert session.execute_count == 1
+    assert session.commit_count == 1
+    assert project.deleted_at is None
+
+
+def test_owner_cannot_remove_owned_project_from_personal_list() -> None:
+    project = create_project()
+    session = FakeProjectSession(project)
+
+    with api_client(session, OWNER) as client:
+        response = client.delete(
+            f"/api/projects/{PROJECT_ID}/list-entry"
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "擁有者請使用垃圾桶管理自己的專案"
+    }
+    assert session.execute_count == 0
+    assert session.commit_count == 0
+
+
 def test_editor_can_patch_content_but_cannot_change_permissions() -> None:
     project = create_project()
     session = FakeProjectSession(project, member_role="editor")

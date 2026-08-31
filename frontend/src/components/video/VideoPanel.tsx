@@ -459,7 +459,7 @@ function VideoNodeEditor({
               deleteNode(node.id)
               clearMissingActiveContext()
             }}
-            className="min-h-11 w-full cursor-pointer rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-red-200 hover:text-red-600"
+            className="min-h-11 w-full cursor-pointer rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-red-200 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
           >
             只刪除此節點
           </button>
@@ -470,7 +470,7 @@ function VideoNodeEditor({
               deleteBranch(node.id)
               clearMissingActiveContext()
             }}
-            className="min-h-11 w-full cursor-pointer rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition hover:bg-red-50"
+            className="min-h-11 w-full cursor-pointer rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
           >
             刪除此分支
           </button>

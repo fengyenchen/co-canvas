@@ -350,7 +350,15 @@ async def list_projects(
             Project.deleted_at.is_(None),
             or_(
                 Project.owner_id == user.id,
-                ProjectMember.id.is_not(None),
+                and_(
+                    ProjectMember.id.is_not(None),
+                    ProjectView.dismissed_at.is_(None),
+                ),
+                and_(
+                    Project.visibility == "public",
+                    ProjectView.id.is_not(None),
+                    ProjectView.dismissed_at.is_(None),
+                ),
             ),
         )
         .order_by(
@@ -438,11 +446,45 @@ async def mark_project_viewed(
         project_id=project_id,
         user_id=user.id,
         viewed_at=func.now(),
+        dismissed_at=None,
     )
     await session.execute(
         statement.on_conflict_do_update(
             index_elements=[ProjectView.project_id, ProjectView.user_id],
-            set_={"viewed_at": func.now()},
+            set_={"viewed_at": func.now(), "dismissed_at": None},
+        )
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/{project_id}/list-entry",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def dismiss_project_from_list(
+    project_id: uuid.UUID,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> Response:
+    project, _role = await get_readable_project(project_id, session, user)
+    if project.owner_id == user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="擁有者請使用垃圾桶管理自己的專案",
+        )
+
+    statement = postgresql_insert(ProjectView).values(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        user_id=user.id,
+        viewed_at=func.now(),
+        dismissed_at=func.now(),
+    )
+    await session.execute(
+        statement.on_conflict_do_update(
+            index_elements=[ProjectView.project_id, ProjectView.user_id],
+            set_={"dismissed_at": func.now()},
         )
     )
     await session.commit()

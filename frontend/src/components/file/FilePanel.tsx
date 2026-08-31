@@ -263,7 +263,7 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
       {!isReadOnly && (
         <>
           <input ref={inputRef} type="file" className="sr-only" accept={node.type === 'image' ? '.png,.jpg,.jpeg,.webp,.heic,.heif,.bmp' : node.type === 'audio' ? '.mp3,.wav,.m4a,.aac,.ogg,.flac,audio/*' : '.pdf,.txt,.md,.markdown,.csv,.json,.html,.css,.xml,.rtf,.js,.docx,.xlsx,.pptx'} onChange={handleFile} />
-          <button type="button" onClick={() => inputRef.current?.click()} disabled={isSaving} className="mb-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 hover:bg-control-hover disabled:opacity-50">
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={isSaving} className="mb-3 flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50">
             <Upload className="size-4" aria-hidden="true" />{entry ? '更換本機檔案' : '選擇本機檔案'}
           </button>
         </>
@@ -276,7 +276,7 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
             <span className="min-w-0 truncate">{entry.fileName} · {formatSize(entry.size)}</span>
             <div className="flex shrink-0 gap-2">
               <a href={entry.url} download={entry.fileName} aria-label={`下載 ${entry.fileName}`} className="flex size-11 items-center justify-center rounded-lg hover:bg-background"><Download className="size-4" aria-hidden="true" /></a>
-              {!isReadOnly && <button type="button" onClick={removeFile} className="min-h-11 px-2 text-sm text-red-600">移除</button>}
+              {!isReadOnly && <button type="button" onClick={removeFile} className="min-h-11 cursor-pointer rounded-md px-2 text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200">移除</button>}
             </div>
           </div>
           <FilePreview
@@ -351,7 +351,24 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
         </div>
       )}
 
-      {!isReadOnly && <div className="mt-6 space-y-3 border-t border-border pt-5"><button type="button" onClick={() => removeNode(false)} className="min-h-11 w-full rounded-lg border border-border">只刪除此節點</button><button type="button" onClick={() => removeNode(true)} className="min-h-11 w-full rounded-lg border border-red-200 text-red-600">刪除此分支</button></div>}
+      {!isReadOnly && (
+        <div className="mt-6 space-y-3 border-t border-border pt-5">
+          <button
+            type="button"
+            onClick={() => removeNode(false)}
+            className="min-h-11 w-full cursor-pointer rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-red-200 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
+          >
+            只刪除此節點
+          </button>
+          <button
+            type="button"
+            onClick={() => removeNode(true)}
+            className="min-h-11 w-full cursor-pointer rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
+          >
+            刪除此分支
+          </button>
+        </div>
+      )}
     </aside>
   )
 }

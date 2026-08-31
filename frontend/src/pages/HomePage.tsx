@@ -9,6 +9,7 @@ import {
   listProjectMembers,
   listProjects,
   removeProjectMember,
+  removeProjectFromList,
   updateProject,
   updateProjectMember,
 } from '../api/projects'
@@ -513,6 +514,28 @@ export function HomePage() {
 
     try {
       await deleteProject(project.id)
+      setProjects((currentProjects) =>
+        currentProjects.filter(
+          (currentProject) => currentProject.id !== project.id,
+        ),
+      )
+    } catch (error) {
+      setActionErrorMessage(getLoadErrorMessage(error))
+    } finally {
+      setDeletingProjectId(null)
+    }
+  }
+
+  async function handleRemoveProjectFromList(project: ProjectSummary) {
+    if (deletingProjectId || project.accessRole === 'owner') {
+      return
+    }
+
+    setDeletingProjectId(project.id)
+    setActionErrorMessage(null)
+
+    try {
+      await removeProjectFromList(project.id)
       setProjects((currentProjects) =>
         currentProjects.filter(
           (currentProject) => currentProject.id !== project.id,
@@ -1100,6 +1123,24 @@ export function HomePage() {
                               {deletingProjectId === project.id
                                 ? '移動中…'
                                 : '移到垃圾桶'}
+                            </button>
+                          </>
+                        )}
+                        {project.accessRole !== 'owner' && (
+                          <>
+                            <div className="my-1 border-t border-border" />
+                            <button
+                              type="button"
+                              disabled={deletingProjectId !== null}
+                              onClick={() => {
+                                setOpenProjectMenuId(null)
+                                void handleRemoveProjectFromList(project)
+                              }}
+                              className="min-h-11 w-full cursor-pointer rounded-lg px-3 text-left text-sm text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {deletingProjectId === project.id
+                                ? '移除中…'
+                                : '從列表移除'}
                             </button>
                           </>
                         )}

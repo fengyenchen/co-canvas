@@ -187,6 +187,20 @@ export async function deleteProject(projectId: string): Promise<void> {
   }
 }
 
+export async function removeProjectFromList(projectId: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/list-entry`,
+    {
+      method: 'DELETE',
+      headers: await createRequestHeaders(),
+    },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
+}
+
 export async function restoreProject(projectId: string): Promise<Project> {
   const response = await fetch(
     `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/restore`,

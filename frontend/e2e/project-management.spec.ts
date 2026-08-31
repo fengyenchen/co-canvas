@@ -85,6 +85,29 @@ test('可從專案列表建立包含原畫布內容的副本', async ({ page }) 
   )
 })
 
+test('非擁有者可從自己的列表移除專案而不刪除專案', async ({ page }) => {
+  const sharedProject = createProject({
+    name: '受邀協作專案',
+    accessRole: 'editor',
+  })
+  const state = await installE2eMocks(page, {
+    projects: [sharedProject],
+  })
+  await page.goto('/projects')
+
+  await openProjectMenu(page, '受邀協作專案')
+  await expect(
+    page.getByRole('button', { name: '移到垃圾桶' }),
+  ).toHaveCount(0)
+  await page.getByRole('button', { name: '從列表移除' }).click()
+
+  await expect(
+    page.getByText('受邀協作專案', { exact: true }),
+  ).toHaveCount(0)
+  expect(state.projects).toHaveLength(0)
+  expect(state.trashedProjects).toHaveLength(0)
+})
+
 test('專案可移到垃圾桶、復原並經確認後永久刪除', async ({ page }) => {
   const state = await installE2eMocks(page, {
     projects: [createProject({ name: '待整理專案' })],

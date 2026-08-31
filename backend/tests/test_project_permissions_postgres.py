@@ -25,6 +25,7 @@ EDITOR_MEMBER_ID = uuid.UUID("99999999-9999-4999-8999-999999999999")
 OWNER = AuthenticatedUser(id="postgres-owner", email="owner@example.com")
 EDITOR = AuthenticatedUser(id="postgres-editor", email="editor@example.com")
 VIEWER = AuthenticatedUser(id="postgres-viewer", email="viewer@example.com")
+VISITOR = AuthenticatedUser(id="postgres-visitor", email="visitor@example.com")
 
 EMPTY_DOCUMENT = {
     "version": 4,
@@ -272,6 +273,65 @@ def test_postgres_enforces_project_roles_through_api() -> None:
             )
             assert private_state[1] == "public"
             assert private_state[2] is not None
+    finally:
+        cleanup_permission_projects(TEST_DATABASE_URL)
+
+
+@pytest.mark.skipif(
+    TEST_DATABASE_URL is None,
+    reason="只在隔離的 PostgreSQL CI 資料庫執行",
+)
+def test_postgres_project_list_visibility_and_personal_dismissal() -> None:
+    assert TEST_DATABASE_URL is not None
+    cleanup_permission_projects(TEST_DATABASE_URL)
+    seed_permission_projects(TEST_DATABASE_URL)
+
+    try:
+        with authenticated_api_client() as (client, active_user):
+            active_user["value"] = VISITOR
+            initial_ids = {
+                project["id"] for project in client.get("/api/projects").json()
+            }
+            assert str(PUBLIC_PROJECT_ID) not in initial_ids
+
+            assert client.get(f"/api/projects/{PUBLIC_PROJECT_ID}").status_code == 200
+            assert client.post(
+                f"/api/projects/{PUBLIC_PROJECT_ID}/view"
+            ).status_code == 204
+            visited_ids = {
+                project["id"] for project in client.get("/api/projects").json()
+            }
+            assert str(PUBLIC_PROJECT_ID) in visited_ids
+
+            assert client.delete(
+                f"/api/projects/{PUBLIC_PROJECT_ID}/list-entry"
+            ).status_code == 204
+            dismissed_ids = {
+                project["id"] for project in client.get("/api/projects").json()
+            }
+            assert str(PUBLIC_PROJECT_ID) not in dismissed_ids
+
+            active_user["value"] = VIEWER
+            invited_ids = {
+                project["id"] for project in client.get("/api/projects").json()
+            }
+            assert str(PRIVATE_PROJECT_ID) in invited_ids
+            assert client.delete(
+                f"/api/projects/{PRIVATE_PROJECT_ID}/list-entry"
+            ).status_code == 204
+            hidden_invitation_ids = {
+                project["id"] for project in client.get("/api/projects").json()
+            }
+            assert str(PRIVATE_PROJECT_ID) not in hidden_invitation_ids
+
+            assert client.get(f"/api/projects/{PRIVATE_PROJECT_ID}").status_code == 200
+            assert client.post(
+                f"/api/projects/{PRIVATE_PROJECT_ID}/view"
+            ).status_code == 204
+            reopened_ids = {
+                project["id"] for project in client.get("/api/projects").json()
+            }
+            assert str(PRIVATE_PROJECT_ID) in reopened_ids
     finally:
         cleanup_permission_projects(TEST_DATABASE_URL)
 

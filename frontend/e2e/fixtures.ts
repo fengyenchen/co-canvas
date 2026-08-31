@@ -476,6 +476,32 @@ export async function installE2eMocks(
       return
     }
 
+    const projectListEntryMatch = path.match(
+      /^\/api\/projects\/([^/]+)\/list-entry$/,
+    )
+    if (projectListEntryMatch && method === 'DELETE') {
+      const project = state.projects.find(
+        (item) => item.id === projectListEntryMatch[1],
+      )
+      if (!project) {
+        await json(route, { detail: '找不到專案' }, 404)
+        return
+      }
+      if (project.accessRole === 'owner') {
+        await json(
+          route,
+          { detail: '擁有者請使用垃圾桶管理自己的專案' },
+          403,
+        )
+        return
+      }
+      state.projects = state.projects.filter(
+        (item) => item.id !== project.id,
+      )
+      await route.fulfill({ status: 204 })
+      return
+    }
+
     const projectMatch = path.match(/^\/api\/projects\/([^/]+)$/)
     if (projectMatch) {
       if (method === 'GET' && options.projectGetError) {
