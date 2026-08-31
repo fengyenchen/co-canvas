@@ -7,7 +7,7 @@ import {
     useReactFlow,
 } from '@xyflow/react'
 import type { NodeTypes } from '@xyflow/react'
-import { CircleHelp } from 'lucide-react'
+import { ChevronDown, CircleHelp } from 'lucide-react'
 import { Joyride, STATUS } from 'react-joyride'
 import type { Step } from 'react-joyride'
 import { Link } from 'react-router'
@@ -38,6 +38,7 @@ const nodeTypes: NodeTypes = {
 }
 
 type CanvasProps = {
+    projectName?: string
     isReadOnly?: boolean
     autoStartTour?: boolean
     canRenameProject?: boolean
@@ -60,6 +61,7 @@ type CanvasProps = {
 }
 
 function CanvasContent({
+    projectName = '專案',
     isReadOnly = false,
     autoStartTour = false,
     canRenameProject = false,
@@ -836,17 +838,37 @@ function CanvasContent({
                         }
                     }}
                 >
-                    <button
-                        type="button"
-                        data-tour="project-menu"
-                        aria-expanded={isProjectMenuOpen}
-                        onClick={() =>
-                            setIsProjectMenuOpen((isOpen) => !isOpen)
-                        }
-                        className="flex min-h-11 w-full cursor-pointer list-none items-center justify-center rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-3"
-                    >
-                        專案
-                    </button>
+                    <div className="flex min-w-0 overflow-hidden rounded-lg border border-border bg-background shadow-sm transition hover:border-primary/30">
+                        <button
+                            type="button"
+                            disabled={!canRenameProject}
+                            onClick={onRenameProject}
+                            aria-label={
+                                canRenameProject
+                                    ? `重新命名「${projectName}」`
+                                    : undefined
+                            }
+                            title={projectName}
+                            className="flex min-h-11 min-w-0 max-w-36 flex-1 items-center px-3 py-2 text-left text-sm font-medium text-foreground transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 disabled:cursor-default disabled:opacity-100 sm:max-w-52"
+                        >
+                            <span className="truncate">{projectName}</span>
+                        </button>
+                        <button
+                            type="button"
+                            data-tour="project-menu"
+                            aria-label="開啟專案選單"
+                            aria-expanded={isProjectMenuOpen}
+                            onClick={() =>
+                                setIsProjectMenuOpen((isOpen) => !isOpen)
+                            }
+                            className="flex min-h-11 min-w-11 cursor-pointer items-center justify-center border-l border-border text-foreground/65 transition hover:bg-control-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+                        >
+                            <ChevronDown
+                                aria-hidden="true"
+                                className={`size-4 transition-transform ${isProjectMenuOpen ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+                    </div>
 
                     {isProjectMenuOpen && (
                     <div className="absolute right-0 top-full mt-2 w-40 overflow-hidden rounded-lg border border-border bg-background p-1 shadow-md">

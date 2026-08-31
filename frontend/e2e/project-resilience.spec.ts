@@ -23,7 +23,7 @@ function projectWithNode(accessRole: 'owner' | 'viewer' = 'owner') {
 }
 
 async function openVersions(page: import('@playwright/test').Page) {
-  await page.getByRole('button', { name: '專案', exact: true }).click()
+  await page.getByRole('button', { name: '開啟專案選單' }).click()
   await page.getByRole('button', { name: '版本紀錄' }).click()
 }
 

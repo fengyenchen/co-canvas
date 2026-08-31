@@ -13,10 +13,7 @@ import {
   updateProjectMember,
 } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
-import {
-  canManageAuthAccounts,
-  ensureWelcomeEmail,
-} from '../api/authAdmin'
+import { ensureWelcomeEmail } from '../api/authAdmin'
 import { ProjectTrash } from '../components/project/ProjectTrash'
 import {
   deleteGeminiCredential,
@@ -143,7 +140,6 @@ export function HomePage() {
   const [authUserEmail, setAuthUserEmail] = useState<string | null>(null)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [isSigningOut, setIsSigningOut] = useState(false)
-  const [canManageAccounts, setCanManageAccounts] = useState(false)
   const [isTrashOpen, setIsTrashOpen] = useState(false)
   const [projectSearch, setProjectSearch] = useState('')
   const [projectSort, setProjectSort] =
@@ -216,19 +212,7 @@ export function HomePage() {
       return
     }
 
-    let isCancelled = false
     void ensureWelcomeEmail().catch(() => undefined)
-    void canManageAuthAccounts()
-      .then((allowed) => {
-        if (!isCancelled) setCanManageAccounts(allowed)
-      })
-      .catch(() => {
-        if (!isCancelled) setCanManageAccounts(false)
-      })
-
-    return () => {
-      isCancelled = true
-    }
   }, [authUserEmail])
 
   useEffect(() => {
@@ -561,7 +545,6 @@ export function HomePage() {
       const { authClient } = await import('../lib/auth')
       await authClient.signOut()
       setAuthUserEmail(null)
-      setCanManageAccounts(false)
       setProjects([])
       setIsTrashOpen(false)
       setErrorMessage(null)
@@ -689,14 +672,6 @@ export function HomePage() {
                 >
                   <span className="truncate">{authUserEmail}</span>
                 </span>
-                {canManageAccounts && (
-                  <Link
-                    to="/admin/auth"
-                    className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                  >
-                    帳號管理
-                  </Link>
-                )}
                 <button
                   type="button"
                   onClick={() => void openAiSettingsDialog()}

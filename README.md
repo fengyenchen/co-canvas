@@ -239,7 +239,7 @@ Invoke-RestMethod -Method Post `
 ### 帳號管理與驗證歡迎信
 
 1. 在後端設定 `AUTH_ADMIN_EMAILS`，可用逗號分隔多個管理者 Email。白名單會在後端驗證，只有隱藏前端按鈕並不構成權限保護。
-2. 管理者登入後，可從專案頁右上方進入「帳號管理」，或直接開啟 `/admin/auth`，查看已驗證、等待驗證及永久退信數量。
+2. 管理者登入後，可從首頁最下方進入「帳號管理」，或直接開啟 `/admin/auth`，查看已驗證、等待驗證及永久退信數量。
 3. 在 Resend 建立 API Key，設定後端 `RESEND_API_KEY` 與已驗證網域的 `RESEND_FROM_EMAIL`；`APP_PUBLIC_URL` 設成正式前端網址。使用者完成 Email 驗證並首次進入專案後，系統會寄出一次歡迎信。
 4. 歡迎信以資料庫唯一紀錄及 Resend `Idempotency-Key` 防止重複寄送；若寄信服務暫時失敗，不會阻擋使用者進入專案，下次進入時會再嘗試。
 

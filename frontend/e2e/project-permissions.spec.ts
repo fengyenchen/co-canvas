@@ -27,7 +27,7 @@ function projectWithRole(
 }
 
 async function openProjectMenu(page: Page) {
-  await page.getByRole('button', { name: '專案', exact: true }).click()
+  await page.getByRole('button', { name: '開啟專案選單' }).click()
 }
 
 async function enterNodeConversation(page: Page) {
@@ -45,9 +45,18 @@ test('擁有者可以編輯、管理權限及刪除專案', async ({ page }) => 
 
   await expect(page.getByRole('button', { name: '新增節點' })).toBeVisible()
   await openProjectMenu(page)
-  await expect(page.getByRole('button', { name: '重新命名' })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '重新命名', exact: true }),
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: '權限管理' })).toBeVisible()
   await expect(page.getByRole('button', { name: '移到垃圾桶' })).toBeVisible()
+  await openProjectMenu(page)
+  await page
+    .getByRole('button', { name: '重新命名「E2E 專案」' })
+    .click()
+  await expect(
+    page.getByRole('heading', { name: '重新命名專案' }),
+  ).toBeVisible()
 })
 
 test('編輯者可以修改畫布但不能管理權限或刪除專案', async ({ page }) => {
@@ -60,7 +69,9 @@ test('編輯者可以修改畫布但不能管理權限或刪除專案', async ({
   await enterNodeConversation(page)
   await expect(page.getByPlaceholder(/想問什麼/)).toBeVisible()
   await openProjectMenu(page)
-  await expect(page.getByRole('button', { name: '重新命名' })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '重新命名', exact: true }),
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: '權限管理' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '移到垃圾桶' })).toHaveCount(0)
 })
@@ -75,7 +86,9 @@ test('檢視者只能查看專案內容', async ({ page }) => {
   await expect(page.getByRole('button', { name: '新增節點' })).toHaveCount(0)
   await expect(page.getByPlaceholder(/想問什麼/)).toHaveCount(0)
   await openProjectMenu(page)
-  await expect(page.getByRole('button', { name: '重新命名' })).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: '重新命名', exact: true }),
+  ).toHaveCount(0)
   await expect(page.getByRole('button', { name: '權限管理' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '匯入 JSON' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '移到垃圾桶' })).toHaveCount(0)

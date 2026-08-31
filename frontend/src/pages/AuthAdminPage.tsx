@@ -4,7 +4,6 @@ import {
   Clock3,
   MailX,
   RefreshCw,
-  ShieldCheck,
 } from 'lucide-react'
 import { Link } from 'react-router'
 import {
@@ -77,7 +76,6 @@ export function AuthAdminPage() {
             <img src={coCanvasMark} alt="" className="size-14 sm:size-16" />
             <div>
               <div className="flex items-center gap-2 text-sm font-medium text-foreground/55">
-                <ShieldCheck className="size-4" aria-hidden="true" />
                 系統管理
               </div>
               <h1 className="mt-1 text-3xl font-semibold text-foreground">
@@ -207,7 +205,7 @@ export function AuthAdminPage() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[42rem] border-collapse text-left text-sm">
+                <table className="w-full min-w-2xl border-collapse text-left text-sm">
                   <thead className="bg-canvas text-foreground/55">
                     <tr>
                       <th className="px-5 py-3 font-medium">Email</th>
@@ -259,7 +257,7 @@ export function AuthAdminPage() {
                 </p>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[42rem] border-collapse text-left text-sm">
+                <table className="w-full min-w-2xl border-collapse text-left text-sm">
                   <thead className="bg-canvas text-foreground/55">
                     <tr>
                       <th className="px-5 py-3 font-medium">Email 雜湊</th>

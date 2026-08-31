@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { motion, MotionConfig, type HTMLMotionProps } from 'motion/react'
 import { BookOpenCheck, CloudUpload, ExternalLink, FileText, Film, Link2, MessageSquareText, Play } from 'lucide-react'
 import { Link } from 'react-router'
+import { canManageAuthAccounts } from '../api/authAdmin'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 
 type SessionState = 'checking' | 'signed-in' | 'signed-out'
@@ -29,6 +30,7 @@ export function LandingPage() {
   const [sessionState, setSessionState] =
     useState<SessionState>('checking')
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [canManageAccounts, setCanManageAccounts] = useState(false)
 
   useEffect(() => {
     let isCancelled = false
@@ -38,8 +40,17 @@ export function LandingPage() {
         const { authClient } = await import('../lib/auth')
         const { data } = await authClient.getSession()
 
-        if (!isCancelled) {
-          setSessionState(data?.user ? 'signed-in' : 'signed-out')
+        if (!data?.user) {
+          if (!isCancelled) setSessionState('signed-out')
+          return
+        }
+
+        if (!isCancelled) setSessionState('signed-in')
+        try {
+          const allowed = await canManageAuthAccounts()
+          if (!isCancelled) setCanManageAccounts(allowed)
+        } catch {
+          if (!isCancelled) setCanManageAccounts(false)
         }
       } catch {
         if (!isCancelled) {
@@ -63,6 +74,7 @@ export function LandingPage() {
       const { authClient } = await import('../lib/auth')
       await authClient.signOut()
       setSessionState('signed-out')
+      setCanManageAccounts(false)
     } finally {
       setIsSigningOut(false)
     }
@@ -873,15 +885,28 @@ export function LandingPage() {
           </Link>
 
           <div className="flex flex-col items-start gap-2 sm:items-end">
-            <Link
-              to="/guide"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium text-foreground/65 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            <nav
+              aria-label="頁尾導覽"
+              className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-4"
             >
-              使用手冊
-              <ExternalLink aria-hidden="true" className="size-4" />
-            </Link>
+              {canManageAccounts && (
+                <Link
+                  to="/admin/auth"
+                  className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-foreground/65 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  帳號管理
+                </Link>
+              )}
+              <Link
+                to="/guide"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium text-foreground/65 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                使用手冊
+                <ExternalLink aria-hidden="true" className="size-4" />
+              </Link>
+            </nav>
             <p className="text-sm leading-6 text-foreground/50">對話與節點畫布的人機協作系統</p>
           </div>
         </div>

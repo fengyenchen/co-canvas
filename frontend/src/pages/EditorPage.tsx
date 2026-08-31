@@ -982,6 +982,10 @@ export function EditorPage({ mode = 'project' }: EditorPageProps) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1">
           <Canvas
+            projectName={
+              loadedProject?.name ??
+              (isExampleProject ? '競賽題目發想範例' : '本機畫布')
+            }
             isReadOnly={projectAccessRole === 'viewer'}
             autoStartTour={isExampleProject}
             canRenameProject={

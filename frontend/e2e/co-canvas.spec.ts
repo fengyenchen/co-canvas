@@ -56,7 +56,7 @@ test('未驗證帳號登入時回到驗證等待頁', async ({ page }) => {
 
 test('管理者可查看帳號驗證狀態與匿名清理紀錄', async ({ page }) => {
   await installE2eMocks(page, { authenticated: true, authAdmin: true })
-  await page.goto('/projects')
+  await page.goto('/')
 
   await page.getByRole('link', { name: '帳號管理' }).click()
   await expect(page).toHaveURL(/\/admin\/auth$/)
@@ -136,7 +136,7 @@ test('建立專案、儲存節點並複製分享連結', async ({ page }) => {
     return JSON.stringify(latestUpdate?.document ?? '')
   }).toContain('已儲存的節點')
 
-  await page.getByRole('button', { name: '專案', exact: true }).click()
+  await page.getByRole('button', { name: '開啟專案選單' }).click()
   await page.getByRole('button', { name: '複製分享連結' }).click()
   await expect(page.getByRole('button', { name: '已複製連結' })).toBeVisible()
 })
@@ -175,7 +175,7 @@ test('從版本紀錄恢復先前畫布', async ({ page }) => {
   await page.goto(`/projects/${PROJECT_ID}`)
 
   await expect(page.getByText('目前節點', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '專案', exact: true }).click()
+  await page.getByRole('button', { name: '開啟專案選單' }).click()
   await page.getByRole('button', { name: '版本紀錄' }).click()
   await page.getByRole('button', { name: '恢復', exact: true }).click()
   await page.getByRole('button', { name: '確認恢復' }).click()
