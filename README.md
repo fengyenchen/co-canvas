@@ -107,7 +107,7 @@ copy .env.example .env
 3. 將未啟用 connection pooling 的 direct connection string 填入 `DATABASE_MIGRATION_URL`。
 4. 在 Neon 啟用 Auth，並設定前後端需要的 Auth URL 與 JWKS URL。
 5. 在 Neon Auth 啟用 Email 驗證。使用者註冊後會進入驗證等待頁，60 秒後可重新寄送驗證信；完成驗證前不能登入或進入雲端專案。
-6. 若要自動清理未驗證帳號，在後端設定 `NEON_API_KEY`、`NEON_PROJECT_ID`、production 的 `NEON_BRANCH_ID`、`RESEND_WEBHOOK_SECRET` 與 `AUTH_CLEANUP_SECRET`。這些都是後端秘密，不能使用 `VITE_` 前綴或提交到 Git。
+6. 若要自動清理未驗證帳號，在後端設定 `NEON_API_KEY`、`NEON_PROJECT_ID`、production 的 `NEON_BRANCH_ID`、`RESEND_WEBHOOK_SECRET`、`AUTH_CLEANUP_SECRET` 與 `AUTH_AUDIT_HASH_SECRET`。這些都是後端秘密，不能使用 `VITE_` 前綴或提交到 Git。
 7. 套用現有 migrations：
 
 ```bat
@@ -224,7 +224,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 1. 在 Resend Dashboard 建立 webhook，正式網址填入 `https://你的後端網域/api/webhooks/resend`，事件只勾選 `email.bounced`；將 Signing secret 填入後端 `RESEND_WEBHOOK_SECRET`。永久退信送達後，系統會立即清理對應的未驗證帳號。
 2. 專案內的 `.github/workflows/cleanup-unverified-users.yml` 會每小時呼叫一次清理端點。到 GitHub Repository → Settings → Secrets and variables → Actions 建立 `CO_CANVAS_API_BASE_URL`（例如 `https://api.example.com`）與 `AUTH_CLEANUP_SECRET`；後者必須和後端環境變數完全相同。也可改用部署平台排程，以 `POST` 呼叫 `/api/internal/auth/cleanup-unverified` 並帶入 `X-Cleanup-Secret`。預設刪除建立超過 24 小時且仍未驗證的帳號。
-3. 重新部署後端並執行 `alembic upgrade head`，建立 webhook 去重表。Resend 重送同一事件時不會重複處理。
+3. 重新部署後端並執行 `alembic upgrade head`，建立 webhook 去重表與匿名帳號事件表。Resend 重送同一事件時不會重複處理。清理紀錄只保存 HMAC 雜湊、原因及時間，不保存被刪除帳號的明文 Email。
 
 本機可用下列指令測試排程端點；請把範例 secret 換成 `.env` 的值：
 
@@ -235,6 +235,13 @@ Invoke-RestMethod -Method Post `
 ```
 
 排程成功會回傳候選、已刪除與略過數量。端點回傳 `401` 代表排程密鑰不符；`503` 通常代表 Neon API 設定、Auth 資料表或資料庫連線尚未完成。
+
+### 帳號管理與驗證歡迎信
+
+1. 在後端設定 `AUTH_ADMIN_EMAILS`，可用逗號分隔多個管理者 Email。白名單會在後端驗證，只有隱藏前端按鈕並不構成權限保護。
+2. 管理者登入後，可從專案頁右上方進入「帳號管理」，或直接開啟 `/admin/auth`，查看已驗證、等待驗證及永久退信數量。
+3. 在 Resend 建立 API Key，設定後端 `RESEND_API_KEY` 與已驗證網域的 `RESEND_FROM_EMAIL`；`APP_PUBLIC_URL` 設成正式前端網址。使用者完成 Email 驗證並首次進入專案後，系統會寄出一次歡迎信。
+4. 歡迎信以資料庫唯一紀錄及 Resend `Idempotency-Key` 防止重複寄送；若寄信服務暫時失敗，不會阻擋使用者進入專案，下次進入時會再嘗試。
 
 ## 本機與雲端模式
 

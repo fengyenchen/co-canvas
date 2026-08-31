@@ -43,6 +43,12 @@ const AuthPage = lazy(() =>
   })),
 )
 
+const AuthAdminPage = lazy(() =>
+  import('./pages/AuthAdminPage').then((module) => ({
+    default: module.AuthAdminPage,
+  })),
+)
+
 type LazyPageProps = {
   children: ReactNode
   message: string
@@ -124,6 +130,14 @@ function App() {
         element={
           <LazyPage message="正在載入登入頁…">
             <AuthPage />
+          </LazyPage>
+        }
+      />
+      <Route
+        path="/admin/auth"
+        element={
+          <LazyPage message="正在載入帳號管理…">
+            <AuthAdminPage />
           </LazyPage>
         }
       />

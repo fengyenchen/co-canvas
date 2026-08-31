@@ -116,6 +116,7 @@ export async function installE2eMocks(
     versions?: Map<string, E2eVersion[]>
     trashedProjects?: E2eTrashedProject[]
     updateConflictCount?: number
+    authAdmin?: boolean
     projectGetError?: {
       status: number
       detail: string
@@ -227,6 +228,46 @@ export async function installE2eMocks(
         geminiConfigured: false,
         databaseConfigured: true,
         authConfigured: true,
+      })
+      return
+    }
+
+    if (path === '/api/auth/welcome' && method === 'POST') {
+      await json(route, { status: 'already_sent' })
+      return
+    }
+
+    if (path === '/api/admin/auth/access' && method === 'GET') {
+      await json(
+        route,
+        options.authAdmin === false ? { detail: '沒有帳號管理權限' } : { allowed: true },
+        options.authAdmin === false ? 403 : 200,
+      )
+      return
+    }
+
+    if (path === '/api/admin/auth/accounts' && method === 'GET') {
+      await json(route, {
+        counts: { verified: 1, waiting: 1, permanentBounce: 1 },
+        accounts: [
+          {
+            email: 'verified@example.com',
+            status: 'verified',
+            createdAt: '2026-08-30T01:00:00.000Z',
+          },
+          {
+            email: 'waiting@example.com',
+            status: 'waiting',
+            createdAt: '2026-08-31T01:00:00.000Z',
+          },
+        ],
+        cleanupEvents: [
+          {
+            emailHash: 'a'.repeat(64),
+            reason: 'permanent_bounce',
+            deletedAt: '2026-08-31T02:00:00.000Z',
+          },
+        ],
       })
       return
     }

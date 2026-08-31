@@ -7,6 +7,7 @@ import {
 import { LoaderCircle, MailCheck } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { authClient } from '../../lib/auth'
+import { ensureWelcomeEmail } from '../../api/authAdmin'
 
 const VERIFICATION_COOLDOWN_SECONDS = 60
 
@@ -416,6 +417,7 @@ export function VerifyEmailView({ returnTo }: { returnTo: string }) {
     try {
       const { data } = await authClient.getSession()
       if (data?.user.emailVerified) {
+        void ensureWelcomeEmail().catch(() => undefined)
         navigate(returnTo, { replace: true })
         return
       }

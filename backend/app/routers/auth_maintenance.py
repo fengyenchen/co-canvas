@@ -379,3 +379,9 @@ async def list_auth_account_statuses(
             for event in cleanup_events
         ],
     }
+
+
+@router.get("/api/admin/auth/access")
+async def check_auth_admin_access(user: CurrentUser) -> dict[str, bool]:
+    _require_admin(user.email)
+    return {"allowed": True}

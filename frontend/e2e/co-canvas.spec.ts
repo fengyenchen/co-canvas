@@ -54,6 +54,22 @@ test('未驗證帳號登入時回到驗證等待頁', async ({ page }) => {
   await expect(page.getByText('unverified@example.com')).toBeVisible()
 })
 
+test('管理者可查看帳號驗證狀態與匿名清理紀錄', async ({ page }) => {
+  await installE2eMocks(page, { authenticated: true, authAdmin: true })
+  await page.goto('/projects')
+
+  await page.getByRole('link', { name: '帳號管理' }).click()
+  await expect(page).toHaveURL(/\/admin\/auth$/)
+  await expect(
+    page.getByRole('heading', { name: '帳號驗證管理' }),
+  ).toBeVisible()
+  await expect(page.getByText('已驗證', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('等待驗證', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('永久退信', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('verified@example.com')).toBeVisible()
+  await expect(page.getByText('aaaaaaaaaaaa…aaaaaaaa')).toBeVisible()
+})
+
 test('可從搜尋旁的問號開啟操作導覽', async ({ page }) => {
   await installE2eMocks(page, {
     projects: [createProject()],

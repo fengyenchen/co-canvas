@@ -17,6 +17,7 @@ import {
   updateProject,
 } from '../api/projects'
 import { ApiRequestError } from '../api/errors'
+import { ensureWelcomeEmail } from '../api/authAdmin'
 import { Canvas } from '../components/canvas/Canvas'
 import { ChatPanel } from '../components/chat/ChatPanel'
 import {
@@ -164,6 +165,14 @@ export function EditorPage({ mode = 'project' }: EditorPageProps) {
   const suggestionEvents = useChatStore(
     (state) => state.suggestionEvents,
   )
+
+  useEffect(() => {
+    if (!currentUser?.id || isStandaloneProject) {
+      return
+    }
+
+    void ensureWelcomeEmail().catch(() => undefined)
+  }, [currentUser?.id, isStandaloneProject])
 
   useEffect(() => {
     if (
