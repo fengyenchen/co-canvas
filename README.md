@@ -106,8 +106,9 @@ copy .env.example .env
 2. 將 pooled connection string 填入 `DATABASE_URL`。
 3. 將未啟用 connection pooling 的 direct connection string 填入 `DATABASE_MIGRATION_URL`。
 4. 在 Neon 啟用 Auth，並設定前後端需要的 Auth URL 與 JWKS URL。
-5. 若要自動清理未驗證帳號，在後端設定 `NEON_API_KEY`、`NEON_PROJECT_ID`、production 的 `NEON_BRANCH_ID`、`RESEND_WEBHOOK_SECRET` 與 `AUTH_CLEANUP_SECRET`。這些都是後端秘密，不能使用 `VITE_` 前綴或提交到 Git。
-6. 套用現有 migrations：
+5. 在 Neon Auth 啟用 Email 驗證。使用者註冊後會進入驗證等待頁，60 秒後可重新寄送驗證信；完成驗證前不能登入或進入雲端專案。
+6. 若要自動清理未驗證帳號，在後端設定 `NEON_API_KEY`、`NEON_PROJECT_ID`、production 的 `NEON_BRANCH_ID`、`RESEND_WEBHOOK_SECRET` 與 `AUTH_CLEANUP_SECRET`。這些都是後端秘密，不能使用 `VITE_` 前綴或提交到 Git。
+7. 套用現有 migrations：
 
 ```bat
 cd backend

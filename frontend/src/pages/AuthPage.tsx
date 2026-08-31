@@ -13,6 +13,11 @@ import {
   useSearchParams,
 } from 'react-router'
 import coCanvasLogo from '../assets/branding/co-canvas-logo-primary.svg'
+import {
+  SignInView,
+  SignUpView,
+  VerifyEmailView,
+} from '../components/auth/CredentialAuthViews'
 import { authClient } from '../lib/auth'
 
 const authLocalizationZhTw = {
@@ -127,11 +132,20 @@ export function AuthPage() {
           Link={AuthLink}
           localization={authLocalizationZhTw}
           defaultTheme="light"
+          emailVerification
         >
-          <AuthView
-            path={authPath as AuthViewPath}
-            redirectTo={returnTo}
-          />
+          {authPath === 'sign-in' ? (
+            <SignInView returnTo={returnTo} />
+          ) : authPath === 'sign-up' ? (
+            <SignUpView returnTo={returnTo} />
+          ) : authPath === 'verify-email' ? (
+            <VerifyEmailView returnTo={returnTo} />
+          ) : (
+            <AuthView
+              path={authPath as AuthViewPath}
+              redirectTo={returnTo}
+            />
+          )}
         </NeonAuthUIProvider>
       </div>
     </main>

@@ -19,6 +19,41 @@ test('登入後進入雲端專案列表', async ({ page }) => {
   await expect(page.getByTitle('e2e@example.com')).toBeVisible()
 })
 
+test('註冊後進入驗證等待頁並限制立即重寄', async ({ page }) => {
+  await installE2eMocks(page, { authenticated: false })
+  await page.goto('/auth/sign-up?returnTo=%2Fprojects')
+
+  await page.getByLabel('名稱').fill('待驗證使用者')
+  await page.getByLabel('電子郵件').fill('pending@example.com')
+  await page.getByLabel('密碼', { exact: true }).fill('password123')
+  await page.getByLabel('確認密碼').fill('password123')
+  await page.getByRole('button', { name: '建立帳號' }).click()
+
+  await expect(page).toHaveURL(/\/auth\/verify-email\?/)
+  await expect(
+    page.getByRole('heading', { name: '查看驗證信' }),
+  ).toBeVisible()
+  await expect(page.getByText('pending@example.com')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: /秒後可重新寄送/ }),
+  ).toBeDisabled()
+})
+
+test('未驗證帳號登入時回到驗證等待頁', async ({ page }) => {
+  await installE2eMocks(page, { authenticated: false })
+  await page.goto('/auth/sign-in?returnTo=%2Fprojects')
+
+  await page.getByLabel('電子郵件').fill('unverified@example.com')
+  await page.getByLabel('密碼').fill('password123')
+  await page.getByRole('button', { name: '登入', exact: true }).click()
+
+  await expect(page).toHaveURL(/\/auth\/verify-email\?/)
+  await expect(
+    page.getByRole('heading', { name: '查看驗證信' }),
+  ).toBeVisible()
+  await expect(page.getByText('unverified@example.com')).toBeVisible()
+})
+
 test('可從搜尋旁的問號開啟操作導覽', async ({ page }) => {
   await installE2eMocks(page, {
     projects: [createProject()],

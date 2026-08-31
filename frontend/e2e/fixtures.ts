@@ -141,6 +141,18 @@ export async function installE2eMocks(
     const pathname = new URL(request.url()).pathname
 
     if (pathname.endsWith('/sign-in/email') && request.method() === 'POST') {
+      const body = request.postDataJSON() as { email?: string }
+      if (body.email === 'unverified@example.com') {
+        await route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: 'EMAIL_NOT_VERIFIED',
+            message: 'Email not verified',
+          }),
+        })
+        return
+      }
       state.authenticated = true
       await route.fulfill({
         status: 200,
@@ -152,6 +164,23 @@ export async function installE2eMocks(
           user: USER,
         }),
       })
+      return
+    }
+
+    if (pathname.endsWith('/sign-up/email') && request.method() === 'POST') {
+      state.authenticated = false
+      await json(route, {
+        token: null,
+        user: { ...USER, emailVerified: false },
+      })
+      return
+    }
+
+    if (
+      pathname.endsWith('/send-verification-email') &&
+      request.method() === 'POST'
+    ) {
+      await json(route, { status: true })
       return
     }
 
