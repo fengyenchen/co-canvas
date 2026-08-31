@@ -1,0 +1,186 @@
+/*
+ * NeonAuth 畫面調整區
+ * 輸入框與按鈕高度建議不要低於 2.75rem（44px），手機才容易點擊。
+ */
+.auth-page {
+  /* 標題與說明 */
+  --neon-auth-title-size: 1.25rem;
+  --neon-auth-title-line-height: 1.75rem;
+  --neon-auth-title-description-gap: 0.75rem;
+
+  /* 表單整體間距 */
+  --neon-auth-header-form-gap: 2rem;
+  --neon-auth-field-gap: 1.5rem;
+  --neon-auth-label-input-gap: 0.75rem;
+  --neon-auth-form-switch-gap: 2rem;
+
+  /* 註冊欄位較多，單獨使用較緊湊的間距 */
+  --neon-auth-sign-up-header-form-gap: 1.5rem;
+  --neon-auth-sign-up-field-gap: 1rem;
+  --neon-auth-sign-up-label-input-gap: 0.5rem;
+  --neon-auth-sign-up-input-height: 2.75rem;
+  --neon-auth-sign-up-form-switch-gap: 1.25rem;
+
+  /* Neon 內建頁面：標題區、內容區、返回連結的距離 */
+  --neon-auth-builtin-header-content-gap: 2rem;
+  --neon-auth-builtin-footer-gap: 2rem;
+
+  /* 輸入框 */
+  --neon-auth-input-height: 3rem;
+  --neon-auth-input-radius: 0.75rem;
+
+  /* 記住我／忘記密碼列 */
+  --neon-auth-actions-height: 2.75rem;
+
+  /* 主要與次要按鈕 */
+  --neon-auth-button-height: 3rem;
+  --neon-auth-button-radius: 0.75rem;
+
+  /* 手機版內層卡片（桌面版會自動移除框線與陰影） */
+  --neon-auth-card-padding: 1.5rem;
+  --neon-auth-desktop-card-padding: 1.5rem;
+  --neon-auth-card-radius: 1rem;
+  --neon-auth-card-border: 1px solid var(--color-border);
+  --neon-auth-card-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+
+.auth-credential-card {
+  border: var(--neon-auth-card-border) !important;
+  border-radius: var(--neon-auth-card-radius) !important;
+  background: var(--color-background) !important;
+  box-shadow: var(--neon-auth-card-shadow) !important;
+  padding: var(--neon-auth-card-padding) !important;
+}
+
+.auth-credential-title {
+  font-size: var(--neon-auth-title-size);
+  line-height: var(--neon-auth-title-line-height);
+}
+
+.auth-credential-description {
+  margin-top: var(--neon-auth-title-description-gap);
+}
+
+.auth-credential-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--neon-auth-field-gap);
+  margin-top: var(--neon-auth-header-form-gap);
+}
+
+.auth-credential-input {
+  min-height: var(--neon-auth-input-height);
+  margin-top: var(--neon-auth-label-input-gap);
+  border-radius: var(--neon-auth-input-radius);
+}
+
+.auth-credential-actions {
+  min-height: var(--neon-auth-actions-height);
+}
+
+.auth-credential-primary-button,
+.auth-credential-secondary-button {
+  min-height: var(--neon-auth-button-height);
+  border-radius: var(--neon-auth-button-radius);
+}
+
+.auth-credential-switch {
+  margin-top: var(--neon-auth-form-switch-gap);
+}
+
+.auth-credential-form--sign-up {
+  gap: var(--neon-auth-sign-up-field-gap);
+  margin-top: var(--neon-auth-sign-up-header-form-gap);
+}
+
+.auth-credential-form--sign-up .auth-credential-input {
+  min-height: var(--neon-auth-sign-up-input-height);
+  margin-top: var(--neon-auth-sign-up-label-input-gap);
+}
+
+.auth-credential-switch--sign-up {
+  margin-top: var(--neon-auth-sign-up-form-switch-gap);
+}
+
+/* Neon 內建頁面：忘記密碼、重設密碼等。 */
+.auth-neon-card {
+  width: 100% !important;
+  max-width: none !important;
+  border: var(--neon-auth-card-border) !important;
+  border-radius: var(--neon-auth-card-radius) !important;
+  background: var(--color-background) !important;
+  box-shadow: var(--neon-auth-card-shadow) !important;
+  padding: var(--neon-auth-card-padding) !important;
+}
+
+.auth-neon-header,
+.auth-neon-content,
+.auth-neon-footer {
+  padding: 0 !important;
+}
+
+.auth-neon-title {
+  font-size: var(--neon-auth-title-size) !important;
+  line-height: var(--neon-auth-title-line-height) !important;
+}
+
+.auth-neon-description {
+  margin-top: var(--neon-auth-title-description-gap) !important;
+}
+
+.auth-neon-content {
+  margin-top: var(--neon-auth-builtin-header-content-gap);
+}
+
+.auth-neon-form {
+  gap: var(--neon-auth-field-gap) !important;
+}
+
+.auth-neon-input {
+  min-height: var(--neon-auth-input-height) !important;
+  margin-top: var(--neon-auth-label-input-gap);
+  border-radius: var(--neon-auth-input-radius) !important;
+}
+
+.auth-neon-button {
+  min-height: var(--neon-auth-button-height) !important;
+  border-radius: var(--neon-auth-button-radius) !important;
+}
+
+.auth-neon-footer {
+  margin-top: var(--neon-auth-builtin-footer-gap);
+}
+
+.auth-home-link {
+  display: none;
+}
+
+.auth-mobile-home-link {
+  display: inline-flex;
+}
+
+@media (min-width: 768px) {
+  .auth-credential-card {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: var(--neon-auth-desktop-card-padding) !important;
+  }
+
+  .auth-neon-card {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: var(--neon-auth-desktop-card-padding) !important;
+  }
+
+  .auth-home-link {
+    display: inline-flex;
+  }
+
+  .auth-mobile-home-link {
+    display: none;
+  }
+}

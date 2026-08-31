@@ -80,18 +80,18 @@ function startVerificationCooldown(email: string) {
 
 function AuthCard({ children }: { children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-border bg-background p-6 shadow-sm">
+    <section className="auth-credential-card">
       {children}
     </section>
   )
 }
 
 const inputClassName =
-  'min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none transition placeholder:text-foreground/35 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60'
+  'auth-credential-input w-full border border-border bg-background px-3 text-base text-foreground outline-none transition placeholder:text-foreground/35 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60'
 const primaryButtonClassName =
-  'inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50'
+  'auth-credential-primary-button inline-flex w-full cursor-pointer items-center justify-center gap-2 bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50'
 const secondaryButtonClassName =
-  'inline-flex min-h-11 w-full cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50'
+  'auth-credential-secondary-button inline-flex w-full cursor-pointer items-center justify-center border border-border bg-background px-4 text-sm font-medium text-foreground transition hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50'
 
 function FormError({ message }: { message: string | null }) {
   if (!message) return null
@@ -149,17 +149,17 @@ export function SignInView({ returnTo }: { returnTo: string }) {
 
   return (
     <AuthCard>
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-foreground">登入</h2>
-        <p className="mt-2 text-sm leading-6 text-foreground/60">
+      <div className="auth-credential-header text-center">
+        <h2 className="auth-credential-title font-semibold text-foreground">登入</h2>
+        <p className="auth-credential-description text-sm leading-6 text-foreground/60">
           登入後即可存取你的雲端專案
         </p>
       </div>
-      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+      <form className="auth-credential-form" onSubmit={handleSubmit}>
         <label className="block text-sm font-medium text-foreground">
           電子郵件
           <input
-            className={`${inputClassName} mt-2`}
+            className={inputClassName}
             type="email"
             autoComplete="email"
             value={email}
@@ -171,7 +171,7 @@ export function SignInView({ returnTo }: { returnTo: string }) {
         <label className="block text-sm font-medium text-foreground">
           密碼
           <input
-            className={`${inputClassName} mt-2`}
+            className={inputClassName}
             type="password"
             autoComplete="current-password"
             value={password}
@@ -180,7 +180,7 @@ export function SignInView({ returnTo }: { returnTo: string }) {
             disabled={isSubmitting}
           />
         </label>
-        <div className="flex items-center justify-between gap-4 text-sm">
+        <div className="auth-credential-actions flex items-center justify-between gap-4 text-sm">
           <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-foreground/70">
             <input
               type="checkbox"
@@ -203,7 +203,7 @@ export function SignInView({ returnTo }: { returnTo: string }) {
           {isSubmitting ? '登入中…' : '登入'}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-foreground/60">
+      <p className="auth-credential-switch text-center text-sm text-foreground/60">
         還沒有帳號嗎？{' '}
         <Link
           to={`/auth/sign-up?returnTo=${encodeURIComponent(returnTo)}`}
@@ -262,13 +262,16 @@ export function SignUpView({ returnTo }: { returnTo: string }) {
 
   return (
     <AuthCard>
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-foreground">註冊</h2>
-        <p className="mt-2 text-sm leading-6 text-foreground/60">
+      <div className="auth-credential-header text-center">
+        <h2 className="auth-credential-title font-semibold text-foreground">註冊</h2>
+        <p className="auth-credential-description text-sm leading-6 text-foreground/60">
           建立帳號以跨裝置保存專案
         </p>
       </div>
-      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+      <form
+        className="auth-credential-form auth-credential-form--sign-up"
+        onSubmit={handleSubmit}
+      >
         <div>
           <label
             htmlFor="sign-up-name"
@@ -278,7 +281,7 @@ export function SignUpView({ returnTo }: { returnTo: string }) {
           </label>
           <input
             id="sign-up-name"
-            className={`${inputClassName} mt-2`}
+            className={inputClassName}
             type="text"
             autoComplete="name"
             value={name}
@@ -296,7 +299,7 @@ export function SignUpView({ returnTo }: { returnTo: string }) {
           </label>
           <input
             id="sign-up-email"
-            className={`${inputClassName} mt-2`}
+            className={inputClassName}
             type="email"
             autoComplete="email"
             value={email}
@@ -314,7 +317,7 @@ export function SignUpView({ returnTo }: { returnTo: string }) {
           </label>
           <input
             id="sign-up-password"
-            className={`${inputClassName} mt-2`}
+            className={inputClassName}
             type="password"
             autoComplete="new-password"
             aria-describedby="sign-up-password-help"
@@ -340,7 +343,7 @@ export function SignUpView({ returnTo }: { returnTo: string }) {
           </label>
           <input
             id="sign-up-confirm-password"
-            className={`${inputClassName} mt-2`}
+            className={inputClassName}
             type="password"
             autoComplete="new-password"
             value={confirmPassword}
@@ -356,7 +359,7 @@ export function SignUpView({ returnTo }: { returnTo: string }) {
           {isSubmitting ? '建立中…' : '建立帳號'}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-foreground/60">
+      <p className="auth-credential-switch auth-credential-switch--sign-up text-center text-sm text-foreground/60">
         已經有帳號了嗎？{' '}
         <Link
           to={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}
