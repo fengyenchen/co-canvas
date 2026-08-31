@@ -21,6 +21,8 @@ MIME_BY_SUFFIX = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4",
+    ".aac": "audio/aac", ".ogg": "audio/ogg", ".flac": "audio/flac",
 }
 
 
@@ -36,15 +38,15 @@ def get_file_source_type(source: str) -> tuple[str, str] | None:
 async def _validate_public_host(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme != "https" or not parsed.hostname:
-        raise VideoSourceError("文件與圖片網址必須是公開的 HTTPS 網址")
+        raise VideoSourceError("附件網址必須是公開的 HTTPS 網址")
     try:
         addresses = await asyncio.to_thread(
             socket.getaddrinfo, parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM
         )
     except socket.gaierror as error:
-        raise VideoSourceError("無法解析文件或圖片網址") from error
+        raise VideoSourceError("無法解析附件網址") from error
     if not addresses:
-        raise VideoSourceError("無法解析文件或圖片網址")
+        raise VideoSourceError("無法解析附件網址")
     for address in addresses:
         if not ipaddress.ip_address(address[4][0]).is_global:
             raise VideoSourceError("網址不可指向本機或私人網路")
@@ -53,7 +55,7 @@ async def _validate_public_host(url: str) -> None:
 async def download_file_source(source: str) -> tuple[Path, str]:
     source_type = get_file_source_type(source)
     if source_type is None:
-        raise VideoSourceError("網址必須直接指向支援的文件或圖片格式")
+        raise VideoSourceError("網址必須直接指向支援的文件、圖片或音訊格式")
     suffix, mime_type = source_type
     current_url = source
     temporary_path: Path | None = None
@@ -75,21 +77,25 @@ async def download_file_source(source: str) -> tuple[Path, str]:
                     length = response.headers.get("content-length")
                     effective_limit = 50 * 1024 * 1024 if suffix == ".pdf" else MAX_FILE_BYTES
                     if length and length.isdigit() and int(length) > effective_limit:
-                        raise VideoSourceError("文件或圖片超過 100 MB 限制")
+                        raise VideoSourceError(
+                            "PDF 超過 50 MB 限制"
+                            if suffix == ".pdf"
+                            else "附件超過 100 MB 限制"
+                        )
                     with tempfile.NamedTemporaryFile(mode="wb", suffix=suffix, delete=False) as output:
                         temporary_path = Path(output.name)
                         downloaded = 0
                         async for chunk in response.aiter_bytes():
                             downloaded += len(chunk)
                             if downloaded > effective_limit:
-                                raise VideoSourceError("PDF 超過 50 MB 限制" if suffix == ".pdf" else "文件或圖片超過 100 MB 限制")
+                                raise VideoSourceError("PDF 超過 50 MB 限制" if suffix == ".pdf" else "附件超過 100 MB 限制")
                             output.write(chunk)
                     if downloaded == 0:
-                        raise VideoSourceError("文件或圖片是空的")
+                        raise VideoSourceError("附件是空的")
                     return temporary_path, mime_type
             raise VideoSourceError("檔案下載重新導向次數過多")
     except httpx.HTTPError as error:
-        raise VideoSourceError("無法下載文件或圖片") from error
+        raise VideoSourceError("無法下載附件") from error
     except Exception:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)

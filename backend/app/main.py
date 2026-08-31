@@ -345,7 +345,7 @@ async def chat(
             or request.uploaded_file is not None
             or (
                 request.selected_node
-                and request.selected_node.node_type in {"document", "image"}
+                and request.selected_node.node_type in {"document", "image", "audio"}
                 and request.selected_node.file_source
             )
             or (

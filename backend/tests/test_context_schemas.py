@@ -121,6 +121,36 @@ def test_accepts_uploaded_document_reference() -> None:
     assert request.selected_node.node_type == "document"
 
 
+def test_accepts_uploaded_audio_reference_and_time_range() -> None:
+    request = ChatRequest.model_validate({
+        "prompt": "整理這段訪談",
+        "selectedNode": {
+            "id": "concept-1",
+            "title": "訪談片段",
+            "startTimeMs": 10_000,
+            "endTimeMs": 30_000,
+            "linkedFile": {
+                "id": "audio-1",
+                "title": "訪談錄音",
+                "nodeType": "audio",
+                "fileName": "interview.mp3",
+                "mimeType": "audio/mpeg",
+                "durationMs": 90_000,
+            },
+        },
+        "uploadedFile": {"name": "files/local_audio_123"},
+    })
+
+    parts = build_chat_parts(
+        request,
+        "（尚無先前對話）",
+        SimpleNamespace(file_data=SimpleNamespace(mime_type="audio/mpeg")),
+    )
+
+    assert request.selected_node.linked_file.node_type == "audio"
+    assert "指定分析音訊 10–30 秒" in parts[1].text
+
+
 @pytest.mark.anyio
 async def test_attaches_public_image_url(monkeypatch, tmp_path: Path) -> None:
     request = ChatRequest.model_validate({

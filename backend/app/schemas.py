@@ -27,20 +27,21 @@ class LinkedVideoContext(ApiModel):
 class LinkedFileContext(ApiModel):
     id: str
     title: str = Field(min_length=1, max_length=120)
-    node_type: Literal["document", "image"]
+    node_type: Literal["document", "image", "audio"]
     file_name: str | None = Field(default=None, max_length=255)
     mime_type: str | None = Field(default=None, max_length=160)
     file_size: int | None = Field(default=None, ge=0, le=100 * 1024 * 1024)
     file_source: str | None = Field(default=None, max_length=2048)
     page_count: int | None = Field(default=None, ge=1, le=100000)
     page_unit: Literal["page", "slide"] | None = None
+    duration_ms: int | None = Field(default=None, gt=0)
 
 
 class ContextNode(ApiModel):
     id: str
     title: str = Field(min_length=1, max_length=120)
     content: str = Field(default="", max_length=2000)
-    node_type: Literal["concept", "video", "document", "image", "group"] = "concept"
+    node_type: Literal["concept", "video", "audio", "document", "image", "group"] = "concept"
     file_name: str | None = Field(default=None, max_length=255)
     mime_type: str | None = Field(default=None, max_length=160)
     file_size: int | None = Field(default=None, ge=0, le=100 * 1024 * 1024)
@@ -49,6 +50,7 @@ class ContextNode(ApiModel):
     end_time_ms: int | None = Field(default=None, ge=0)
     video_provider: str | None = Field(default=None, max_length=40)
     video_duration_ms: int | None = Field(default=None, ge=0)
+    audio_duration_ms: int | None = Field(default=None, ge=0)
     linked_video: LinkedVideoContext | None = None
     linked_file: LinkedFileContext | None = None
     document_start_page: int | None = Field(default=None, ge=1)
@@ -136,6 +138,8 @@ SUPPORTED_FILE_MIME_TYPES = {
     "application/pdf", "application/json",
     "text/plain", "text/markdown", "text/csv", "text/html", "text/css", "text/xml",
     "text/rtf", "text/javascript",
+    "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/aac",
+    "audio/ogg", "audio/flac", "audio/x-flac",
 }
 
 

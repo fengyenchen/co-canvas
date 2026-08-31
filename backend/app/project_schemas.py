@@ -99,6 +99,10 @@ class ProjectDocumentNodeData(ApiModel):
     page_unit: Literal["page", "slide"] | None = None
 
 
+class ProjectAudioNodeData(ProjectDocumentNodeData):
+    duration_ms: int | None = Field(default=None, gt=0)
+
+
 class ProjectGroupNodeData(ApiModel):
     title: str = Field(default="未命名群組", max_length=120)
     width: float = Field(ge=240, le=10000)
@@ -147,7 +151,15 @@ class ProjectImageNode(ApiModel):
     parent_id: str | None = None
 
 
-ProjectNode = ProjectConceptNode | ProjectVideoNode | ProjectDocumentNode | ProjectImageNode | ProjectGroupNode
+class ProjectAudioNode(ApiModel):
+    id: str = Field(min_length=1)
+    type: Literal["audio"] = "audio"
+    position: ProjectPosition
+    data: ProjectAudioNodeData
+    parent_id: str | None = None
+
+
+ProjectNode = ProjectConceptNode | ProjectVideoNode | ProjectDocumentNode | ProjectImageNode | ProjectAudioNode | ProjectGroupNode
 
 
 class ProjectEdgeData(ApiModel):
@@ -373,10 +385,10 @@ class ProjectDocument(ApiModel):
             for node in self.nodes
             if isinstance(node, ProjectGroupNode)
         }
-        video_nodes = {
+        media_nodes = {
             node.id: node
             for node in self.nodes
-            if isinstance(node, ProjectVideoNode)
+            if isinstance(node, (ProjectVideoNode, ProjectAudioNode))
         }
         document_nodes = {
             node.id: node
@@ -386,7 +398,7 @@ class ProjectDocument(ApiModel):
 
         for node in self.nodes:
             if (
-                isinstance(node, (ProjectConceptNode, ProjectVideoNode, ProjectDocumentNode, ProjectImageNode))
+                isinstance(node, (ProjectConceptNode, ProjectVideoNode, ProjectDocumentNode, ProjectImageNode, ProjectAudioNode))
                 and node.parent_id is not None
                 and node.parent_id not in group_ids
             ):
@@ -417,23 +429,23 @@ class ProjectDocument(ApiModel):
             if start_time_ms is None or end_time_ms is None:
                 continue
 
-            linked_video_ids = list(dict.fromkeys(
+            linked_media_ids = list(dict.fromkeys(
                 edge.source
                 for edge in self.edges
-                if edge.target == node.id and edge.source in video_nodes
+                if edge.target == node.id and edge.source in media_nodes
             ))
-            if not linked_video_ids:
-                raise ValueError("設定節點時間前必須先連接影片節點")
-            if len(linked_video_ids) > 1:
-                raise ValueError("設定時間區間的文字節點只能連接一個影片節點")
+            if not linked_media_ids:
+                raise ValueError("設定節點時間前必須先連接影片或音訊節點")
+            if len(linked_media_ids) > 1:
+                raise ValueError("設定時間區間的文字節點只能連接一個影音來源")
 
-            video_node = video_nodes[linked_video_ids[0]]
+            media_node = media_nodes[linked_media_ids[0]]
 
             if (
-                video_node.data.duration_ms is not None
-                and end_time_ms > video_node.data.duration_ms
+                media_node.data.duration_ms is not None
+                and end_time_ms > media_node.data.duration_ms
             ):
-                raise ValueError("節點時間不得超出影片長度")
+                raise ValueError("節點時間不得超出影音長度")
 
         return self
 

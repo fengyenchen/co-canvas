@@ -236,11 +236,12 @@ def build_chat_parts(
         if request.uploaded_file is not None or (
             request.selected_node
             and (
-                request.selected_node.node_type in {"document", "image"}
+                request.selected_node.node_type in {"document", "image", "audio"}
                 or request.selected_node.linked_file is not None
             )
         ):
             page_note = ""
+            time_note = ""
             if (
                 request.selected_node
                 and request.selected_node.document_start_page is not None
@@ -256,10 +257,21 @@ def build_chat_parts(
                     f"本次指定分析第 {request.selected_node.document_start_page}–"
                     f"{request.selected_node.document_end_page} {unit}，請只根據此範圍回答。"
                 )
+            if (
+                request.selected_node
+                and request.selected_node.linked_file
+                and request.selected_node.linked_file.node_type == "audio"
+                and request.selected_node.start_time_ms is not None
+                and request.selected_node.end_time_ms is not None
+            ):
+                time_note = (
+                    f"本次指定分析音訊 {request.selected_node.start_time_ms / 1000:g}–"
+                    f"{request.selected_node.end_time_ms / 1000:g} 秒，請聚焦此時間區間回答。"
+                )
             attachment_note = (
                 "本次請求已附上可直接讀取的檔案。即使先前對話曾聲稱沒有附件，"
                 "也必須以本次附件為準；請直接根據檔案內容回答，"
-                f"不得要求使用者再次提供檔案或貼上內容。{page_note}\n\n"
+                f"不得要求使用者再次提供檔案或貼上內容。{page_note}{time_note}\n\n"
             )
         else:
             attachment_note = (
@@ -451,7 +463,7 @@ async def upload_chat_file(client, request: ChatRequest) -> types.Part | None:
         file_context = None
         if (
             selected_node
-            and selected_node.node_type in {"document", "image"}
+            and selected_node.node_type in {"document", "image", "audio"}
             and selected_node.file_source
         ):
             file_context = selected_node

@@ -14,7 +14,7 @@ import { getHealth } from '../../api/health'
 import type { AiMode } from '../../api/health'
 import type { AiFallbackReason } from '../../types/ai'
 import type { ChatMessage } from '../../types/chat'
-import type { DocumentCanvasNode, ImageCanvasNode } from '../../types/canvas'
+import type { AudioCanvasNode, DocumentCanvasNode, ImageCanvasNode } from '../../types/canvas'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
 import { formatLatency } from '../../utils/formatLatency'
@@ -188,12 +188,12 @@ export function ChatPanel({
         }
       : null
   const attachedVideoNodeId = attachedVideoClip?.video.id ?? null
-  const attachedFileNodeId = contextNode?.type === 'document' || contextNode?.type === 'image'
+  const attachedFileNodeId = contextNode?.type === 'document' || contextNode?.type === 'image' || contextNode?.type === 'audio'
     ? contextNode.id
     : contextPayload?.linkedFile?.id ?? null
   const attachedFileNode = nodes.find(
-    (node): node is DocumentCanvasNode | ImageCanvasNode =>
-      node.id === attachedFileNodeId && (node.type === 'document' || node.type === 'image'),
+    (node): node is DocumentCanvasNode | ImageCanvasNode | AudioCanvasNode =>
+      node.id === attachedFileNodeId && (node.type === 'document' || node.type === 'image' || node.type === 'audio'),
   )
   const [attachedLocalFile, setAttachedLocalFile] = useState<LocalNodeFile | null>(() =>
     attachedFileNodeId ? getLocalNodeFile(attachedFileNodeId) ?? null : null,
@@ -551,7 +551,7 @@ export function ChatPanel({
       if (attachedFileNode && !attachedFileNode.data.source) {
         const resolvedFile = attachedLocalFile ?? await restoreLocalNodeFile(attachedFileNode.id)
         if (!resolvedFile) {
-          throw new ApiRequestError(409, '這台瀏覽器沒有原始檔案，請點選文件或圖片節點並重新選擇檔案')
+          throw new ApiRequestError(409, '這台瀏覽器沒有原始檔案，請點選來源節點並重新選擇檔案')
         }
         const pageRange = contextPayload?.documentStartPage !== undefined && contextPayload.documentEndPage !== undefined
           ? { startPage: contextPayload.documentStartPage, endPage: contextPayload.documentEndPage }
@@ -874,7 +874,7 @@ export function ChatPanel({
             {attachedVideoClip
               ? `・影片片段 ${formatClipTime(attachedVideoClip.startTimeMs)}–${formatClipTime(attachedVideoClip.endTimeMs)}`
               : ''}
-            {attachedFileNode ? `・${attachedFileNode.type === 'image' ? '圖片' : '文件'}附件` : ''}
+            {attachedFileNode ? `・${attachedFileNode.type === 'image' ? '圖片' : attachedFileNode.type === 'audio' ? '音訊' : '文件'}附件` : ''}
           </span>
           <span
             aria-hidden="true"
@@ -937,7 +937,7 @@ export function ChatPanel({
 
           {attachedFileNode && (
             <div className="rounded-lg border border-primary/15 bg-primary/5 px-3 py-2">
-              <div className="text-xs text-foreground/50">隨對話附上的{attachedFileNode.type === 'image' ? '圖片' : '文件'}</div>
+              <div className="text-xs text-foreground/50">隨對話附上的{attachedFileNode.type === 'image' ? '圖片' : attachedFileNode.type === 'audio' ? '音訊' : '文件'}</div>
               <div className="mt-1 text-sm font-medium text-foreground">
                 {attachedFileNode.data.fileName || attachedFileNode.data.title}
                 {contextPayload?.documentStartPage !== undefined && contextPayload.documentEndPage !== undefined
@@ -945,7 +945,7 @@ export function ChatPanel({
                   : ''}
               </div>
               {!attachedLocalFile && !attachedFileNode.data.source && (
-                <div className="mt-1 text-xs leading-5 text-red-600">這台瀏覽器沒有原始檔案，請點選文件或圖片節點並重新選擇。</div>
+                <div className="mt-1 text-xs leading-5 text-red-600">這台瀏覽器沒有原始檔案，請點選音訊、文件或圖片節點並重新選擇。</div>
               )}
             </div>
           )}

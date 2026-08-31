@@ -22,7 +22,7 @@ import {
 import type { ProjectFile } from '../../utils/projectFile'
 import { ConceptNode } from './ConceptNode'
 import { VideoNode } from './VideoNode'
-import { DocumentNode, ImageNode } from './FileNode'
+import { AudioNode, DocumentNode, ImageNode } from './FileNode'
 import { GroupNode } from './GroupNode'
 import { EdgeEditor } from './EdgeEditor'
 import { NodeEditor } from './NodeEditor'
@@ -34,6 +34,7 @@ const nodeTypes: NodeTypes = {
     video: VideoNode,
     document: DocumentNode,
     image: ImageNode,
+    audio: AudioNode,
     group: GroupNode,
 }
 
@@ -157,7 +158,7 @@ function CanvasContent({
                     placement: 'bottom-start',
                     title: '新增節點',
                     content:
-                        '從這裡新增文字、影片、文件或圖片節點。拖曳節點上下端點，可以建立節點之間的連線。',
+                        '從這裡新增文字、影片、音訊、文件／資料或圖片節點。拖曳節點上下端點，可以建立節點之間的連線。',
                 },
                 {
                     target: '[data-tour="group-nodes"]',
@@ -213,6 +214,7 @@ function CanvasContent({
     const edges = useCanvasStore((state) => state.edges)
     const addNode = useCanvasStore((state) => state.addNode)
     const addVideoNode = useCanvasStore((state) => state.addVideoNode)
+    const addAudioNode = useCanvasStore((state) => state.addAudioNode)
     const addDocumentNode = useCanvasStore((state) => state.addDocumentNode)
     const addImageNode = useCanvasStore((state) => state.addImageNode)
     const groupSelectedNodes = useCanvasStore(
@@ -691,7 +693,7 @@ function CanvasContent({
 
             <div
                 data-tour="toolbar"
-                className="absolute left-4 right-4 top-4 z-10 flex items-center justify-between gap-2 sm:right-auto sm:justify-start"
+                className="absolute left-4 right-4 top-4 z-30 flex items-center justify-between gap-2 sm:right-auto sm:justify-start"
             >
                 <Link
                     to="/projects"
@@ -758,11 +760,21 @@ function CanvasContent({
                                         type="button"
                                         onClick={() => {
                                             setIsAddNodeMenuOpen(false)
+                                            addAudioNode(getNewNodePosition())
+                                        }}
+                                        className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                    >
+                                        音訊節點
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsAddNodeMenuOpen(false)
                                             addDocumentNode(getNewNodePosition())
                                         }}
                                         className="min-h-11 w-full cursor-pointer rounded-md px-3 text-left text-sm text-foreground transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                                     >
-                                        文件節點
+                                        文件／資料
                                     </button>
                                     <button
                                         type="button"
@@ -1168,7 +1180,7 @@ function CanvasContent({
                 onConnect={isReadOnly ? undefined : onConnect}
                 onNodeDragStop={(_, node) => reconcileNodeGroup(node.id)}
                 onNodeDoubleClick={(_, node) => {
-                    if (node.type === 'concept' || node.type === 'document' || node.type === 'image' || node.type === 'group') {
+                    if (node.type === 'concept' || node.type === 'document' || node.type === 'image' || node.type === 'audio' || node.type === 'group') {
                         setActiveContextNodeId(node.id)
                     }
                 }}

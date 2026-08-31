@@ -1,5 +1,5 @@
 import type { AiContextNode } from '../types/aiContext'
-import type { CanvasEdge, CanvasNode, DocumentCanvasNode, ImageCanvasNode, VideoCanvasNode } from '../types/canvas'
+import type { AudioCanvasNode, CanvasEdge, CanvasNode, DocumentCanvasNode, ImageCanvasNode, VideoCanvasNode } from '../types/canvas'
 
 function getVideoProvider(source: string): string {
   try {
@@ -43,18 +43,18 @@ function findLinkedFile(
   nodeId: string,
   nodes: CanvasNode[],
   edges: CanvasEdge[],
-): DocumentCanvasNode | ImageCanvasNode | undefined {
+): DocumentCanvasNode | ImageCanvasNode | AudioCanvasNode | undefined {
   const fileNodeIds = new Set(
     nodes
-      .filter((node) => node.type === 'document' || node.type === 'image')
+      .filter((node) => node.type === 'document' || node.type === 'image' || node.type === 'audio')
       .map((node) => node.id),
   )
   const fileNodeId = edges.find(
     (edge) => edge.target === nodeId && fileNodeIds.has(edge.source),
   )?.source
   return nodes.find(
-    (node): node is DocumentCanvasNode | ImageCanvasNode =>
-      (node.type === 'document' || node.type === 'image') && node.id === fileNodeId,
+    (node): node is DocumentCanvasNode | ImageCanvasNode | AudioCanvasNode =>
+      (node.type === 'document' || node.type === 'image' || node.type === 'audio') && node.id === fileNodeId,
   )
 }
 
@@ -113,13 +113,16 @@ export function createAiContextNode(
     }
   }
 
-  if (node.type === 'document' || node.type === 'image') {
+  if (node.type === 'document' || node.type === 'image' || node.type === 'audio') {
     return {
       ...base,
       ...(node.data.fileName ? { fileName: node.data.fileName } : {}),
       ...(node.data.mimeType ? { mimeType: node.data.mimeType } : {}),
       ...(node.data.size === undefined ? {} : { fileSize: node.data.size }),
       ...(node.data.source ? { fileSource: node.data.source } : {}),
+      ...(node.type === 'audio' && node.data.durationMs !== undefined
+        ? { audioDurationMs: node.data.durationMs }
+        : {}),
     }
   }
 
@@ -159,6 +162,9 @@ export function createAiContextNode(
             ...(linkedFile.data.source ? { fileSource: linkedFile.data.source } : {}),
             ...(linkedFile.data.pageCount === undefined ? {} : { pageCount: linkedFile.data.pageCount }),
             ...(linkedFile.data.pageUnit ? { pageUnit: linkedFile.data.pageUnit } : {}),
+            ...(linkedFile.type === 'audio' && linkedFile.data.durationMs !== undefined
+              ? { durationMs: linkedFile.data.durationMs }
+              : {}),
           },
           ...(node.data.documentStartPage === undefined
             ? {}

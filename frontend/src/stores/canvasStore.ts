@@ -14,9 +14,9 @@ import { persist } from 'zustand/middleware'
 import type {
     CanvasEdge,
     CanvasNode,
+    AudioNodeData,
     CommonCanvasNodeData,
     ConceptNodeData,
-    DocumentNodeData,
     GroupNodeData,
     VideoNodeData,
 } from '../types/canvas'
@@ -97,12 +97,14 @@ function clearOrphanedTimeRanges(
     nodes: CanvasNode[],
     edges: CanvasEdge[],
 ): CanvasNode[] {
-    const videoNodeIds = new Set(
-        nodes.filter((node) => node.type === 'video').map((node) => node.id),
+    const mediaNodeIds = new Set(
+        nodes
+            .filter((node) => node.type === 'video' || node.type === 'audio')
+            .map((node) => node.id),
     )
     const linkedConceptNodeIds = new Set(
         edges
-            .filter((edge) => videoNodeIds.has(edge.source))
+            .filter((edge) => mediaNodeIds.has(edge.source))
             .map((edge) => edge.target),
     )
     const documentNodeIds = new Set(
@@ -550,6 +552,7 @@ type CanvasState = {
     } | null
     addNode: (position?: XYPosition) => void
     addVideoNode: (position?: XYPosition) => string
+    addAudioNode: (position?: XYPosition) => string
     addDocumentNode: (position?: XYPosition) => string
     addImageNode: (position?: XYPosition) => string
     groupSelectedNodes: () => string | null
@@ -578,7 +581,7 @@ type CanvasState = {
     ) => void
     updateDocumentNode: (
         nodeId: string,
-        updates: Partial<Pick<DocumentNodeData, 'title' | 'content' | 'fileName' | 'mimeType' | 'size' | 'source' | 'pageCount' | 'pageUnit'>>,
+        updates: Partial<Pick<AudioNodeData, 'title' | 'content' | 'fileName' | 'mimeType' | 'size' | 'source' | 'pageCount' | 'pageUnit' | 'durationMs'>>,
     ) => void
     updateConceptTimeRange: (
         nodeId: string,
@@ -669,6 +672,47 @@ export const useCanvasStore = create<CanvasState>()(
                     origin: 'user',
                     sourceType: 'url',
                     source: '',
+                },
+            }
+
+            return {
+                nodes: [
+                    ...state.nodes.map((node) => ({
+                        ...node,
+                        selected: false,
+                    })),
+                    newNode,
+                ],
+                past: addToHistory(state.past, createSnapshot(state)),
+                future: [],
+                canUndo: true,
+                canRedo: false,
+            }
+        })
+
+        return nodeId
+    },
+
+    addAudioNode: (position) => {
+        const nodeId = crypto.randomUUID()
+
+        set((state) => {
+            const audioCount = state.nodes.filter(
+                (node) => node.type === 'audio',
+            ).length
+            const nextPosition = findAvailableNodePosition(
+                state.nodes,
+                position ?? { x: 100, y: 100 },
+            )
+            const newNode: CanvasNode = {
+                id: nodeId,
+                type: 'audio',
+                position: nextPosition,
+                selected: true,
+                data: {
+                    title: `新音訊 ${audioCount + 1}`,
+                    content: '',
+                    origin: 'user',
                 },
             }
 
@@ -1313,6 +1357,10 @@ export const useCanvasStore = create<CanvasState>()(
                     return { ...node, data: { ...node.data, ...updates } }
                 }
 
+                if (node.type === 'audio') {
+                    return { ...node, data: { ...node.data, ...updates } }
+                }
+
                 return node
             }),
             past: addToHistory(
@@ -1348,13 +1396,14 @@ export const useCanvasStore = create<CanvasState>()(
     updateDocumentNode: (nodeId, updates) =>
         set((state) => {
             const node = state.nodes.find((candidate) => candidate.id === nodeId)
-            if (!node || (node.type !== 'document' && node.type !== 'image')) return state
+            if (!node || (node.type !== 'document' && node.type !== 'image' && node.type !== 'audio')) return state
 
             return {
                 nodes: state.nodes.map((candidate) => {
                     if (candidate.id !== nodeId) return candidate
                     if (candidate.type === 'document') return { ...candidate, data: { ...candidate.data, ...updates } }
                     if (candidate.type === 'image') return { ...candidate, data: { ...candidate.data, ...updates } }
+                    if (candidate.type === 'audio') return { ...candidate, data: { ...candidate.data, ...updates } }
                     return candidate
                 }),
                 past: addToHistory(state.past, createSnapshot(state)),

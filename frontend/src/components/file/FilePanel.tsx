@@ -1,9 +1,9 @@
-import { Download, FileText, Upload } from 'lucide-react'
+import { AudioLines, Download, FileText, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useChatStore } from '../../stores/chatStore'
-import type { CanvasNode, DocumentCanvasNode, ImageCanvasNode } from '../../types/canvas'
+import type { AudioCanvasNode, CanvasNode, DocumentCanvasNode, ImageCanvasNode } from '../../types/canvas'
 import { readDocumentPageInfo } from '../../utils/documentPages'
 import {
   clearLocalNodeFile,
@@ -20,6 +20,7 @@ type FilePanelProps = { isReadOnly?: boolean }
 
 const documentExtensions = new Set(['pdf', 'txt', 'md', 'markdown', 'csv', 'json', 'html', 'css', 'xml', 'rtf', 'js', 'docx', 'xlsx', 'pptx'])
 const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'webp', 'heic', 'heif', 'bmp'])
+const audioExtensions = new Set(['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'])
 const MAX_FILE_SIZE = 100 * 1024 * 1024
 
 const mimeByExtension: Record<string, string> = {
@@ -31,12 +32,14 @@ const mimeByExtension: Record<string, string> = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', aac: 'audio/aac',
+  ogg: 'audio/ogg', flac: 'audio/flac',
 }
 
-type AttachmentNode = DocumentCanvasNode | ImageCanvasNode
+type AttachmentNode = DocumentCanvasNode | ImageCanvasNode | AudioCanvasNode
 
 function isFileNode(node: CanvasNode): node is AttachmentNode {
-  return node.type === 'document' || node.type === 'image'
+  return node.type === 'document' || node.type === 'image' || node.type === 'audio'
 }
 
 function formatSize(size: number) {
@@ -47,11 +50,17 @@ function formatSize(size: number) {
 
 function validateFile(file: File, nodeType: AttachmentNode['type']) {
   const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
-  const isAllowed = nodeType === 'image' ? imageExtensions.has(extension) : documentExtensions.has(extension)
+  const isAllowed = nodeType === 'image'
+    ? imageExtensions.has(extension)
+    : nodeType === 'audio'
+      ? audioExtensions.has(extension)
+      : documentExtensions.has(extension)
   if (!isAllowed) {
     return nodeType === 'image'
       ? '圖片節點支援 PNG、JPG、WebP、HEIC、HEIF 與 BMP。'
-      : '文件節點支援 PDF、文字資料、DOCX、XLSX 與 PPTX。'
+      : nodeType === 'audio'
+        ? '音訊節點支援 MP3、WAV、M4A、AAC、OGG 與 FLAC。'
+        : '文件／資料支援 PDF、文字資料、DOCX、XLSX 與 PPTX。'
   }
   if (!file.size) return '這個檔案沒有內容。'
   if (extension === 'pdf' && file.size > 50 * 1024 * 1024) return 'PDF 目前上限為 50 MB。'
@@ -59,7 +68,7 @@ function validateFile(file: File, nodeType: AttachmentNode['type']) {
   return null
 }
 
-function FilePreview({ entry, title }: { entry: LocalNodeFile; title: string }) {
+function FilePreview({ entry, title, onAudioDuration }: { entry: LocalNodeFile; title: string; onAudioDuration?: (durationMs: number) => void }) {
   const [text, setText] = useState('')
   const mimeType = entry.mimeType
   const extension = entry.fileName.split('.').pop()?.toLowerCase()
@@ -76,6 +85,23 @@ function FilePreview({ entry, title }: { entry: LocalNodeFile; title: string }) 
 
   if (mimeType.startsWith('image/')) {
     return <img src={entry.url} alt={`${title} 預覽`} className="max-h-80 w-full rounded-lg border border-border object-contain" />
+  }
+  if (mimeType.startsWith('audio/') || audioExtensions.has(extension ?? '')) {
+    return (
+      <audio
+        controls
+        preload="metadata"
+        src={entry.url}
+        aria-label={`${title} 音訊播放器`}
+        onLoadedMetadata={(event) => {
+          const durationMs = Math.round(event.currentTarget.duration * 1000)
+          if (Number.isFinite(durationMs) && durationMs > 0) onAudioDuration?.(durationMs)
+        }}
+        className="w-full"
+      >
+        你的瀏覽器不支援音訊播放。
+      </audio>
+    )
   }
   if (mimeType === 'application/pdf' || extension === 'pdf') {
     return <iframe src={entry.url} title={`${title} PDF 預覽`} className="h-96 w-full rounded-lg border border-border bg-white" />
@@ -141,6 +167,7 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
     setError('')
     setIsSaving(true)
     let pageInfo = null
+    const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
     try {
       pageInfo = node.type === 'document' ? await readDocumentPageInfo(file) : null
     } catch {
@@ -149,13 +176,14 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
     const nextEntry = setLocalNodeFile(node.id, file)
     setEntry(nextEntry)
     updateFileNode(node.id, {
-      title: /^新(文件|圖片) \d+$/.test(node.data.title) ? file.name.replace(/\.[^.]+$/, '') : node.data.title,
+      title: /^新(文件|圖片|音訊) \d+$/.test(node.data.title) ? file.name.replace(/\.[^.]+$/, '') : node.data.title,
       fileName: file.name,
-      mimeType: file.type || 'application/octet-stream',
+      mimeType: file.type || mimeByExtension[extension] || 'application/octet-stream',
       size: file.size,
       source: undefined,
       pageCount: pageInfo?.pageCount,
       pageUnit: pageInfo?.pageUnit,
+      durationMs: undefined,
     })
     try {
       await persistLocalNodeFile(node.id, file)
@@ -169,7 +197,7 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
   async function removeFile() {
     await clearLocalNodeFile(node.id)
     setEntry(undefined)
-    updateFileNode(node.id, { fileName: undefined, mimeType: undefined, size: undefined, pageCount: undefined, pageUnit: undefined })
+    updateFileNode(node.id, { fileName: undefined, mimeType: undefined, size: undefined, pageCount: undefined, pageUnit: undefined, durationMs: undefined })
   }
 
   async function applySource() {
@@ -179,9 +207,19 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
       const url = new URL(value)
       if (url.protocol !== 'https:') throw new Error()
       const extension = url.pathname.split('.').pop()?.toLowerCase() ?? ''
-      const allowed = node.type === 'image' ? imageExtensions : documentExtensions
+      const allowed = node.type === 'image'
+        ? imageExtensions
+        : node.type === 'audio'
+          ? audioExtensions
+          : documentExtensions
       if (!allowed.has(extension)) {
-        setError(node.type === 'image' ? '請使用可直接開啟的圖片網址。' : '請使用網址末尾含副檔名的文件直連。')
+        setError(
+          node.type === 'image'
+            ? '請使用可直接開啟的圖片網址。'
+            : node.type === 'audio'
+              ? '請使用網址末尾含副檔名的公開音訊直連。'
+              : '請使用網址末尾含副檔名的文件直連。',
+        )
         return
       }
     } catch {
@@ -200,6 +238,7 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
       size: undefined,
       pageCount: undefined,
       pageUnit: extension === 'pdf' ? 'page' : extension === 'pptx' ? 'slide' : undefined,
+      durationMs: undefined,
     })
   }
 
@@ -212,7 +251,10 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
 
   return (
     <aside className="absolute inset-y-4 right-4 z-20 w-[min(28rem,calc(100%-2rem))] overflow-y-auto rounded-xl border border-border bg-background p-5 shadow-lg">
-      <div className="mb-5 flex items-center gap-2 font-semibold"><FileText className="size-5" aria-hidden="true" />{node.type === 'image' ? '圖片節點' : '文件節點'}</div>
+      <div className="mb-5 flex items-center gap-2 font-semibold">
+        {node.type === 'audio' ? <AudioLines className="size-5" aria-hidden="true" /> : <FileText className="size-5" aria-hidden="true" />}
+        {node.type === 'image' ? '圖片節點' : node.type === 'audio' ? '音訊節點' : '文件／資料'}
+      </div>
       <label className="mb-2 block text-sm text-foreground/70" htmlFor={`file-title-${node.id}`}>標題</label>
       <input id={`file-title-${node.id}`} value={node.data.title} readOnly={isReadOnly} onChange={(event) => updateFileNode(node.id, { title: event.target.value })} className="mb-4 min-h-11 w-full rounded-lg border border-border bg-background px-3" />
       <label className="mb-2 block text-sm text-foreground/70" htmlFor={`file-content-${node.id}`}>內容</label>
@@ -220,7 +262,7 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
 
       {!isReadOnly && (
         <>
-          <input ref={inputRef} type="file" className="sr-only" accept={node.type === 'image' ? '.png,.jpg,.jpeg,.webp,.heic,.heif,.bmp' : '.pdf,.txt,.md,.markdown,.csv,.json,.html,.css,.xml,.rtf,.js,.docx,.xlsx,.pptx'} onChange={handleFile} />
+          <input ref={inputRef} type="file" className="sr-only" accept={node.type === 'image' ? '.png,.jpg,.jpeg,.webp,.heic,.heif,.bmp' : node.type === 'audio' ? '.mp3,.wav,.m4a,.aac,.ogg,.flac,audio/*' : '.pdf,.txt,.md,.markdown,.csv,.json,.html,.css,.xml,.rtf,.js,.docx,.xlsx,.pptx'} onChange={handleFile} />
           <button type="button" onClick={() => inputRef.current?.click()} disabled={isSaving} className="mb-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 hover:bg-control-hover disabled:opacity-50">
             <Upload className="size-4" aria-hidden="true" />{entry ? '更換本機檔案' : '選擇本機檔案'}
           </button>
@@ -237,7 +279,19 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
               {!isReadOnly && <button type="button" onClick={removeFile} className="min-h-11 px-2 text-sm text-red-600">移除</button>}
             </div>
           </div>
-          <FilePreview entry={entry} title={node.data.title} />
+          <FilePreview
+            entry={entry}
+            title={node.data.title}
+            onAudioDuration={
+              node.type === 'audio'
+                ? (durationMs) => {
+                    if (durationMs !== node.data.durationMs) {
+                      updateFileNode(node.id, { durationMs })
+                    }
+                  }
+                : undefined
+            }
+          />
           {node.data.pageCount && (
             <p className="text-sm text-foreground/65">
               {node.data.pageUnit === 'slide' ? '投影片數' : '頁數'}：{node.data.pageCount}
@@ -251,7 +305,7 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
 
       {!entry && (
         <div className="mt-5 border-t border-border pt-5">
-          <label className="mb-2 block text-sm text-foreground/70" htmlFor={`file-url-${node.id}`}>{node.type === 'image' ? '圖片網址' : '文件網址'}</label>
+          <label className="mb-2 block text-sm text-foreground/70" htmlFor={`file-url-${node.id}`}>{node.type === 'image' ? '圖片網址' : node.type === 'audio' ? '音訊網址' : '文件網址'}</label>
           <input
             id={`file-url-${node.id}`}
             type="url"
@@ -262,7 +316,7 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
               setSourceDraft(event.target.value)
               setError('')
             }}
-            placeholder={node.type === 'image' ? 'https://example.com/image.jpg' : 'https://example.com/document.pdf'}
+            placeholder={node.type === 'image' ? 'https://example.com/image.jpg' : node.type === 'audio' ? 'https://example.com/audio.mp3' : 'https://example.com/document.pdf'}
             className="min-h-11 w-full rounded-lg border border-border bg-background px-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
           />
           {!isReadOnly && (
@@ -276,6 +330,23 @@ function FileNodeEditor({ node, isReadOnly }: { node: AttachmentNode; isReadOnly
             </button>
           )}
           {node.data.source && node.type === 'image' && <img src={node.data.source} alt={`${node.data.title} 預覽`} className="mt-3 max-h-80 w-full rounded-lg border border-border object-contain" />}
+          {node.data.source && node.type === 'audio' && (
+            <audio
+              controls
+              preload="metadata"
+              src={node.data.source}
+              aria-label={`${node.data.title} 音訊播放器`}
+              onLoadedMetadata={(event) => {
+                const durationMs = Math.round(event.currentTarget.duration * 1000)
+                if (Number.isFinite(durationMs) && durationMs > 0 && durationMs !== node.data.durationMs) {
+                  updateFileNode(node.id, { durationMs })
+                }
+              }}
+              className="mt-3 w-full"
+            >
+              你的瀏覽器不支援音訊播放。
+            </audio>
+          )}
           {node.data.source?.toLowerCase().split('?')[0].endsWith('.pdf') && <iframe src={node.data.source} title={`${node.data.title} PDF 預覽`} className="mt-3 h-96 w-full rounded-lg border border-border bg-white" />}
         </div>
       )}

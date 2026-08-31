@@ -427,9 +427,9 @@ export function LandingPage() {
                     <Film aria-hidden="true" className="size-5" />
                   </span>
                   <div>
-                    <h3 className="font-semibold">一張畫布，多個影片節點</h3>
+                    <h3 className="font-semibold">一張畫布，多個影音節點</h3>
                     <p className="mt-1 text-sm leading-6 text-foreground/60">
-                      每支影片都能各自命名、補充內容，並和相關概念建立連線。
+                      影片與訪談錄音都能各自命名、播放、標記區間，並和相關概念建立連線。
                     </p>
                   </div>
                 </li>
@@ -438,7 +438,7 @@ export function LandingPage() {
                     <FileText aria-hidden="true" className="size-5" />
                   </span>
                   <div>
-                    <h3 className="font-semibold">文件與圖片也是節點</h3>
+                    <h3 className="font-semibold">文件、資料與圖片也是節點</h3>
                     <p className="mt-1 text-sm leading-6 text-foreground/60">
                       上傳或貼上公開直連，將 PDF、文字資料、Office 文件與圖片放進畫布；雙擊節點即可帶著附件和 Gemini 對話。
                     </p>

@@ -40,6 +40,10 @@ export type DocumentNodeData = CommonCanvasNodeData & {
 
 export type ImageNodeData = DocumentNodeData
 
+export type AudioNodeData = DocumentNodeData & {
+    durationMs?: number
+}
+
 export type GroupNodeData = {
     title: string
     width: number
@@ -49,7 +53,7 @@ export type GroupNodeData = {
     locked?: boolean
 }
 
-export type CanvasNodeData = ConceptNodeData | VideoNodeData | DocumentNodeData | ImageNodeData | GroupNodeData
+export type CanvasNodeData = ConceptNodeData | VideoNodeData | DocumentNodeData | ImageNodeData | AudioNodeData | GroupNodeData
 
 export type CanvasEdgeData = {
     label?: string
@@ -60,6 +64,7 @@ export type ConceptCanvasNode = Node<ConceptNodeData, 'concept'>
 export type VideoCanvasNode = Node<VideoNodeData, 'video'>
 export type DocumentCanvasNode = Node<DocumentNodeData, 'document'>
 export type ImageCanvasNode = Node<ImageNodeData, 'image'>
+export type AudioCanvasNode = Node<AudioNodeData, 'audio'>
 export type GroupCanvasNode = Node<GroupNodeData, 'group'>
-export type CanvasNode = ConceptCanvasNode | VideoCanvasNode | DocumentCanvasNode | ImageCanvasNode | GroupCanvasNode
+export type CanvasNode = ConceptCanvasNode | VideoCanvasNode | DocumentCanvasNode | ImageCanvasNode | AudioCanvasNode | GroupCanvasNode
 export type CanvasEdge = Edge<CanvasEdgeData>

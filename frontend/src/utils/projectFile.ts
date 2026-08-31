@@ -121,6 +121,13 @@ const fileNodeDataSchema = z.object({
   pageUnit: z.preprocess(nullToUndefined, z.enum(['page', 'slide']).optional()),
 })
 
+const audioNodeDataSchema = fileNodeDataSchema.extend({
+  durationMs: z.preprocess(
+    nullToUndefined,
+    z.number().int().positive().optional(),
+  ),
+})
+
 const groupNodeDataSchema = z.object({
   title: z.string().max(120),
   width: z.number().finite().min(240).max(10000),
@@ -167,6 +174,14 @@ const imageNodeSchema = z.object({
   parentId: optionalStringSchema,
 })
 
+const audioNodeSchema = z.object({
+  id: z.string().min(1),
+  type: z.literal('audio'),
+  position: positionSchema,
+  data: audioNodeDataSchema,
+  parentId: optionalStringSchema,
+})
+
 const groupNodeSchema = z.object({
   id: z.string().min(1),
   type: z.literal('group'),
@@ -179,6 +194,7 @@ const canvasNodeSchema = z.discriminatedUnion('type', [
   videoNodeSchema,
   documentNodeSchema,
   imageNodeSchema,
+  audioNodeSchema,
   groupNodeSchema,
 ])
 
@@ -414,9 +430,9 @@ function validateProjectRelations(
   context: z.core.$RefinementCtx,
 ) {
   const nodeIds = new Set(project.nodes.map((node) => node.id))
-  const videoNodes = new Map(
+  const mediaNodes = new Map(
     project.nodes
-      .filter((node) => node.type === 'video')
+      .filter((node) => node.type === 'video' || node.type === 'audio')
       .map((node) => [node.id, node]),
   )
   const documentNodes = new Map(
@@ -476,36 +492,36 @@ function validateProjectRelations(
 
     if (startTimeMs === undefined || endTimeMs === undefined) return
 
-    const linkedVideoIds = [...new Set(
+    const linkedMediaIds = [...new Set(
       project.edges
-        .filter((edge) => edge.target === node.id && videoNodes.has(edge.source))
+        .filter((edge) => edge.target === node.id && mediaNodes.has(edge.source))
         .map((edge) => edge.source),
     )]
 
-    if (linkedVideoIds.length === 0) {
+    if (linkedMediaIds.length === 0) {
       context.addIssue({
         code: 'custom',
         path: ['nodes', index, 'data', 'startTimeMs'],
-        message: '設定節點時間前必須先連接影片節點',
+        message: '設定節點時間前必須先連接影片或音訊節點',
       })
       return
     }
 
-    if (linkedVideoIds.length > 1) {
+    if (linkedMediaIds.length > 1) {
       context.addIssue({
         code: 'custom',
         path: ['nodes', index, 'data', 'startTimeMs'],
-        message: '設定時間區間的文字節點只能連接一個影片節點',
+        message: '設定時間區間的文字節點只能連接一個影音來源',
       })
       return
     }
 
-    const durationMs = videoNodes.get(linkedVideoIds[0])?.data.durationMs
+    const durationMs = mediaNodes.get(linkedMediaIds[0])?.data.durationMs
     if (durationMs !== undefined && endTimeMs > durationMs) {
       context.addIssue({
         code: 'custom',
         path: ['nodes', index, 'data', 'endTimeMs'],
-        message: '節點時間不得超出影片長度',
+        message: '節點時間不得超出影音長度',
       })
     }
   })

@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.project_schemas import (
+    ProjectAudioNode,
     ProjectDocument,
     ProjectUpdate,
     ProjectVersionCreate,
@@ -93,6 +94,27 @@ def create_video_node(duration_ms: int | None = 60_000) -> dict[str, object]:
     return {
         "id": "video-1",
         "type": "video",
+        "position": {"x": 0, "y": 0},
+        "data": data,
+    }
+
+
+def create_audio_node(duration_ms: int | None = 90_000) -> dict[str, object]:
+    data: dict[str, object] = {
+        "title": "訪談錄音",
+        "content": "",
+        "origin": "user",
+        "sourceType": "url",
+        "source": "https://example.com/interview.mp3",
+        "fileName": "interview.mp3",
+        "mimeType": "audio/mpeg",
+    }
+    if duration_ms is not None:
+        data["durationMs"] = duration_ms
+
+    return {
+        "id": "audio-1",
+        "type": "audio",
         "position": {"x": 0, "y": 0},
         "data": data,
     }
@@ -398,6 +420,30 @@ def test_accepts_multiple_video_nodes_and_segment_binding() -> None:
     assert document.edges[0].source == "video-2"
 
 
+def test_accepts_audio_node_and_segment_binding() -> None:
+    document = ProjectDocument.model_validate(
+        {
+            "version": 4,
+            "nodes": [
+                create_audio_node(),
+                create_concept_node({"startTimeMs": 10_000, "endTimeMs": 30_000}),
+            ],
+            "edges": [
+                {
+                    "id": "audio-link",
+                    "source": "audio-1",
+                    "target": "node-1",
+                    "data": {"origin": "user"},
+                }
+            ],
+            "messages": [],
+        }
+    )
+
+    assert isinstance(document.nodes[0], ProjectAudioNode)
+    assert document.nodes[1].data.start_time_ms == 10_000
+
+
 @pytest.mark.parametrize(
     ("node_data", "error_message"),
     [
@@ -408,7 +454,7 @@ def test_accepts_multiple_video_nodes_and_segment_binding() -> None:
         ),
         (
             {"startTimeMs": 1_000, "endTimeMs": 2_000},
-            "設定節點時間前必須先連接影片節點",
+            "設定節點時間前必須先連接影片或音訊節點",
         ),
     ],
 )
@@ -428,7 +474,7 @@ def test_rejects_invalid_video_segment(
 
 
 def test_rejects_segment_past_bound_video_duration() -> None:
-    with pytest.raises(ValidationError, match="節點時間不得超出影片長度"):
+    with pytest.raises(ValidationError, match="節點時間不得超出影音長度"):
         ProjectDocument.model_validate(
             {
                 "version": 4,

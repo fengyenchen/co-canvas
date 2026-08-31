@@ -135,4 +135,37 @@ describe('createAiContextNode', () => {
       }),
     )
   })
+
+  it('讓相連音訊與時間區間成為文字節點附件上下文', () => {
+    const audioNode: CanvasNode = {
+      id: 'audio-1',
+      type: 'audio',
+      position: { x: 0, y: 0 },
+      data: {
+        title: '訪談錄音', content: '', origin: 'user', fileName: 'interview.mp3',
+        mimeType: 'audio/mpeg', size: 4096, durationMs: 90_000,
+      },
+    }
+    const conceptNode: CanvasNode = {
+      id: 'concept-audio', type: 'concept', position: { x: 0, y: 200 },
+      data: {
+        title: '訪談重點', content: '', origin: 'user',
+        startTimeMs: 10_000, endTimeMs: 30_000,
+      },
+    }
+    const audioEdge: CanvasEdge = {
+      id: 'edge-audio', source: audioNode.id, target: conceptNode.id,
+      data: { origin: 'user' },
+    }
+
+    expect(createAiContextNode(conceptNode, [audioNode, conceptNode], [audioEdge])).toEqual(
+      expect.objectContaining({
+        startTimeMs: 10_000,
+        endTimeMs: 30_000,
+        linkedFile: expect.objectContaining({
+          id: 'audio-1', nodeType: 'audio', fileName: 'interview.mp3', durationMs: 90_000,
+        }),
+      }),
+    )
+  })
 })

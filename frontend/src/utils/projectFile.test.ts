@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type {
+  AudioCanvasNode,
   CanvasEdge,
   ConceptCanvasNode,
   GroupCanvasNode,
@@ -26,6 +27,21 @@ const videoNode: VideoCanvasNode = {
     sourceType: 'url',
     source: 'https://example.com/video.mp4',
     durationMs: 60_000,
+  },
+}
+
+const audioNode: AudioCanvasNode = {
+  id: 'audio-1',
+  type: 'audio',
+  position: { x: 300, y: 0 },
+  data: {
+    title: '訪談錄音',
+    content: '',
+    origin: 'user',
+    source: 'https://example.com/interview.mp3',
+    fileName: 'interview.mp3',
+    mimeType: 'audio/mpeg',
+    durationMs: 90_000,
   },
 }
 
@@ -310,7 +326,7 @@ describe('projectFile', () => {
     expect(imported.version).toBe(4)
   })
 
-  it('拒絕未連接影片與超出影片長度的區間', () => {
+  it('拒絕未連接影音來源與超出影音長度的區間', () => {
     const missingVideoNode: ConceptCanvasNode = {
       ...nodes[0]!,
       data: {
@@ -330,14 +346,36 @@ describe('projectFile', () => {
 
     expect(() =>
       parseProjectFile(createProjectFile([missingVideoNode], [], [])),
-    ).toThrow('設定節點時間前必須先連接影片節點')
+    ).toThrow('設定節點時間前必須先連接影片或音訊節點')
     expect(() =>
       parseProjectFile(createProjectFile(
         [videoNode, nodePastDuration],
         [{ id: 'video-link', source: videoNode.id, target: nodePastDuration.id, data: { origin: 'user' } }],
         [],
       )),
-    ).toThrow('節點時間不得超出影片長度')
+    ).toThrow('節點時間不得超出影音長度')
+  })
+
+  it('保留音訊節點與連接的時間區間', () => {
+    const timedNode: ConceptCanvasNode = {
+      ...nodes[0]!,
+      data: {
+        ...nodes[0]!.data,
+        startTimeMs: 10_000,
+        endTimeMs: 30_000,
+      },
+    }
+    const imported = parseProjectFile(createProjectFile(
+      [audioNode, timedNode],
+      [{ id: 'audio-link', source: audioNode.id, target: timedNode.id, data: { origin: 'user' } }],
+      [],
+    ))
+
+    expect(imported.nodes[0]).toEqual(audioNode)
+    expect(imported.nodes[1]?.data).toEqual(expect.objectContaining({
+      startTimeMs: 10_000,
+      endTimeMs: 30_000,
+    }))
   })
 
   it('自動將 version 3 的影片欄位轉換為連線', () => {

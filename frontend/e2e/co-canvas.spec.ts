@@ -116,6 +116,27 @@ test('影片節點可選擇本機 MP4 並在目前分頁預覽', async ({ page }
   await expect(page.getByLabel('標題')).toHaveValue('competition-demo')
 })
 
+test('音訊節點可選擇本機 MP3 並在目前分頁播放', async ({ page }) => {
+  await installE2eMocks(page, {
+    projects: [createProject()],
+  })
+  await page.goto(`/projects/${PROJECT_ID}`)
+
+  await page.getByRole('button', { name: '新增節點' }).click()
+  await page.getByRole('button', { name: '音訊節點' }).click()
+
+  const fileInput = page.locator('input[type="file"][accept*=".mp3"]')
+  await fileInput.setInputFiles({
+    name: 'interview.mp3',
+    mimeType: 'audio/mpeg',
+    buffer: Buffer.from('e2e-audio'),
+  })
+
+  await expect(page.getByText(/interview\.mp3 ·/)).toBeVisible()
+  await expect(page.getByLabel('interview 音訊播放器')).toHaveAttribute('src', /^blob:/)
+  await expect(page.getByLabel('標題')).toHaveValue('interview')
+})
+
 test('建立專案、儲存節點並複製分享連結', async ({ page }) => {
   const state = await installE2eMocks(page)
   await page.goto('/projects')
