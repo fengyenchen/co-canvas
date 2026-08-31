@@ -5,6 +5,7 @@ frontend/.vite/
 
 # Backend virtual environment
 backend/.venv/
+backend/.venv-codex/
 backend/venv/
 backend/env/
 

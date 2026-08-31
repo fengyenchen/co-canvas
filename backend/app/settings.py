@@ -26,10 +26,15 @@ class Settings(BaseSettings):
     neon_api_key: SecretStr | None = None
     neon_project_id: str | None = None
     neon_branch_id: str | None = None
+    resend_api_key: SecretStr | None = None
+    resend_from_email: str | None = None
     resend_webhook_secret: SecretStr | None = None
     auth_cleanup_secret: SecretStr | None = None
+    auth_audit_hash_secret: SecretStr | None = None
+    auth_admin_emails: str = ""
     auth_unverified_retention_hours: int = Field(default=24, ge=1)
     auth_cleanup_batch_size: int = Field(default=100, ge=1, le=1000)
+    app_public_url: str = "http://localhost:5173"
     cors_allowed_origins: str = "http://localhost:5173"
     api_rate_limit_requests: int = Field(default=120, ge=1)
     ai_rate_limit_requests: int = Field(default=20, ge=1)
@@ -43,6 +48,14 @@ class Settings(BaseSettings):
             for origin in self.cors_allowed_origins.split(",")
             if origin.strip()
         ]
+
+    @property
+    def auth_admin_email_set(self) -> set[str]:
+        return {
+            email.strip().lower()
+            for email in self.auth_admin_emails.split(",")
+            if email.strip()
+        }
 
 
 @lru_cache
