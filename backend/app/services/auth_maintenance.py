@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import quote
@@ -33,6 +35,18 @@ class AuthUserTable:
     verified_column: str
     created_column: str
     deleted_column: str | None = None
+
+
+def hash_auth_identifier(value: str, settings: Settings) -> str:
+    normalized = value.strip().lower().encode()
+    secret = settings.auth_audit_hash_secret or settings.auth_cleanup_secret
+    if secret is None:
+        return hashlib.sha256(normalized).hexdigest()
+    return hmac.new(
+        secret.get_secret_value().encode(),
+        normalized,
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _quote_identifier(identifier: str) -> str:
@@ -191,6 +205,24 @@ async def list_expired_unverified_users(
         if record is not None:
             records.append(record)
     return records
+
+
+async def list_auth_users(
+    session: AsyncSession,
+    limit: int = 500,
+) -> list[AuthUserRecord]:
+    table = await discover_auth_user_table(session)
+    statement = text(
+        f"""
+        SELECT {_select_columns(table)}
+        FROM neon_auth.{_quote_identifier(table.table)}
+        WHERE {_active_clause(table)}
+        ORDER BY {_quote_identifier(table.created_column)} DESC
+        LIMIT :limit
+        """
+    )
+    rows = (await session.execute(statement, {"limit": limit})).all()
+    return [record for row in rows if (record := _to_record(row)) is not None]
 
 
 async def delete_neon_auth_user(
