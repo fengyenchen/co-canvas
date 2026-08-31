@@ -15,18 +15,20 @@ async function openProjectMenu(page: Page, name: string) {
   }).click()
 }
 
-test('可搜尋專案並切換更新時間與名稱排序', async ({ page }) => {
+test('預設依最近查看排序，並可切換更新時間與名稱排序', async ({ page }) => {
   await installE2eMocks(page, {
     projects: [
       createProject({
         id: PROJECT_ID,
         name: 'Beta 計畫',
         updatedAt: '2026-01-02T00:00:00.000Z',
+        lastViewedAt: '2026-01-03T00:00:00.000Z',
       }),
       createProject({
         id: SECOND_PROJECT_ID,
         name: 'Alpha 研究',
         updatedAt: '2026-01-03T00:00:00.000Z',
+        lastViewedAt: '2026-01-02T00:00:00.000Z',
       }),
       createProject({
         id: THIRD_PROJECT_ID,
@@ -38,6 +40,10 @@ test('可搜尋專案並切換更新時間與名稱排序', async ({ page }) => 
   await page.goto('/projects')
 
   const projectNames = page.locator('section[aria-labelledby="project-list-title"] ul h3')
+  await expect(page.getByLabel('專案排序方式')).toHaveValue('viewed-desc')
+  await expect(projectNames).toHaveText(['Beta 計畫', 'Alpha 研究', 'Gamma 筆記'])
+
+  await page.getByLabel('專案排序方式').selectOption('updated-desc')
   await expect(projectNames).toHaveText(['Alpha 研究', 'Beta 計畫', 'Gamma 筆記'])
 
   await page.getByLabel('專案排序方式').selectOption('updated-asc')

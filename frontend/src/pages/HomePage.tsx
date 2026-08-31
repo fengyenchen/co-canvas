@@ -33,7 +33,11 @@ import type {
 import { getLocalProjectDocument } from '../utils/localProjectBackup'
 
 type CreateProjectMode = 'empty' | 'local'
-type ProjectSort = 'updated-desc' | 'updated-asc' | 'name-asc'
+type ProjectSort =
+  | 'viewed-desc'
+  | 'updated-desc'
+  | 'updated-asc'
+  | 'name-asc'
 const PROJECT_COPY_SUFFIX = '（副本）'
 
 function getProjectCopyName(name: string) {
@@ -143,7 +147,7 @@ export function HomePage() {
   const [isTrashOpen, setIsTrashOpen] = useState(false)
   const [projectSearch, setProjectSearch] = useState('')
   const [projectSort, setProjectSort] =
-    useState<ProjectSort>('updated-desc')
+    useState<ProjectSort>('viewed-desc')
   const [aiCredential, setAiCredential] = useState<AiCredential | null>(
     null,
   )
@@ -169,6 +173,25 @@ export function HomePage() {
           numeric: true,
           sensitivity: 'base',
         })
+      }
+
+      if (projectSort === 'viewed-desc') {
+        const firstViewedAt = firstProject.lastViewedAt
+          ? Date.parse(firstProject.lastViewedAt)
+          : Number.NEGATIVE_INFINITY
+        const secondViewedAt = secondProject.lastViewedAt
+          ? Date.parse(secondProject.lastViewedAt)
+          : Number.NEGATIVE_INFINITY
+        const viewTimeDifference = secondViewedAt - firstViewedAt
+
+        if (viewTimeDifference !== 0) {
+          return viewTimeDifference
+        }
+
+        return (
+          Date.parse(secondProject.updatedAt) -
+          Date.parse(firstProject.updatedAt)
+        )
       }
 
       const timeDifference =
@@ -323,7 +346,10 @@ export function HomePage() {
       setProjects((currentProjects) =>
         currentProjects.map((project) =>
           project.id === updatedProject.id
-            ? updatedProject
+            ? {
+                ...updatedProject,
+                lastViewedAt: project.lastViewedAt,
+              }
             : project,
         ),
       )
@@ -461,7 +487,12 @@ export function HomePage() {
       })
       setProjects((currentProjects) =>
         currentProjects.map((project) =>
-          project.id === updatedProject.id ? updatedProject : project,
+          project.id === updatedProject.id
+            ? {
+                ...updatedProject,
+                lastViewedAt: project.lastViewedAt,
+              }
+            : project,
         ),
       )
       permissionDialogRef.current?.close()
@@ -794,6 +825,7 @@ export function HomePage() {
                   }
                   className="min-h-11 w-full cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground shadow-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/20 sm:w-auto"
                 >
+                  <option value="viewed-desc">最近查看</option>
                   <option value="updated-desc">最近更新</option>
                   <option value="updated-asc">最早更新</option>
                   <option value="name-asc">名稱排序</option>
@@ -952,7 +984,9 @@ export function HomePage() {
                       </div>
                       <div className="mt-6 flex items-center justify-between gap-3 text-sm text-foreground/55">
                         <span>
-                          更新於 {formatUpdatedAt(project.updatedAt)}
+                          {project.lastViewedAt
+                            ? `查看於 ${formatUpdatedAt(project.lastViewedAt)}`
+                            : `更新於 ${formatUpdatedAt(project.updatedAt)}`}
                         </span>
                         <svg
                           viewBox="0 0 24 24"

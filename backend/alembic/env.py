@@ -74,12 +74,15 @@ async def run_async_migrations() -> None:
 
 def run_migrations_online() -> None:
     if sys.platform == "win32":
-        asyncio.run(
-            run_async_migrations(),
-            loop_factory=lambda: asyncio.SelectorEventLoop(
-                selectors.SelectSelector(),
-            ),
+        event_loop = asyncio.SelectorEventLoop(
+            selectors.SelectSelector(),
         )
+        asyncio.set_event_loop(event_loop)
+        try:
+            event_loop.run_until_complete(run_async_migrations())
+        finally:
+            event_loop.close()
+            asyncio.set_event_loop(None)
         return
 
     asyncio.run(run_async_migrations())

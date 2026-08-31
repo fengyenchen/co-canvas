@@ -35,6 +35,7 @@ export type ProjectSummary = {
   accessRole: ProjectRole
   createdAt: string
   updatedAt: string
+  lastViewedAt: string | null
 }
 
 export type Project = ProjectSummary & {

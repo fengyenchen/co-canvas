@@ -33,6 +33,7 @@ export type E2eProject = {
   accessRole: 'owner' | 'editor' | 'viewer'
   createdAt: string
   updatedAt: string
+  lastViewedAt: string | null
   document: E2eDocument
 }
 
@@ -83,6 +84,7 @@ export function createProject(
     accessRole: 'owner',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    lastViewedAt: null,
     document: emptyDocument(),
     ...overrides,
   }
@@ -97,6 +99,7 @@ function projectSummary(project: E2eProject) {
     accessRole: project.accessRole,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
+    lastViewedAt: project.lastViewedAt,
   }
 }
 
@@ -351,6 +354,7 @@ export async function installE2eMocks(
         accessRole: trashedProject.accessRole,
         createdAt: trashedProject.createdAt,
         updatedAt: trashedProject.updatedAt,
+        lastViewedAt: trashedProject.lastViewedAt,
         document: trashedProject.document,
       }
       state.trashedProjects.splice(projectIndex, 1)
@@ -452,6 +456,22 @@ export async function installE2eMocks(
         projectId: researchEventsMatch[1],
         events: input.events,
       })
+      await route.fulfill({ status: 204 })
+      return
+    }
+
+    const projectViewMatch = path.match(
+      /^\/api\/projects\/([^/]+)\/view$/,
+    )
+    if (projectViewMatch && method === 'POST') {
+      const project = state.projects.find(
+        (item) => item.id === projectViewMatch[1],
+      )
+      if (!project) {
+        await json(route, { detail: '找不到專案' }, 404)
+        return
+      }
+      project.lastViewedAt = '2026-01-04T00:00:00.000Z'
       await route.fulfill({ status: 204 })
       return
     }

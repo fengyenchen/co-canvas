@@ -508,6 +508,7 @@ class ProjectSummary(ApiModel):
     access_role: ProjectRole
     created_at: datetime
     updated_at: datetime
+    last_viewed_at: datetime | None = None
 
 
 class ProjectResponse(ProjectSummary):

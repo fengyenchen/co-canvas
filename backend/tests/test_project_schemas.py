@@ -12,7 +12,25 @@ from app.project_schemas import (
     ProjectVideoNode,
     ProjectDocumentNode,
     ProjectImageNode,
+    ProjectSummary,
 )
+
+
+def test_project_summary_accepts_last_viewed_at() -> None:
+    summary = ProjectSummary.model_validate(
+        {
+            "id": "11111111-1111-4111-8111-111111111111",
+            "name": "最近查看專案",
+            "visibility": "private",
+            "publicAccessRole": "viewer",
+            "accessRole": "owner",
+            "createdAt": "2026-08-31T08:00:00.000Z",
+            "updatedAt": "2026-08-31T09:00:00.000Z",
+            "lastViewedAt": "2026-08-31T10:00:00.000Z",
+        }
+    )
+
+    assert summary.last_viewed_at is not None
 
 
 def test_accepts_document_and_image_nodes() -> None:

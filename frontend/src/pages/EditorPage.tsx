@@ -12,6 +12,7 @@ import {
   deleteProject,
   downloadProjectResearchEvents,
   getProject,
+  markProjectViewed,
   restoreProjectVersion,
   syncProjectResearchEvents,
   updateProject,
@@ -347,6 +348,8 @@ export function EditorPage({ mode = 'project' }: EditorPageProps) {
           // Skip recovery if the account scope cannot be verified safely.
         }
         const project = await getProject(projectId)
+
+        void markProjectViewed(projectId).catch(() => undefined)
 
         if (isCancelled) {
           return

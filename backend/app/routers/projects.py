@@ -13,7 +13,13 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 
 from app.auth import AuthenticatedUser, CurrentUser, OptionalCurrentUser
 from app.database import get_database_session
-from app.models import Project, ProjectMember, ProjectVersion, ResearchEvent
+from app.models import (
+    Project,
+    ProjectMember,
+    ProjectVersion,
+    ProjectView,
+    ResearchEvent,
+)
 from app.project_schemas import (
     ProjectCreate,
     ProjectMemberCreate,
@@ -226,6 +232,7 @@ async def get_project_role(
 def to_project_summary(
     project: Project,
     access_role: ProjectRole,
+    last_viewed_at: datetime | None = None,
 ) -> ProjectSummary:
     return ProjectSummary(
         id=project.id,
@@ -235,6 +242,7 @@ def to_project_summary(
         access_role=access_role,
         created_at=project.created_at,
         updated_at=project.updated_at,
+        last_viewed_at=last_viewed_at,
     )
 
 
@@ -323,12 +331,19 @@ async def list_projects(
         )
 
     result = await session.execute(
-        select(Project, ProjectMember.role)
+        select(Project, ProjectMember.role, ProjectView.viewed_at)
         .outerjoin(
             ProjectMember,
             and_(
                 ProjectMember.project_id == Project.id,
                 or_(*member_filters),
+            ),
+        )
+        .outerjoin(
+            ProjectView,
+            and_(
+                ProjectView.project_id == Project.id,
+                ProjectView.user_id == user.id,
             ),
         )
         .where(
@@ -338,13 +353,16 @@ async def list_projects(
                 ProjectMember.id.is_not(None),
             ),
         )
-        .order_by(Project.updated_at.desc())
+        .order_by(
+            ProjectView.viewed_at.desc().nullslast(),
+            Project.updated_at.desc(),
+        )
         .limit(100),
     )
 
     summaries: list[ProjectSummary] = []
 
-    for project, member_role in result:
+    for project, member_role, last_viewed_at in result:
         if project.owner_id == user.id:
             access_role: ProjectRole = "owner"
         elif project.visibility == "public":
@@ -354,7 +372,9 @@ async def list_projects(
         else:
             continue
 
-        summaries.append(to_project_summary(project, access_role))
+        summaries.append(
+            to_project_summary(project, access_role, last_viewed_at)
+        )
 
     return summaries
 
@@ -404,6 +424,29 @@ async def get_project(
 ) -> ProjectResponse:
     project, role = await get_readable_project(project_id, session, user)
     return to_project_response(project, role)
+
+
+@router.post("/{project_id}/view", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_project_viewed(
+    project_id: uuid.UUID,
+    session: DatabaseSession,
+    user: CurrentUser,
+) -> Response:
+    await get_readable_project(project_id, session, user)
+    statement = postgresql_insert(ProjectView).values(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        user_id=user.id,
+        viewed_at=func.now(),
+    )
+    await session.execute(
+        statement.on_conflict_do_update(
+            index_elements=[ProjectView.project_id, ProjectView.user_id],
+            set_={"viewed_at": func.now()},
+        )
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{project_id}/research-events/export")

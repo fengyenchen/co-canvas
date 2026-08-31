@@ -23,6 +23,7 @@ const projectSummarySchema = z.object({
   accessRole: z.enum(['owner', 'editor', 'viewer']),
   createdAt: z.string(),
   updatedAt: z.string(),
+  lastViewedAt: z.string().nullable(),
 })
 
 const projectSchema = projectSummarySchema.extend({
@@ -120,6 +121,20 @@ export async function getProject(projectId: string): Promise<Project> {
   }
 
   return projectSchema.parse(await response.json())
+}
+
+export async function markProjectViewed(projectId: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/view`,
+    {
+      method: 'POST',
+      headers: await createRequestHeaders(),
+    },
+  )
+
+  if (!response.ok) {
+    return throwApiRequestError(response)
+  }
 }
 
 export async function createProject(

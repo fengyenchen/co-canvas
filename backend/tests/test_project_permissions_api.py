@@ -46,6 +46,7 @@ class FakeProjectSession:
         self.member_role = member_role
         self.owner_lookup_allowed = owner_lookup_allowed
         self.commit_count = 0
+        self.execute_count = 0
         self.rollback_count = 0
 
     async def get(self, model: type[Project], project_id: uuid.UUID) -> Project | None:
@@ -56,6 +57,9 @@ class FakeProjectSession:
         if self.member_role is not None:
             return self.member_role
         return self.project if self.owner_lookup_allowed else None
+
+    async def execute(self, _statement: object) -> None:
+        self.execute_count += 1
 
     async def commit(self) -> None:
         self.commit_count += 1
@@ -159,6 +163,20 @@ def test_non_owner_cannot_delete_project(user: AuthenticatedUser) -> None:
     assert response.json() == {"detail": "找不到此專案"}
     assert project.deleted_at is None
     assert session.commit_count == 0
+
+
+def test_owner_can_mark_project_viewed_without_updating_project() -> None:
+    project = create_project()
+    original_updated_at = project.updated_at
+    session = FakeProjectSession(project)
+
+    with api_client(session, OWNER) as client:
+        response = client.post(f"/api/projects/{PROJECT_ID}/view")
+
+    assert response.status_code == 204
+    assert session.execute_count == 1
+    assert session.commit_count == 1
+    assert project.updated_at == original_updated_at
 
 
 def test_editor_can_patch_content_but_cannot_change_permissions() -> None:
