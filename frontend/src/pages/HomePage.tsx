@@ -733,6 +733,12 @@ export function HomePage() {
                 >
                   AI 設定
                 </button>
+                <Link
+                  to="/account/security"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  帳號安全
+                </Link>
                 <button
                   type="button"
                   disabled={isSigningOut}

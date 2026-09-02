@@ -1,0 +1,99 @@
+.account-page .neon-auth-ui {
+  width: 100%;
+}
+
+.account-security-view,
+.account-security-cards {
+  width: 100%;
+}
+
+.account-settings-card {
+  overflow: hidden;
+  border: 1px solid var(--border) !important;
+  border-radius: 1rem !important;
+  background: var(--background) !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+}
+
+.account-settings-card-header,
+.account-settings-card-content,
+.account-settings-card-footer {
+  padding-right: 1.25rem !important;
+  padding-left: 1.25rem !important;
+}
+
+.account-settings-card-header {
+  padding-top: 1.25rem !important;
+}
+
+.account-settings-card-content {
+  padding-top: 0.25rem !important;
+  padding-bottom: 1.25rem !important;
+}
+
+.account-settings-card-footer {
+  gap: 0.75rem;
+  padding-top: 1rem !important;
+  padding-bottom: 1rem !important;
+}
+
+.account-settings-card-title {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+}
+
+.account-settings-card-description,
+.account-settings-card-instructions {
+  line-height: 1.6 !important;
+}
+
+.account-settings-input,
+.account-settings-button {
+  min-height: 2.75rem !important;
+  border-radius: 0.75rem !important;
+}
+
+.account-settings-primary-button {
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+.account-settings-primary-button:hover {
+  background: var(--primary-hover) !important;
+}
+
+.account-settings-outline-button,
+.account-settings-secondary-button {
+  cursor: pointer;
+}
+
+.account-settings-destructive-button {
+  cursor: pointer;
+}
+
+.account-session-cell {
+  border-color: var(--border) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: none !important;
+}
+
+.account-settings-dialog {
+  border-radius: 1rem !important;
+}
+
+@media (min-width: 640px) {
+  .account-settings-card-header,
+  .account-settings-card-content,
+  .account-settings-card-footer {
+    padding-right: 1.5rem !important;
+    padding-left: 1.5rem !important;
+  }
+
+  .account-settings-card-header {
+    padding-top: 1.5rem !important;
+  }
+
+  .account-settings-card-content {
+    padding-bottom: 1.5rem !important;
+  }
+}
