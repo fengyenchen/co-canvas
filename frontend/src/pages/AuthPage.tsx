@@ -17,9 +17,46 @@ import {
 import { authClient } from "../lib/auth";
 
 const authLocalizationZhTw = {
-  // ... 這裡保留你的翻譯設定 ...
   APP: "Co-Canvas",
+  EMAIL: "電子郵件",
+  EMAIL_PLACEHOLDER: "請輸入電子郵件",
+  IS_INVALID: "格式不正確",
+  IS_REQUIRED: "為必填欄位",
+
   SIGN_IN: "登入",
+  GO_BACK: "返回登入",
+
+  FORGOT_PASSWORD: "忘記密碼",
+  FORGOT_PASSWORD_ACTION: "寄送重設連結",
+  FORGOT_PASSWORD_DESCRIPTION: "輸入電子郵件，我們會寄送密碼重設連結給你",
+  FORGOT_PASSWORD_EMAIL: "密碼重設信已寄出，請前往信箱查看。",
+  FORGOT_PASSWORD_LINK: "忘記密碼？",
+
+  RESET_PASSWORD: "重設密碼",
+  RESET_PASSWORD_ACTION: "儲存新密碼",
+  RESET_PASSWORD_DESCRIPTION: "請在下方設定你的新密碼",
+  RESET_PASSWORD_SUCCESS: "密碼已重設，請使用新密碼登入。",
+  NEW_PASSWORD: "新密碼",
+  NEW_PASSWORD_PLACEHOLDER: "請輸入新密碼",
+  NEW_PASSWORD_REQUIRED: "請輸入新密碼",
+  CONFIRM_PASSWORD: "確認新密碼",
+  CONFIRM_PASSWORD_PLACEHOLDER: "請再次輸入新密碼",
+  CONFIRM_PASSWORD_REQUIRED: "請再次輸入新密碼",
+  PASSWORDS_DO_NOT_MATCH: "兩次輸入的密碼不一致",
+  PASSWORD_TOO_SHORT: "密碼至少需要 8 個字元",
+  PASSWORD_TOO_LONG: "密碼長度超過限制",
+  INVALID_PASSWORD: "密碼格式不正確",
+
+  EMAIL_VERIFICATION: "驗證電子郵件",
+  EMAIL_VERIFICATION_DESCRIPTION: "請查看信箱並完成電子郵件驗證。",
+  EMAIL_VERIFICATION_SUCCESS: "電子郵件驗證成功。",
+  INVALID_TOKEN: "連結無效或已過期，請重新申請。",
+  VERIFICATION_FAILED: "驗證失敗，請重新嘗試。",
+  REQUEST_FAILED: "操作失敗，請稍後再試。",
+  TOO_MANY_ATTEMPTS: "嘗試次數過多，請稍後再試。",
+  SERVICE_UNAVAILABLE: "服務暫時無法使用，請稍後再試。",
+  UNEXPECTED_ERROR: "發生未預期的錯誤，請稍後再試。",
+  UNKNOWN_ERROR: "發生錯誤，請稍後再試。",
 } satisfies AuthLocalization;
 
 const neonAuthViewClassNames = {

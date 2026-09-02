@@ -32,6 +32,16 @@
   box-sizing: border-box;
 }
 
+::selection {
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+::-moz-selection {
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
 body {
   margin: 0;
   min-width: 320px;
