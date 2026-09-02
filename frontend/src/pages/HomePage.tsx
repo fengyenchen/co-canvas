@@ -677,10 +677,10 @@ export function HomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-canvas px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-5xl">
-        <header className="flex flex-col gap-5 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-start gap-4">
+    <main className="min-h-screen bg-canvas px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl">
+        <header className="flex flex-col gap-4 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+          <div className="flex shrink-0 items-start gap-4">
             <img
               src={coCanvasMark}
               alt=""
@@ -692,50 +692,55 @@ export function HomePage() {
               <h1 className="text-3xl font-semibold text-foreground">
                 專案
               </h1>
-              <p className="mt-2 text-foreground/60">
+              <p className="mt-2 max-w-xl leading-7 text-foreground/60 lg:max-w-64 xl:max-w-sm">
                 選擇一個專案，繼續整理你的思考脈絡。
               </p>
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <nav
+            aria-label="專案頁功能"
+            className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap lg:flex-nowrap lg:items-center lg:justify-end"
+          >
+            {isAuthLoading ? (
+              <span
+                role="status"
+                className="inline-flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground/50 shadow-sm lg:w-auto"
+              >
+                確認登入中…
+              </span>
+            ) : authUserEmail ? (
+              <span
+                title={authUserEmail}
+                className="inline-flex min-h-11 w-full min-w-0 items-center justify-center rounded-lg border border-border bg-background px-3 py-2 text-center text-sm text-foreground/65 shadow-sm lg:w-auto lg:max-w-48"
+              >
+                <span className="truncate">{authUserEmail}</span>
+              </span>
+            ) : null}
             <Link
               to="/"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 xl:px-4"
             >
               首頁
             </Link>
             <Link
               to="/projects/local"
-              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 xl:px-4"
             >
-              開啟本機畫布
+              本機畫布
             </Link>
-            {isAuthLoading ? (
-              <span
-                role="status"
-                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground/50 shadow-sm"
-              >
-                確認登入中…
-              </span>
-            ) : authUserEmail ? (
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                <span
-                  title={authUserEmail}
-                  className="inline-flex min-h-11 w-full min-w-0 max-w-none items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground/65 shadow-sm sm:w-auto sm:max-w-48 sm:justify-start"
-                >
-                  <span className="truncate">{authUserEmail}</span>
-                </span>
+            {authUserEmail && (
+              <>
                 <button
                   type="button"
                   onClick={() => void openAiSettingsDialog()}
-                  className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  className="min-h-11 cursor-pointer whitespace-nowrap rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 xl:px-4"
                 >
                   AI 設定
                 </button>
                 <Link
                   to="/account/security"
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 xl:px-4"
                 >
                   帳號安全
                 </Link>
@@ -743,20 +748,21 @@ export function HomePage() {
                   type="button"
                   disabled={isSigningOut}
                   onClick={() => void handleSignOut()}
-                  className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-11 cursor-pointer whitespace-nowrap rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50 xl:px-4"
                 >
                   {isSigningOut ? '登出中…' : '登出'}
                 </button>
-              </div>
-            ) : (
+              </>
+            )}
+            {!isAuthLoading && !authUserEmail && (
               <Link
                 to="/auth/sign-in"
-                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 xl:px-4"
               >
                 登入
               </Link>
             )}
-          </div>
+          </nav>
         </header>
 
         <section className="py-8" aria-labelledby="project-list-title">
@@ -997,7 +1003,9 @@ export function HomePage() {
                 {visibleProjects.map((project) => (
                   <li
                     key={project.id}
-                    className="relative rounded-xl border border-border bg-background shadow-sm transition hover:border-primary/30 hover:shadow-md"
+                    className={`relative rounded-xl border border-border bg-background shadow-sm transition hover:border-primary/30 hover:shadow-md ${
+                      openProjectMenuId === project.id ? 'z-30' : 'z-0'
+                    }`}
                   >
                     <Link
                       to={`/projects/${project.id}`}
@@ -1033,7 +1041,7 @@ export function HomePage() {
                     </Link>
 
                     <div
-                      className="absolute right-2 top-2 z-30"
+                      className="absolute right-2 top-2 z-10"
                       onKeyDown={(event) => {
                         if (event.key === 'Escape') {
                           setOpenProjectMenuId(null)
@@ -1064,7 +1072,7 @@ export function HomePage() {
                       </button>
 
                       {openProjectMenuId === project.id && (
-                      <div className="absolute right-0 top-full mt-1 w-48 overflow-hidden rounded-xl border border-border bg-background p-1 shadow-lg">
+                        <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-xl border border-border bg-background p-1 shadow-lg">
                         {project.accessRole !== 'viewer' && (
                           <button
                             type="button"
@@ -1150,7 +1158,7 @@ export function HomePage() {
                             </button>
                           </>
                         )}
-                      </div>
+                        </div>
                       )}
                     </div>
                   </li>

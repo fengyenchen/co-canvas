@@ -6,7 +6,13 @@ import {
   type AuthLocalization,
 } from '@neondatabase/neon-js/auth/react/ui'
 import '@neondatabase/neon-js/ui/css'
-import { CheckCircle2, LoaderCircle, MailWarning, ShieldCheck } from 'lucide-react'
+import {
+  CheckCircle2,
+  LoaderCircle,
+  MailWarning,
+  ShieldCheck,
+  X,
+} from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 import coCanvasMark from '../assets/branding/co-canvas-mark-primary.svg'
 import { authClient } from '../lib/auth'
@@ -91,6 +97,12 @@ type AccountUser = {
   emailVerified: boolean
 }
 
+type AccountNotification = {
+  message: string
+  requiresReauthentication: boolean
+  variant: 'error' | 'success' | 'info'
+}
+
 function AccountLink({ href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) {
   return <Link to={href ?? '/account/security'} {...props} />
 }
@@ -103,6 +115,39 @@ function getAccountErrorMessage(error: unknown) {
   return '操作失敗，請稍後再試。'
 }
 
+function getAccountNotification(
+  message: string | undefined,
+  variant: 'default' | 'success' | 'error' | 'info' | 'warning' = 'default',
+): AccountNotification {
+  const normalizedMessage = message?.trim().toLowerCase() ?? ''
+
+  if (
+    normalizedMessage.includes('session is not fresh') ||
+    normalizedMessage.includes('session not fresh')
+  ) {
+    return {
+      message: '為保護帳號安全，變更密碼前請先重新登入。',
+      requiresReauthentication: true,
+      variant: 'error',
+    }
+  }
+
+  if (normalizedMessage.includes('invalid password')) {
+    return {
+      message: '目前密碼不正確，請重新輸入。',
+      requiresReauthentication: false,
+      variant: 'error',
+    }
+  }
+
+  return {
+    message: message || '操作失敗，請稍後再試。',
+    requiresReauthentication: false,
+    variant:
+      variant === 'success' ? 'success' : variant === 'error' ? 'error' : 'info',
+  }
+}
+
 export function AccountPage() {
   const navigate = useNavigate()
   const [user, setUser] = useState<AccountUser | null>(null)
@@ -112,6 +157,9 @@ export function AccountPage() {
   const [sessionsRevision, setSessionsRevision] = useState(0)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [notification, setNotification] = useState<AccountNotification | null>(
+    null,
+  )
 
   useEffect(() => {
     let isCancelled = false
@@ -184,7 +232,7 @@ export function AccountPage() {
 
   return (
     <main className="account-page min-h-dvh bg-canvas px-4 py-6 text-foreground sm:px-6 lg:px-8 lg:py-10">
-      <div className="mx-auto w-full max-w-5xl">
+      <div className="mx-auto w-full max-w-4xl">
         <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <img src={coCanvasMark} alt="" className="size-12" />
@@ -228,6 +276,9 @@ export function AccountPage() {
             Link={AccountLink}
             localization={accountLocalizationZhTw}
             defaultTheme="light"
+            toast={({ message, variant }) =>
+              setNotification(getAccountNotification(message, variant))
+            }
           >
             <section className="mb-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
               <div className="rounded-2xl border border-border bg-background p-5 shadow-sm sm:p-6">
@@ -297,6 +348,41 @@ export function AccountPage() {
               hideNav
               classNames={accountViewClassNames}
             />
+
+            {notification && (
+              <div
+                role={notification.variant === 'error' ? 'alert' : 'status'}
+                className={`fixed bottom-5 left-4 right-4 z-50 mx-auto flex max-w-lg items-start gap-3 rounded-2xl border bg-background p-4 shadow-lg sm:left-auto sm:right-6 sm:mx-0 sm:min-w-96 ${
+                  notification.variant === 'error'
+                    ? 'border-red-200'
+                    : notification.variant === 'success'
+                      ? 'border-emerald-200'
+                      : 'border-border'
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm leading-6 text-foreground">
+                    {notification.message}
+                  </p>
+                  {notification.requiresReauthentication && (
+                    <Link
+                      to="/auth/sign-out?returnTo=%2Faccount%2Fsecurity"
+                      className="mt-2 inline-flex min-h-11 items-center font-medium text-primary underline decoration-primary/35 underline-offset-4 transition hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      重新登入
+                    </Link>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  aria-label="關閉提示"
+                  onClick={() => setNotification(null)}
+                  className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl text-foreground/55 transition hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  <X aria-hidden="true" className="size-4" />
+                </button>
+              </div>
+            )}
           </NeonAuthUIProvider>
         ) : errorMessage ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
