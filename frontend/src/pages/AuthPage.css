@@ -74,6 +74,14 @@
   border-radius: var(--neon-auth-input-radius);
 }
 
+.auth-password-input-wrap {
+  margin-top: var(--neon-auth-label-input-gap);
+}
+
+.auth-password-input-wrap .auth-credential-input {
+  margin-top: 0;
+}
+
 .auth-credential-actions {
   min-height: var(--neon-auth-actions-height);
 }
@@ -96,6 +104,14 @@
 .auth-credential-form--sign-up .auth-credential-input {
   min-height: var(--neon-auth-sign-up-input-height);
   margin-top: var(--neon-auth-sign-up-label-input-gap);
+}
+
+.auth-credential-form--sign-up .auth-password-input-wrap {
+  margin-top: var(--neon-auth-sign-up-label-input-gap);
+}
+
+.auth-credential-form--sign-up .auth-password-input-wrap .auth-credential-input {
+  margin-top: 0;
 }
 
 .auth-credential-switch--sign-up {

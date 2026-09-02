@@ -10,6 +10,8 @@ import "./AuthPage.css";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import authCanvasHero from "../assets/branding/auth-canvas-hero.png";
 import {
+  ForgotPasswordView,
+  ResetPasswordView,
   SignInView,
   SignUpView,
   VerifyEmailView,
@@ -156,6 +158,10 @@ export function AuthPage() {
                 <SignUpView returnTo={returnTo} />
               ) : authPath === "verify-email" ? (
                 <VerifyEmailView returnTo={returnTo} />
+              ) : authPath === "forgot-password" ? (
+                <ForgotPasswordView returnTo={returnTo} />
+              ) : authPath === "reset-password" ? (
+                <ResetPasswordView returnTo={returnTo} />
               ) : (
                 <AuthView
                   path={authPath as AuthViewPath}
