@@ -12,7 +12,7 @@ test('登入後進入雲端專案列表', async ({ page }) => {
   await page.goto('/auth/sign-in?returnTo=%2Fprojects')
 
   await page.getByLabel('電子郵件').fill('e2e@example.com')
-  await page.getByLabel('密碼').fill('e2e-password')
+  await page.getByLabel('密碼', { exact: true }).fill('e2e-password')
   await page.getByRole('button', { name: '登入', exact: true }).click()
 
   await expect(page).toHaveURL(/\/projects$/)
@@ -44,7 +44,7 @@ test('未驗證帳號登入時回到驗證等待頁', async ({ page }) => {
   await page.goto('/auth/sign-in?returnTo=%2Fprojects')
 
   await page.getByLabel('電子郵件').fill('unverified@example.com')
-  await page.getByLabel('密碼').fill('password123')
+  await page.getByLabel('密碼', { exact: true }).fill('password123')
   await page.getByRole('button', { name: '登入', exact: true }).click()
 
   await expect(page).toHaveURL(/\/auth\/verify-email\?/)
