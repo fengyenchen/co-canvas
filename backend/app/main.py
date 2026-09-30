@@ -3,7 +3,7 @@ import logging
 from collections.abc import Awaitable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Annotated, Literal, TypeVar
+from typing import Annotated, Callable, Literal, TypeVar
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -168,6 +168,7 @@ async def database_health():
 
 async def run_gemini(
     operation: Awaitable[ResponseT],
+    fallback: Callable[[], ResponseT] | None = None,
     timeout_seconds: float = 30,
 ) -> tuple[ResponseT, AiFallbackReason | None]:
     try:
@@ -190,6 +191,14 @@ async def run_gemini(
         ) from error
     except APIError as error:
         logger.warning("Gemini API error: %s", error.code)
+
+        if fallback is not None and error.code in (400, 401, 403, 429):
+            reason: AiFallbackReason = (
+                "quota_exceeded"
+                if error.code == 429
+                else "invalid_key"
+            )
+            return fallback(), reason
 
         if error.code in (400, 401, 403):
             raise HTTPException(
@@ -329,6 +338,7 @@ async def chat(
 
     response, fallback_reason = await run_gemini(
         chat_with_gemini(request, runtime.api_key, session),
+        fallback=lambda: chat_with_mock(request),
         timeout_seconds=(
             280
             if request.uploaded_video is not None
@@ -512,6 +522,7 @@ async def generate_suggestion(
 
     response, fallback_reason = await run_gemini(
         generate_with_gemini(request, runtime.api_key),
+        fallback=lambda: generate_with_mock(request),
     )
 
     if runtime.uses_user_key and user is not None:
