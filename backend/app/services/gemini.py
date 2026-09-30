@@ -34,6 +34,10 @@ from app.services.file_source import download_file_source
 
 logger = logging.getLogger("uvicorn.error")
 
+TRANSIENT_GEMINI_STATUS_CODES = {500, 502, 503, 504}
+MODEL_QUOTA_STATUS_CODE = 429
+GEMINI_RETRY_DELAY_SECONDS = 0.35
+
 
 SYSTEM_INSTRUCTION = """
 你是 Co-Canvas 的內容結構助手。
@@ -71,6 +75,56 @@ class GeminiUploadStartError(RuntimeError):
     def __init__(self, status_code: int, message: str):
         super().__init__(message)
         self.status_code = status_code
+
+
+async def generate_content_with_fallback(
+    client,
+    *,
+    primary_model: str,
+    fallback_model: str,
+    contents,
+    config: types.GenerateContentConfig,
+):
+    """Retry transient Gemini failures and stay on real Gemini models."""
+    models = [primary_model]
+    if fallback_model and fallback_model != primary_model:
+        models.append(fallback_model)
+
+    last_error: APIError | None = None
+    for model_index, model in enumerate(models):
+        for attempt in range(2):
+            try:
+                return await client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=config,
+                )
+            except APIError as error:
+                if error.code not in (
+                    TRANSIENT_GEMINI_STATUS_CODES | {MODEL_QUOTA_STATUS_CODE}
+                ):
+                    raise
+                last_error = error
+                logger.warning(
+                    "Gemini transient error: model=%s status=%s attempt=%s",
+                    model,
+                    error.code,
+                    attempt + 1,
+                )
+                if error.code == MODEL_QUOTA_STATUS_CODE:
+                    break
+                if attempt == 0:
+                    await asyncio.sleep(GEMINI_RETRY_DELAY_SECONDS)
+
+        if model_index + 1 < len(models):
+            logger.warning(
+                "Gemini primary model unavailable; trying fallback model=%s",
+                models[model_index + 1],
+            )
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Gemini model list is empty")
 
 
 async def start_gemini_resumable_upload(
@@ -179,8 +233,10 @@ async def validate_gemini_api_key(api_key: str) -> None:
     settings, resolved_api_key = load_settings(api_key)
 
     async with genai.Client(api_key=resolved_api_key).aio as client:
-        await client.models.generate_content(
-            model=settings.gemini_model,
+        await generate_content_with_fallback(
+            client,
+            primary_model=settings.gemini_model,
+            fallback_model=settings.gemini_fallback_model,
             contents="請只回覆 OK",
             config=types.GenerateContentConfig(
                 max_output_tokens=2,
@@ -550,9 +606,12 @@ async def chat_with_gemini(
             uploaded_attachment_part is not None,
             request.uploaded_video is not None,
         )
-        response = await client.models.generate_content(
-            model=settings.gemini_model,
+        response = await generate_content_with_fallback(
+            client,
+            primary_model=settings.gemini_model,
+            fallback_model=settings.gemini_fallback_model,
             contents=types.Content(
+                role="user",
                 parts=build_chat_parts(
                     request,
                     history,
@@ -579,8 +638,10 @@ async def generate_with_gemini(
     async with genai.Client(
         api_key=resolved_api_key,
     ).aio as client:
-        response = await client.models.generate_content(
-            model=settings.gemini_model,
+        response = await generate_content_with_fallback(
+            client,
+            primary_model=settings.gemini_model,
+            fallback_model=settings.gemini_fallback_model,
             contents=(
                 "請根據以下畫布上下文產生節點建議：\n"
                 f"{request.model_dump_json(by_alias=True)}"

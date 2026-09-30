@@ -10,6 +10,7 @@ from app.services.gemini import (
     GeminiUploadStartError,
     build_chat_parts,
     forward_gemini_upload_chunk,
+    generate_content_with_fallback,
     upload_chat_video_clip,
     upload_chat_file,
 )
@@ -328,3 +329,115 @@ def test_accepts_group_context_with_members_and_relations() -> None:
     assert context.node_type == "group"
     assert context.group_members[0].title == "關鍵發現"
     assert context.group_relations[0].label == "支持"
+
+
+@pytest.mark.anyio
+async def test_retries_transient_gemini_error(monkeypatch) -> None:
+    class FakeApiError(Exception):
+        def __init__(self, code: int):
+            self.code = code
+
+    generate_content = AsyncMock(
+        side_effect=[FakeApiError(503), SimpleNamespace(text="ok")]
+    )
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    monkeypatch.setattr("app.services.gemini.APIError", FakeApiError)
+    monkeypatch.setattr("app.services.gemini.GEMINI_RETRY_DELAY_SECONDS", 0)
+
+    response = await generate_content_with_fallback(
+        client,
+        primary_model="gemini-primary",
+        fallback_model="gemini-fallback",
+        contents="prompt",
+        config=SimpleNamespace(),
+    )
+
+    assert response.text == "ok"
+    assert [call.kwargs["model"] for call in generate_content.await_args_list] == [
+        "gemini-primary",
+        "gemini-primary",
+    ]
+
+
+@pytest.mark.anyio
+async def test_uses_second_gemini_model_after_retries(monkeypatch) -> None:
+    class FakeApiError(Exception):
+        def __init__(self, code: int):
+            self.code = code
+
+    generate_content = AsyncMock(
+        side_effect=[
+            FakeApiError(503),
+            FakeApiError(503),
+            SimpleNamespace(text="fallback ok"),
+        ]
+    )
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    monkeypatch.setattr("app.services.gemini.APIError", FakeApiError)
+    monkeypatch.setattr("app.services.gemini.GEMINI_RETRY_DELAY_SECONDS", 0)
+
+    response = await generate_content_with_fallback(
+        client,
+        primary_model="gemini-primary",
+        fallback_model="gemini-fallback",
+        contents="prompt",
+        config=SimpleNamespace(),
+    )
+
+    assert response.text == "fallback ok"
+    assert [call.kwargs["model"] for call in generate_content.await_args_list] == [
+        "gemini-primary",
+        "gemini-primary",
+        "gemini-fallback",
+    ]
+
+
+@pytest.mark.anyio
+async def test_does_not_retry_non_transient_gemini_error(monkeypatch) -> None:
+    class FakeApiError(Exception):
+        def __init__(self, code: int):
+            self.code = code
+
+    generate_content = AsyncMock(side_effect=FakeApiError(401))
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    monkeypatch.setattr("app.services.gemini.APIError", FakeApiError)
+
+    with pytest.raises(FakeApiError):
+        await generate_content_with_fallback(
+            client,
+            primary_model="gemini-primary",
+            fallback_model="gemini-fallback",
+            contents="prompt",
+            config=SimpleNamespace(),
+        )
+
+    assert generate_content.await_count == 1
+
+
+@pytest.mark.anyio
+async def test_uses_second_gemini_model_when_primary_quota_is_exhausted(
+    monkeypatch,
+) -> None:
+    class FakeApiError(Exception):
+        def __init__(self, code: int):
+            self.code = code
+
+    generate_content = AsyncMock(
+        side_effect=[FakeApiError(429), SimpleNamespace(text="fallback ok")]
+    )
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    monkeypatch.setattr("app.services.gemini.APIError", FakeApiError)
+
+    response = await generate_content_with_fallback(
+        client,
+        primary_model="gemini-primary",
+        fallback_model="gemini-fallback",
+        contents="prompt",
+        config=SimpleNamespace(),
+    )
+
+    assert response.text == "fallback ok"
+    assert [call.kwargs["model"] for call in generate_content.await_args_list] == [
+        "gemini-primary",
+        "gemini-fallback",
+    ]

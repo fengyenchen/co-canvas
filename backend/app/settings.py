@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     ai_mode: Literal["mock", "gemini"] = "gemini"
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.6-flash"
+    gemini_fallback_model: str = "gemini-3.5-flash-lite"
     ai_credential_encryption_key: SecretStr | None = None
     database_url: SecretStr | None = None
     database_migration_url: SecretStr | None = None
